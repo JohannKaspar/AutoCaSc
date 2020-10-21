@@ -1,5 +1,7 @@
+import pickle
+
 import pandas as pd
-from tools import add_categories, rank_genes, lin_rank, negative_product
+from AutoCaSc_core.tools import add_categories, rank_genes, lin_rank, negative_product
 from scipy.stats import spearmanr, mannwhitneyu
 import psutil  # used for counting CPUs
 import random
@@ -12,13 +14,15 @@ import shutil
 import gzip
 import requests
 from io import StringIO
+import ray
 
-
+ray.init(object_store_memory=100*(10**9))
+random.seed(42)
 # ToDo automatisches Downloaden der Dateien wäre cool,
 # ToDo pubtator central rohdaten prozessierung
 
-# ROOT_DIR = "/home/johann/AutoCaSc_core/data/"
-ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 sysid_primary = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv",
                             usecols=["Entrez id", "Ensembl id"])
@@ -26,8 +30,22 @@ sysid_primary.columns = ["entrez_id", "ensemble_id"]
 sysid_candidates = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv",
                                usecols=["Entrez id", "Ensembl id"])
 sysid_candidates.columns = ["entrez_id", "ensemble_id"]
-princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["gene id"].to_list()
+princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
+sysid_primary_gene_symbols = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv", usecols=["Gene symbol"])[
+    "Gene symbol"].to_list()
+sysid_candidates_gene_symbols = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv", usecols=["Gene symbol"])[
+    "Gene symbol"].to_list()
 
+morbid_gene_symbols_list = list(set(pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
+                                                "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()) -
+                                set(sysid_primary_gene_symbols + sysid_candidates_gene_symbols))
+all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
+                           usecols=["entrez_id", "gene_symbol"], sep="\t",
+                           dtype={"entrez_id": "Int32", "gene_symbol": str})
+morbid_genes = all_genes_df.loc[all_genes_df.gene_symbol.isin(morbid_gene_symbols_list)]["entrez_id"].to_list()
+# negative_gene_list = princeton_negative
+negative_gene_list = random.sample(morbid_genes, round(0.8 * len(morbid_genes)))
+del all_genes_df, morbid_gene_symbols_list
 
 def HGNC():
     r = requests.get(
@@ -571,7 +589,6 @@ class Disgenet:
 
         gene_scores.to_csv(ROOT_DIR + "disgenet/disgenet_gene_scores.csv", index=False)
 
-
 def matrix_helper(mapped_parameter):
     """This is the helper function for parallel processing of matrix chunks.
     """
@@ -703,6 +720,7 @@ def process_diseases_helper(param_tuple):
     df_chunk.to_csv(ROOT_DIR + f"pubtator_central/temp/disease_chunk_{process_id}.csv", index=False)
 
 
+
 class PubtatorCentral:
     """This class handles PubtatorCentral data.
     """
@@ -763,9 +781,10 @@ class PubtatorCentral:
             self.gene_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_df_processed.csv")
             self.gene_disease_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
                                                index_col=False,
-                                               # nrows=10000000,
+                                               # nrows=1000000,
                                                dtype={"gene_id": "uint32", "pmid": "uint32", "mesh_term": "category"})
 
+        self.create_pmid_lists()
         # self.bootstrap()
         # self.calculate_mesh_ratios()
         # self.calculate_empirical_p()
@@ -854,9 +873,34 @@ class PubtatorCentral:
 
         print("preprocessing done")
 
-    def create_matrix(self):
-        """This method converts the raw data into a matrix, where rows are genes and columns are mesh_terms and the
-        cells are lists of pmids containing both gene_id and mesh_term. This matrix is then used to do bootstrapping."""
+    @ray.remote
+    def group_df_helper(self, gene_list_chunk):
+        temp = self.gene_disease_df[self.gene_disease_df.gene_id.isin(gene_list_chunk)]
+        temp = temp.groupby(['gene_id', 'mesh_term']).size().reset_index(name="count")
+        temp = temp.loc[temp["count"] != 0]
+        return  temp
+
+    def create_pmid_lists(self):
+        num_gene_splits = 300
+        gene_list = list(self.gene_disease_df.gene_id.unique())
+        df = self.gene_disease_df[['gene_id', 'mesh_term']]
+        gene_list = list(self.gene_disease_df.gene_id.unique())
+        gene_list_chunks = [gene_list[round(i * len(gene_list) / num_gene_splits):
+                                      round((i + 1) * len(gene_list) / num_gene_splits)] for i in
+                            range(num_gene_splits)]
+        results_df = pd.DataFrame()
+        df_iterator = [self.group_df_helper.remote(self, gene_lists_chunk) for gene_lists_chunk in gene_list_chunks]
+
+        for df_chunk in ray.get(df_iterator):
+            results_df = pd.concat([results_df, df_chunk])
+
+        with open(ROOT_DIR + "pubtator_central/gene_mesh_count.pickle", "wb") as pickle_file:
+            pickle.dump(results_df, pickle_file)
+
+        print("done")
+
+
+    def create_pmid_lists_delete(self):
         MATRIX_CORES = 15  # using all cores would exhaust memory
 
         # splitting dataframe, so the parts fit into the memory
@@ -865,14 +909,9 @@ class PubtatorCentral:
                                       round((i + 1) * len(gene_list) / self.num_splits)] for i in
                             range(self.num_splits)]
 
-        print("creating temporary data splits")
-        for i, gene_list_chunk in enumerate(gene_list_chunks):
-            self.gene_disease_df.loc[self.gene_disease_df.gene_id.isin(gene_list_chunk)].to_csv(
-                ROOT_DIR + f"pubtator_central/matrix/temp/df_chunks/df_chunk_{i}.csv", index=False)
-            self.gene_disease_df = self.gene_disease_df.loc[self.gene_disease_df.gene_id.isin(gene_list_chunk) == False]
-
         # loads part by part and parallel processes each part on n_cores cores
         df_chunks = os.listdir(ROOT_DIR + "pubtator_central/matrix/temp/df_chunks/")
+
         for i, chunk_name in enumerate(df_chunks):
             print(f"chunk {i + 1} of {len(df_chunks)}")
             self.df_chunk = pd.read_csv(ROOT_DIR + f"pubtator_central/matrix/temp/df_chunks/{chunk_name}",
@@ -899,6 +938,52 @@ class PubtatorCentral:
             del matrix_chunk
         print("matrix created...")
         # self.matrix.to_csv(ROOT_DIR + "pubtator_central/matrix/matrix.csv", index=False)
+
+    # def create_matrix(self):
+    #     """This method converts the raw data into a matrix, where rows are genes and columns are mesh_terms and the
+    #     cells are lists of pmids containing both gene_id and mesh_term. This matrix is then used to do bootstrapping."""
+    #     MATRIX_CORES = 15  # using all cores would exhaust memory
+    #
+    #     # splitting dataframe, so the parts fit into the memory
+    #     gene_list = list(self.gene_disease_df.gene_id.unique())
+    #     gene_list_chunks = [gene_list[round(i * len(gene_list) / self.num_splits):
+    #                                   round((i + 1) * len(gene_list) / self.num_splits)] for i in
+    #                         range(self.num_splits)]
+    #
+    #     print("creating temporary data splits")
+    #     for i, gene_list_chunk in enumerate(gene_list_chunks):
+    #         self.gene_disease_df.loc[self.gene_disease_df.gene_id.isin(gene_list_chunk)].to_csv(
+    #             ROOT_DIR + f"pubtator_central/matrix/temp/df_chunks/df_chunk_{i}.csv", index=False)
+    #         self.gene_disease_df = self.gene_disease_df.loc[self.gene_disease_df.gene_id.isin(gene_list_chunk) == False]
+    #
+    #     # loads part by part and parallel processes each part on n_cores cores
+    #     df_chunks = os.listdir(ROOT_DIR + "pubtator_central/matrix/temp/df_chunks/")
+    #     for i, chunk_name in enumerate(df_chunks):
+    #         print(f"chunk {i + 1} of {len(df_chunks)}")
+    #         self.df_chunk = pd.read_csv(ROOT_DIR + f"pubtator_central/matrix/temp/df_chunks/{chunk_name}",
+    #                                     index_col=False)
+    #         gene_list = list(self.df_chunk.gene_id.unique())
+    #         gene_list_chunks = [
+    #             gene_list[round(i * len(gene_list) / MATRIX_CORES):round((i + 1) * len(gene_list) / MATRIX_CORES)] for i
+    #             in range(MATRIX_CORES)]
+    #         parameters_to_map = zip(gene_list_chunks, range(len(gene_list_chunks)),
+    #                                 [chunk_name] * len(gene_list_chunks))
+    #
+    #         print("initializing parallel processing")
+    #         with ProcessPoolExecutor() as executor:
+    #             executor.map(matrix_helper, parameters_to_map)
+    #
+    #         print("concatenating chunks...")
+    #         matrix_chunk = pd.DataFrame()
+    #         for matrix_split_chunk_name in os.listdir(ROOT_DIR + "pubtator_central/matrix/temp/matrix_chunks/"):
+    #             matrix_split_chunk = pd.read_csv(
+    #                 ROOT_DIR + f"pubtator_central/matrix/temp/matrix_chunks/{matrix_split_chunk_name}")
+    #             matrix_chunk = pd.concat([matrix_chunk, matrix_split_chunk])
+    #         self.matrix = pd.concat([self.matrix, matrix_chunk])
+    #         self.matrix.to_csv(ROOT_DIR + "pubtator_central/matrix/matrix.csv", index=False)
+    #         del matrix_chunk
+    #     print("matrix created...")
+    #     # self.matrix.to_csv(ROOT_DIR + "pubtator_central/matrix/matrix.csv", index=False)
 
     def bootstrap(self):
         self.matrix_columns = pd.read_csv(ROOT_DIR + "pubtator_central/matrix/matrix.csv", nrows=1).columns.to_list()
@@ -1106,10 +1191,10 @@ def update_data(n_cores=psutil.cpu_count()):
     # HGNC()
     # MGI(n_cores, download=True)
     # StringDB(n_cores)
-    PsyMuKB()
+    # PsyMuKB()
     # GTEx()
     # Disgenet(n_cores, download=True)
-    # PubtatorCentral(n_cores=38, download=True)
+    PubtatorCentral(n_cores=38, download=False)
     # fuse_data()
 
 
