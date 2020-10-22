@@ -4,10 +4,10 @@ import scipy
 import seaborn as sns
 from scipy import stats
 from statannot import add_stat_annotation
-from tools import add_categories
+from AutoCaSc_core.tools import add_categories
 import ptitprince as pt
 import matplotlib.patches as mpatches
-from sklearn.metrics import r2_score
+# from sklearn.metrics import r2_score
 
 pal = sns.color_palette(["#a8d0db", "#4062BB", "#FED766", "#a37a74"])
 sns.set_palette(pal)
@@ -154,16 +154,18 @@ def plot_gtex_all_sum(parameter="all_sum"):
 # global ROOT_DIR
 order = ["unknown", "negative control", "candidate", "known NDD"]
 
-ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-# ROOT_DIR = "/home/johann/AutoCaSc/data/"
+# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 sysid_primary_ensemble = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv", usecols=["Ensembl id"])["Ensembl id"].to_list()
 sysid_candidates_ensemble = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv", usecols=["Ensembl id"])["Ensembl id"].to_list()
-princeton_negative_ensemble = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["Gene stable ID"].to_list()
+princeton_negative_ensemble = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["ensemble_id"].to_list()
 
 sysid_primary_entrez = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv", usecols=["Entrez id"])["Entrez id"].to_list()
 sysid_candidates_entrez = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv", usecols=["Entrez id"])["Entrez id"].to_list()
-princeton_negative_entrez = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["gene id"].to_list()
+princeton_negative_entrez = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
+
+
 
 def plot_psymukb():
     denovo_df = pd.read_csv("/home/johann/AutoCaSc/data/psymukb/all_genes_denovo_NDD.csv")
@@ -304,10 +306,10 @@ def rain_disgenet():
 
 def plot_parameter_genescores():
     global all_gene_data
-    sns.set(style="ticks", font_scale=1)
+    sns.set(style="ticks", font_scale=0.4)
     fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 10), sharey=True, sharex=True, dpi=300)
     all_gene_data = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
-    all_gene_data = add_categories(all_gene_data, "entrez_id", "entrez")
+    all_gene_data = add_categories(all_gene_data, "entrez_id", "entrez", "morbid_genes")
     # gtex_data = gtex_data.loc[:4000]
 
     # axs[0, 0] = get_parameter_plot("gtex_score")
@@ -391,7 +393,7 @@ def plot_parameter_genescores():
     # ax.spines['top'].set_visible(False)
     # ax.spines['right'].set_visible(False)
     # ax.get_figure().savefig("/home/johann/AutoCaSc/manuscript/Fig 2/plots/disgenet.png")
-    plt.savefig("/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/Manuskript/Fig 2/gene_scores.png")
+    # plt.savefig("/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/Manuskript/Fig 2/gene_scores.png")
     plt.show()
 
 
