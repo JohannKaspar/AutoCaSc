@@ -726,12 +726,18 @@ def bootstrap_helper(process_id_list, df, gene_df):
     for i, process_id in enumerate(process_id_list):
         print(f"{i} of {len(process_id_list)}")
         random.seed(process_id)
-
         #ToDo sollte man auch Gene mit einbeziehen, über de gar nix publiziert wurde?
         pos_list = random.sample(list(gene_df.gene_id.unique()), len(positive_gene_list))
         neg_list = random.sample(list(set(list(gene_df.gene_id.unique())) - set(pos_list)), len(negative_gene_list))
 
-        ratio = calculate_mesh_ratios(pos_list, neg_list, df, gene_df)
+        if process_id_total_counts_dict.get(process_id):
+            pos_pmid_total, neg_pmid_total = process_id_total_counts_dict.get(process_id)
+        else:
+            pos_pmid_total = gene_df[gene_df.gene_id.isin(pos_list)].pmid.nunique()
+            neg_pmid_total = gene_df[gene_df.gene_id.isin(neg_list)].pmid.nunique()
+            process_id_total_counts_dict[process_id] = (pos_pmid_total, neg_pmid_total)
+
+        ratio = calculate_mesh_ratios(pos_list, neg_list, df, gene_df, pos_pmid_total, neg_pmid_total)
 
         ratio_list.append(ratio)
 
@@ -739,9 +745,10 @@ def bootstrap_helper(process_id_list, df, gene_df):
     del ratio_list
     return return_ratio_list
 
-def calculate_mesh_ratios(pos_list, neg_list, df, gene_df):
-    pos_pmid_total = gene_df[gene_df.gene_id.isin(pos_list)].pmid.nunique()
-    neg_pmid_total = gene_df[gene_df.gene_id.isin(neg_list)].pmid.nunique()
+def calculate_mesh_ratios(pos_list, neg_list, df, gene_df, pos_pmid_total=None, neg_pmid_total=None):
+    if not pos_pmid_total:
+        pos_pmid_total = gene_df[gene_df.gene_id.isin(pos_list)].pmid.nunique()
+        neg_pmid_total = gene_df[gene_df.gene_id.isin(neg_list)].pmid.nunique()
 
     pos_pmid_mesh_count = df.loc[df.gene_id.isin(pos_list)]["count"].sum(axis=0)
     neg_pmid_mesh_count = df.loc[df.gene_id.isin(neg_list)]["count"].sum(axis=0)
@@ -808,10 +815,10 @@ class PubtatorCentral:
                                                               downcast="unsigned")
             self.gene_disease_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
                                                index_col=False,
-                                               nrows=100000,
+                                               # nrows=100000,
                                                dtype={"gene_id": "uint32", "pmid": "uint32", "mesh_term": "category"})
 
-        #
+        self.create_pmid_lists()
         self.bootstrap()
         # self.calculate_mesh_ratios()
         # self.calculate_empirical_p()
@@ -923,7 +930,8 @@ class PubtatorCentral:
 
     def bootstrap(self):
         ray.init(num_cpus=self.n_cores)
-        # ray.init()
+        global process_id_total_counts_dict
+        process_id_total_counts_dict = {}
         with open(ROOT_DIR + "pubtator_central/gene_mesh_count.pickle", "rb") as pickle_file:
             self.gene_mesh_df = pickle.load(pickle_file)
             self.gene_mesh_df.loc[:, "gene_id"] = pd.to_numeric(self.gene_mesh_df.loc[:, "gene_id"],
@@ -957,22 +965,22 @@ class PubtatorCentral:
         self.ratio_pval_df.to_csv(ROOT_DIR + f"pubtator_central/bootstrap/mesh_p_values.csv", index=False)
         print("bootstrap done!!")
 
-    @ray.remote
-    def bootstrap_helper(self, process_id_list):
-        ratio_list = []
-        for process_id in process_id_list:
-            random.seed(process_id)
-
-            pos_list = random.sample(self.all_genes, len(positive_gene_list))
-            neg_list = random.sample(list(set(self.all_genes) - set(pos_list)), len(negative_gene_list))
-
-            ratio = self.calculate_mesh_ratios(pos_list, neg_list)
-
-            ratio_list.append(ratio)
-
-        return_ratio_list = ray.get(ratio_list)
-        del ratio_list
-        return return_ratio_list
+    # @ray.remote
+    # def bootstrap_helper(self, process_id_list):
+    #     ratio_list = []
+    #     for process_id in process_id_list:
+    #         random.seed(process_id)
+    #
+    #         pos_list = random.sample(self.all_genes, len(positive_gene_list))
+    #         neg_list = random.sample(list(set(self.all_genes) - set(pos_list)), len(negative_gene_list))
+    #
+    #         ratio = self.calculate_mesh_ratios(pos_list, neg_list)
+    #
+    #         ratio_list.append(ratio)
+    #
+    #     return_ratio_list = ray.get(ratio_list)
+    #     del ratio_list
+    #     return return_ratio_list
 
     def calculate_mesh_ratios(self, pos_list, neg_list):
         pos_pmid_total = self.gene_df[self.gene_df.gene_id.isin(pos_list)].pmid.nunique()
@@ -1059,7 +1067,7 @@ def update_data(n_cores=psutil.cpu_count()):
     # PsyMuKB()
     # GTEx()
     # Disgenet(n_cores, download=True)
-    PubtatorCentral(n_cores=40, download=False)
+    PubtatorCentral(n_cores=46, download=False)
     # fuse_data()
 
 
