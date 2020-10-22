@@ -16,7 +16,7 @@ import requests
 from io import StringIO
 import ray
 
-ray.init(object_store_memory=100*(10**9))
+# ray.init(object_store_memory=30000000000)
 random.seed(42)
 # ToDo automatisches Downloaden der Dateien wäre cool,
 # ToDo pubtator central rohdaten prozessierung
@@ -878,21 +878,22 @@ class PubtatorCentral:
         temp = self.gene_disease_df[self.gene_disease_df.gene_id.isin(gene_list_chunk)]
         temp = temp.groupby(['gene_id', 'mesh_term']).size().reset_index(name="count")
         temp = temp.loc[temp["count"] != 0]
-        return  temp
+        # temp
 
     def create_pmid_lists(self):
-        num_gene_splits = 300
+        num_gene_splits = 250
         gene_list = list(self.gene_disease_df.gene_id.unique())
         df = self.gene_disease_df[['gene_id', 'mesh_term']]
         gene_list = list(self.gene_disease_df.gene_id.unique())
         gene_list_chunks = [gene_list[round(i * len(gene_list) / num_gene_splits):
                                       round((i + 1) * len(gene_list) / num_gene_splits)] for i in
                             range(num_gene_splits)]
-        results_df = pd.DataFrame()
-        df_iterator = [self.group_df_helper.remote(self, gene_lists_chunk) for gene_lists_chunk in gene_list_chunks]
-
-        for df_chunk in ray.get(df_iterator):
-            results_df = pd.concat([results_df, df_chunk])
+        results_df = self.gene_disease_df.groupby(['gene_id', 'mesh_term']).size().reset_index(name="count")
+        results_df = results_df.loc[results_df["count"] != 0]
+        # [self.group_df_helper.remote(self, gene_lists_chunk) for gene_lists_chunk in gene_list_chunks]
+        #
+        # for df_chunk in ray.get(df_iterator):
+        #     results_df = pd.concat([results_df, df_chunk])
 
         with open(ROOT_DIR + "pubtator_central/gene_mesh_count.pickle", "wb") as pickle_file:
             pickle.dump(results_df, pickle_file)
