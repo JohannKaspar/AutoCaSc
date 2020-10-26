@@ -16,13 +16,11 @@ import requests
 from io import StringIO
 import ray
 
-
-random.seed(42)
-# ToDo automatisches Downloaden der Dateien wäre cool,
-# ToDo pubtator central rohdaten prozessierung
+validation_run = True
+if validation_run:
+    random.seed(42)
 
 ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 sysid_primary = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv",
                             usecols=["Entrez id", "Ensembl id"])
@@ -32,21 +30,33 @@ sysid_candidates = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv",
 sysid_candidates.columns = ["entrez_id", "ensemble_id"]
 princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
 
-sysid_primary_gene_symbols = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv", usecols=["Gene symbol"])[
-    "Gene symbol"].to_list()
-sysid_candidates_gene_symbols = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv", usecols=["Gene symbol"])[
-    "Gene symbol"].to_list()
-morbid_gene_symbols_list = list(set(pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
-                                                "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()) -
-                                set(sysid_primary_gene_symbols + sysid_candidates_gene_symbols))
+
+morbid_gene_symbols_list = pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
+                                       "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()
 all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
                            usecols=["entrez_id", "gene_symbol"], sep="\t",
                            dtype={"entrez_id": "Int32", "gene_symbol": str})
 morbid_genes = all_genes_df.loc[all_genes_df.gene_symbol.isin(morbid_gene_symbols_list)]["entrez_id"].dropna().to_list()
-# negative_gene_list = princeton_negative
-negative_gene_list = random.sample(morbid_genes, round(0.8 * len(morbid_genes)))
-positive_gene_list = random.sample(sysid_primary.entrez_id.to_list(), round(0.8 * len(sysid_primary)))
-del all_genes_df, morbid_gene_symbols_list
+panel_app_genes = pd.read_csv(ROOT_DIR + "Intellectual disability.tsv", sep="\t", usecols=["HGNC"])["HGNC"].to_list()
+panel_app_genes = [int(x.strip("HGNC:")) for x in panel_app_genes if type(x) == str]
+g2p_dd_list = pd.read_csv(ROOT_DIR + "DDG2P_26_10_2020.csv",
+                          usecols=["hgnc id"],
+                          dtype={"hgnc id":"Int32"})
+g2p_dd_list = g2p_dd_list["hgnc id"].to_list()
+negative_gene_list = list(set(morbid_genes) - set(panel_app_genes)
+                          - set(sysid_primary.entrez_id.to_list() + sysid_candidates.entrez_id.to_list())
+                          - set(g2p_dd_list))
+
+if validation_run:
+    negative_gene_list = random.sample(negative_gene_list, round(0.8 * len(negative_gene_list)))
+    rows_id = random.sample(range(0, len(sysid_primary)), round(0.8 * len(sysid_primary)))
+    sysid_primary = sysid_primary.loc[rows_id, :].reset_index(drop=True)
+    rows_id = random.sample(range(len(sysid_candidates)), round(0.8 * len(sysid_candidates)))
+    sysid_candidates = sysid_candidates.loc[rows_id, :].reset_index(drop=True)
+    del rows_id
+del all_genes_df, morbid_gene_symbols_list, validation_run, morbid_genes, panel_app_genes, g2p_dd_list,\
+    princeton_negative
+
 
 def HGNC():
     r = requests.get(
@@ -56,46 +66,47 @@ def HGNC():
                                  sep="\t",
                                  header=0,
                                  names=["hgnc_id", "gene_symbol", "refseq_id", "entrez_id", "ensemble_id"])
-        if os.path.isfile("/home/johann/AutoCaSc_core/data/hgnc_protein_coding.tsv"):
-            os.rename("/home/johann/AutoCaSc_core/data/hgnc_protein_coding.tsv",
-                      "/home/johann/AutoCaSc_core/data/hgnc_protein_coding.tsv_old")
-        hgnc_table.to_csv("/home/johann/AutoCaSc_core/data/hgnc_protein_coding.tsv",
+        if os.path.isfile(ROOT_DIR + "hgnc_protein_coding.tsv"):
+            os.rename(ROOT_DIR + "hgnc_protein_coding.tsv",
+                      ROOT_DIR + "hgnc_protein_coding.tsv_old")
+        hgnc_table.to_csv(ROOT_DIR + "hgnc_protein_coding.tsv",
                           sep="\t",
                           index=False)
     else:
         print("Could not load HGNC data! Using old data instead.")
 
+
 def fuse_data():
-    all_genes = pd.read_csv("/home/johann/AutoCaSc_core/data/hgnc_protein_coding.tsv",
+    all_genes = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv",
                             sep="\t",
                             usecols=["entrez_id", "ensemble_id"])
 
-    gtex = pd.read_csv("/home/johann/AutoCaSc_core/data/gtex/gene_scores.csv", usecols=["ensemble_id", "rank_score"])
+    gtex = pd.read_csv(ROOT_DIR + "gtex/gene_scores.csv", usecols=["ensemble_id", "rank_score"])
     gtex.columns = ["ensemble_id", "gtex_score"]
 
-    denovo = pd.read_csv("/home/johann/AutoCaSc_core/data/psymukb/all_genes_denovo_NDD.csv",
+    denovo = pd.read_csv(ROOT_DIR + "psymukb/all_genes_denovo_NDD.csv",
                          usecols=["entrez_id", "rank_score"])
     denovo.columns = ["entrez_id", "denovo_rank_score"]
 
-    disgenet = pd.read_csv("/home/johann/AutoCaSc_core/data/disgenet/disgenet_gene_scores.csv",
+    disgenet = pd.read_csv(ROOT_DIR + "disgenet/disgenet_gene_scores.csv",
                            usecols=["entrez_id", "gene_score"])
     disgenet.columns = ["entrez_id", "disgenet_score"]
 
-    # mgi = pd.read_csv("/home/johann/AutoCaSc_core/data/mgi/gene_annoations.csv")
+    # mgi = pd.read_csv(ROOT_DIR + "mgi/gene_annoations.csv")
     # mgi.columns = ["entrez_id", "mgi_phenotypes", "mgi_neuro_behavioral"]
     # mgi = mgi[["entrez_id", "mgi_neuro_behavioral"]]
 
-    mgi = pd.read_csv("/home/johann/AutoCaSc_core/data/mgi/mgi_gene_scores.csv", usecols=["entrez_id", "rank_score"])
+    mgi = pd.read_csv(ROOT_DIR + "mgi/mgi_gene_scores.csv", usecols=["entrez_id", "rank_score"])
     mgi.columns = ["entrez_id", "mgi_score"]
 
-    pubtator = pd.read_csv("/home/johann/AutoCaSc_core/data/pubtator_central/gene_scores.csv",
+    pubtator = pd.read_csv(ROOT_DIR + "pubtator_central/gene_scores.csv",
                            usecols=["entrez_id", "gene_score"])
     pubtator.columns = ["entrez_id", "pubtator_score"]
 
-    string = pd.read_csv("/home/johann/AutoCaSc_core/data/string/gene_scores.csv", usecols=["gene_id", "gene_score"])
+    string = pd.read_csv(ROOT_DIR + "string/gene_scores.csv", usecols=["gene_id", "gene_score"])
     string.columns = ["ensemble_id", "string_score"]
 
-    gnomad = pd.read_csv("/home/johann/AutoCaSc_core/data/gnomad/gnomad.v2.1.1.lof_metrics.by_gene.txt.csv", sep="\t")
+    gnomad = pd.read_csv(ROOT_DIR + "gnomad/gnomad.v2.1.1.lof_metrics.by_gene.txt.csv", sep="\t")
     gnomad = gnomad[["gene_id", "pLI", "oe_lof",
                      "oe_lof_lower", "oe_lof_upper",
                      "oe_mis", "oe_mis_lower",
@@ -135,12 +146,12 @@ def fuse_data():
 
     all_data = all_data.sort_values(by="weighted_score", ascending=False).drop_duplicates(
         subset=["entrez_id", "ensemble_id"], keep="first")
-    all_data.to_csv("/home/johann/AutoCaSc_core/data/all_gene_data.csv", index=False)
+    all_data.to_csv(ROOT_DIR + "all_gene_data.csv", index=False)
 
 
 def update_gnomad_data():
-    all_genes = pd.read_csv("/home/johann/AutoCaSc_core/data/protein_gene_table.csv")
-    gnomad_data = pd.read_csv("/home/johann/AutoCaSc_core/data/gnomad/gnomad.v2.1.1.lof_metrics.by_gene.txt.csv",
+    all_genes = pd.read_csv(ROOT_DIR + "protein_gene_table.csv")
+    gnomad_data = pd.read_csv(ROOT_DIR + "gnomad/gnomad.v2.1.1.lof_metrics.by_gene.txt.csv",
                               sep="\t",
                               usecols=["transcript", "pLI", "oe_lof", "oe_lof_lower", "oe_lof_upper",
                                        "oe_mis", "oe_mis_lower", "oe_mis_upper", "mis_z"])
@@ -150,7 +161,7 @@ def update_gnomad_data():
     df = df.drop_duplicates(subset=["entrez_id"], keep="first")
     df = df.loc[~df.entrez_id.isnull()]
 
-    df.to_csv("/home/johann/AutoCaSc_core/data/gnomad/gnomad_data.csv", index=False)
+    df.to_csv(ROOT_DIR + "gnomad/gnomad_data.csv", index=False)
 
 
 class MGI:
@@ -161,16 +172,17 @@ class MGI:
 
     def __init__(self, n_cores=4, download=False):
         if download:
-            if os.path.isfile("/home/johann/AutoCaSc_core/data/mgi/HMD_HumanPhenotype.rpt"):
-                os.rename("/home/johann/AutoCaSc_core/data/mgi/HMD_HumanPhenotype.rpt",
-                          "/home/johann/AutoCaSc_core/data/mgi/HMD_HumanPhenotype_old.rpt")
+            if os.path.isfile(ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt"):
+                os.rename(ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt",
+                          ROOT_DIR + "mgi/HMD_HumanPhenotype_old.rpt")
             wget.download("http://www.informatics.jax.org/downloads/reports/HMD_HumanPhenotype.rpt",
-                               "/home/johann/AutoCaSc_core/data/mgi/HMD_HumanPhenotype.rpt")
-        self.entrez_mgi = pd.read_csv("/home/johann/AutoCaSc_core/data/mgi/HMD_HumanPhenotype.rpt", sep="\t",
-                                      usecols=[0, 1, 5])
+                          ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt")
+        self.entrez_mgi = pd.read_csv(ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt", sep="\t",
+                                      usecols=[0, 2, 5])
         self.entrez_mgi.columns = ["gene_symbol", "entrez_id", "mgi_id"]
         self.entrez_mgi.mgi_id = self.entrez_mgi.mgi_id.str.strip()
-        self.mgi_mp = pd.read_csv("/home/johann/AutoCaSc_core/data/mgi/MGI_PhenoGenoMP.rpt.txt", sep="\t", usecols=[3, 5])
+        self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.txt", sep="\t",
+                                  usecols=[3, 5])
         self.mgi_mp.columns = ["phenotype", "mgi_id"]
         self.df = self.entrez_mgi.merge(self.mgi_mp, on="mgi_id")
         self.n_cores = n_cores
@@ -180,11 +192,11 @@ class MGI:
         self.calculate_gene_scores()
 
     def generate_empricial_p_values(self):
-        self.observed_df = self.df.loc[self.df.entrez_id.isin(sysid_primary.entrez_id)].groupby(
+        self.observed_df = self.df.loc[self.df.entrez_id.isin(sysid_primary.entrez_id.to_list())].groupby(
             "phenotype").size().reset_index(
             name="count").sort_values(by="count", ascending=False)
 
-        # term_count_pos.to_csv("/home/johann/AutoCaSc_core/data/mgi/mp_count_observed.csv", index=False)
+        # term_count_pos.to_csv(ROOT_DIR + "mgi/mp_count_observed.csv", index=False)
 
         """
         This part performs bootstraps on the data to identify phenotypes specific to NDD-genes.
@@ -291,7 +303,7 @@ def evaluate_parameters(df, nomenclature, parameter, version):
     if nomenclature == "entrez_id":
         df["sys_primary"] = df.entrez_id.isin(sysid_primary.entrez_id).astype(int)
         df["sys_candidate"] = df.entrez_id.isin(sysid_candidates.entrez_id).astype(int)
-        df["sys"] = df.entrez_id.isin(sysid_primary.entrez_id.to_list() + sysid_candidates.entrez_id.to_list()).astype(
+        df["sys"] = df.entrez_id.isin(sysid_primary.entrez_id + sysid_candidates.entrez_id).astype(
             int)
     if nomenclature == "ensemble_id":
         df["sys_primary"] = df.ensemble_id.isin(sysid_primary.ensemble_id).astype(int)
@@ -312,16 +324,16 @@ class StringDB:
         # if download:
         #     r = requests.get("https://stringdb-static.org/download/protein.links.detailed.v11.0/9606.protein.links.detailed.v11.0.txt.gz", stream=True)
         #     if r.status_code == 200:
-        #         if os.path.isfile("/home/johann/AutoCaSc_core/data/string/9606.protein.links.detailed.v11.0.txt"):
-        #             os.rename("/home/johann/AutoCaSc_core/data/string/9606.protein.links.detailed.v11.0.txt",
-        #                       "/home/johann/AutoCaSc_core/data/string/9606.protein.links.detailed.v11.0.txt_old")
-        #         with open("/home/johann/AutoCaSc_core/data/string/9606.protein.links.detailed.v11.0.txt", 'wb') as f:
+        #         if os.path.isfile(ROOT_DIR + "string/9606.protein.links.detailed.v11.0.txt"):
+        #             os.rename(ROOT_DIR + "string/9606.protein.links.detailed.v11.0.txt",
+        #                       ROOT_DIR + "string/9606.protein.links.detailed.v11.0.txt_old")
+        #         with open(ROOT_DIR + "string/9606.protein.links.detailed.v11.0.txt", 'wb') as f:
         #             r.raw.decode_content = True  # just in case transport encoding was applied
         #             gzip_file = gzip.GzipFile(fileobj=r.raw)
         #             shutil.copyfileobj(gzip_file, f)
         #     else:
         #         print("Could not load StrinDB data! Using old data instead.")
-        self.string_data = pd.read_csv("/home/johann/AutoCaSc_core/data/string/9606.protein.links.detailed.v11.0.txt",
+        self.string_data = pd.read_csv(ROOT_DIR + "string/9606.protein.links.detailed.v11.0.txt",
                                        sep=" ",
                                        usecols=["protein1", "protein2", "combined_score"])
 
@@ -331,7 +343,7 @@ class StringDB:
             self.pg_table = pd.read_csv(StringIO(r.text), sep="\t", names=["ensemble_id", "protein_id"])
         else:
             print("Could not load biomart information from Ensebml BioMart! Using old data instead.")
-            self.pg_table = pd.read_csv("/home/johann/AutoCaSc_core/data/protein_gene_table.csv",
+            self.pg_table = pd.read_csv(ROOT_DIR + "protein_gene_table.csv",
                                         usecols=["ensemble_id", "protein_id"])
 
         # cleaning the protein IDs by deleting organism identifier
@@ -370,7 +382,7 @@ class StringDB:
 
         # sum_corrected_exp_07 was the best correction parameter of all investigated ones
         gene_scores_df = lin_rank(gene_scores_df, "sum_corrected_exp_07")
-        gene_scores_df.to_csv("/home/johann/AutoCaSc_core/data/string/gene_scores.csv", index=False)
+        gene_scores_df.to_csv(ROOT_DIR + "string/gene_scores.csv", index=False)
 
     def gene_score_helper(self, gene_chunk):
         """This is the helper function that is executed by the parallel processes.
@@ -408,7 +420,7 @@ class PsyMuKB:
             df = pd.read_csv(ROOT_DIR + "psymukb/MasterFile_allDNMs-codingLoc_v1.5.csv",
                              usecols=["EntrezID", "PrimaryPhenotype", "PubmedID", "ExonicFunc.refGene"])
 
-        all_genes = pd.read_csv("/home/johann/AutoCaSc_core/data/hgnc_protein_coding.tsv",
+        all_genes = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv",
                                 sep="\t",
                                 usecols=["entrez_id"]).drop_duplicates(subset=["entrez_id"])
 
@@ -436,7 +448,7 @@ class PsyMuKB:
         denovo_count.gene_id = denovo_count.loc[denovo_count.gene_id != "NA"].gene_id.astype(int)
         denovo_count = all_genes.merge(denovo_count, left_on="entrez_id", right_on="gene_id", how="left").fillna(0)
         denovo_count = rank_genes(denovo_count, "denovo_count")
-        denovo_count.to_csv("/home/johann/AutoCaSc_core/data/psymukb/all_genes_denovo_NDD.csv", index=False)
+        denovo_count.to_csv(ROOT_DIR + "psymukb/all_genes_denovo_NDD.csv", index=False)
 
 
 class GTEx:
@@ -448,7 +460,7 @@ class GTEx:
         gtex_data["ensemble_id"] = gtex_data.Name.apply(lambda x: x.split(".")[0])
         gtex_data = gtex_data.drop(columns=["Name"])
 
-        translation_df = pd.read_csv("/home/johann/AutoCaSc_core/data/hgnc_protein_coding.tsv", sep="\t")
+        translation_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", sep="\t")
         gtex_data = gtex_data.merge(translation_df[["entrez_id", "ensemble_id", "hgnc_id"]], on="ensemble_id")
 
         columns = gtex_data.columns
@@ -459,19 +471,20 @@ class GTEx:
         gtex_data = gtex_data[["ensemble_id", "entrez_id", "brain_sum"]]
 
         gtex_data = rank_genes(gtex_data, "brain_sum", 4)
-        gtex_data.to_csv("/home/johann/AutoCaSc_core/data/gtex/gene_scores.csv", index=False)
+        gtex_data.to_csv(ROOT_DIR + "gtex/gene_scores.csv", index=False)
 
 
 class Disgenet:
     def __init__(self, n_cores=4, download=False):
         if download:
-            r = requests.get("https://www.disgenet.org/static/disgenet_ap1/files/downloads/all_gene_disease_associations.tsv.gz",
-                             stream=True)
+            r = requests.get(
+                "https://www.disgenet.org/static/disgenet_ap1/files/downloads/all_gene_disease_associations.tsv.gz",
+                stream=True)
             if r.status_code == 200:
-                if os.path.isfile("/home/johann/AutoCaSc_core/data/disgenet/all_gene_disease_associations.tsv"):
-                    os.rename("/home/johann/AutoCaSc_core/data/disgenet/all_gene_disease_associations.tsv",
-                              "/home/johann/AutoCaSc_core/data/disgenet/all_gene_disease_associations.tsv_old")
-                with open("/home/johann/AutoCaSc_core/data/disgenet/all_gene_disease_associations.tsv", 'wb') as f:
+                if os.path.isfile(ROOT_DIR + "disgenet/all_gene_disease_associations.tsv"):
+                    os.rename(ROOT_DIR + "disgenet/all_gene_disease_associations.tsv",
+                              ROOT_DIR + "disgenet/all_gene_disease_associations.tsv_old")
+                with open(ROOT_DIR + "disgenet/all_gene_disease_associations.tsv", 'wb') as f:
                     r.raw.decode_content = True  # just in case transport encoding was applied
                     gzip_file = gzip.GzipFile(fileobj=r.raw)
                     shutil.copyfileobj(gzip_file, f)
@@ -479,7 +492,7 @@ class Disgenet:
                 print("Could not load Disgenet data! Using old data instead.")
 
         self.n_cores = n_cores
-        self.df = pd.read_csv("/home/johann/AutoCaSc_core/data/disgenet/all_gene_disease_associations.tsv", sep="\t",
+        self.df = pd.read_csv(ROOT_DIR + "disgenet/all_gene_disease_associations.tsv", sep="\t",
                               usecols=["geneId", "diseaseName", "diseaseClass", "score"])
         self.df = self.df.loc[self.df.diseaseClass.str.contains("C10|F03", na=False)]
         self.all_genes = list(self.df.geneId.unique())
@@ -489,11 +502,11 @@ class Disgenet:
         self.score_genes()
 
     def observe_term_ratio(self):
-        df_pos = self.df.loc[self.df.geneId.isin(sysid_primary.entrez_id.to_list())]
+        df_pos = self.df.loc[self.df.geneId.isin(sysid_primary.entrez_id)]
         observed_count_pos = df_pos.groupby("diseaseName").size().reset_index(name="count").sort_values(by="count",
                                                                                                         ascending=False)
 
-        df_neg = self.df.loc[self.df.geneId.isin(princeton_negative)]
+        df_neg = self.df.loc[self.df.geneId.isin(negative_gene_list)]
         observed_count_neg = df_neg.groupby("diseaseName").size().reset_index(name="count").sort_values(by="count",
                                                                                                         ascending=False)
 
@@ -541,7 +554,7 @@ class Disgenet:
             print(f"{n + 1} of {len(process_ids)}")
             random.seed(process)
             pos_list = random.sample(self.all_genes, len(sysid_primary))
-            neg_list = random.sample(set(self.all_genes) - set(pos_list), len(princeton_negative))
+            neg_list = random.sample(set(self.all_genes) - set(pos_list), len(negative_gene_list))
 
             df_pos = self.df.loc[self.df.geneId.isin(pos_list)]
             term_count_pos = df_pos.groupby("diseaseName").size().reset_index(name="count").sort_values(by="count",
@@ -589,6 +602,7 @@ class Disgenet:
         gene_scores.columns = ["entrez_id", "gene_score"]
 
         gene_scores.to_csv(ROOT_DIR + "disgenet/disgenet_gene_scores.csv", index=False)
+
 
 def matrix_helper(mapped_parameter):
     """This is the helper function for parallel processing of matrix chunks.
@@ -720,16 +734,17 @@ def process_diseases_helper(param_tuple):
 
     df_chunk.to_csv(ROOT_DIR + f"pubtator_central/temp/disease_chunk_{process_id}.csv", index=False)
 
+
 @ray.remote
 def bootstrap_helper(process_id_list, df, gene_df, process_id_total_counts_dict):
     ratio_list = []
     for i, process_id in enumerate(process_id_list):
         # print(f"{i} of {len(process_id_list)}")
         random.seed(process_id)
-        #ToDo sollte man auch Gene mit einbeziehen, über de gar nix publiziert wurde?
+        # ToDo sollte man auch Gene mit einbeziehen, über de gar nix publiziert wurde?
         # if process_id == 0:
         #     print(f"mark 0: {time.process_time()}")
-        pos_list = random.sample(list(gene_df.gene_id.unique()), len(positive_gene_list))
+        pos_list = random.sample(list(gene_df.gene_id.unique()), len(sysid_primary))
         neg_list = random.sample(list(set(list(gene_df.gene_id.unique())) - set(pos_list)), len(negative_gene_list))
         # if process_id == 0:
         #     print(f"mark 1: {time.process_time()}")
@@ -747,6 +762,7 @@ def bootstrap_helper(process_id_list, df, gene_df, process_id_total_counts_dict)
     # del ratio_list
     return ratio_list
 
+
 def calculate_mesh_ratios(pos_list, neg_list, df, pos_pmid_total, neg_pmid_total, process_id=1001):
     # if process_id == 0:
     #     print(f"mark 2: {time.process_time()}")
@@ -761,27 +777,31 @@ def calculate_mesh_ratios(pos_list, neg_list, df, pos_pmid_total, neg_pmid_total
     #     print(f"mark 4: {time.process_time()}")
     return ratio
 
+
 def create_pmid_lists_helper(df_chunk):
     results_chunk = df_chunk.groupby(['gene_id', 'mesh_term']).size().reset_index(name="count")
     results_chunk = results_chunk.loc[results_chunk["count"] != 0]
     return results_chunk
 
+
 @ray.remote
 def create_process_id_total_counts_dict(process_ids, gene_df):
     total_counts_dict_chunk = {}
     for i, process_id in enumerate(process_ids):
-        print(f"creating dict part {i+1} of {len(process_ids)}")
+        print(f"creating dict part {i + 1} of {len(process_ids)}")
         random.seed(process_id)
-        pos_list = random.sample(list(gene_df.gene_id.unique()), len(positive_gene_list))
+        pos_list = random.sample(list(gene_df.gene_id.unique()), len(sysid_primary))
         neg_list = random.sample(list(set(list(gene_df.gene_id.unique())) - set(pos_list)), len(negative_gene_list))
         pos_pmid_total = gene_df[gene_df.gene_id.isin(pos_list)].pmid.nunique()
         neg_pmid_total = gene_df[gene_df.gene_id.isin(neg_list)].pmid.nunique()
         total_counts_dict_chunk[process_id] = (pos_pmid_total, neg_pmid_total)
     return total_counts_dict_chunk
 
+
 class PubtatorCentral:
     """This class handles PubtatorCentral data.
     """
+
     def __init__(self, n_cores, download=True, n_bootstraps=1000):
         # self.bootstrap_cores = 40
         self.n_bootstraps = n_bootstraps
@@ -801,51 +821,48 @@ class PubtatorCentral:
         # self.ratio_pval_df = pd.DataFrame(columns=["pos_count", "neg_count", f"ratio_observed"])
 
         if download:
-            # if os.path.isfile(ROOT_DIR + "pubtator_central/gene2pubtatorcentral"):
-            #     os.rename(ROOT_DIR + "pubtator_central/gene2pubtatorcentral",
-            #               ROOT_DIR + "pubtator_central/gene2pubtatorcentral_old")
-            #     if os.path.isfile(ROOT_DIR + "pubtator_central/disease2pubtatorcentral"):
-            #         os.rename(ROOT_DIR + "pubtator_central/disease2pubtatorcentral",
-            #                   ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old")
-            # try:
-            #     wget.download("ftp://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/gene2pubtatorcentral.gz",
-            #                   ROOT_DIR + "pubtator_central/gene2pubtatorcentral.gz")
-            #     wget.download("ftp://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/disease2pubtatorcentral.gz",
-            #                   ROOT_DIR + "pubtator_central/disease2pubtatorcentral.gz")
-            #     with gzip.open(ROOT_DIR + "pubtator_central/gene2pubtatorcentral.gz", "rb") as f_in:
-            #         with open(ROOT_DIR + "pubtator_central/gene2pubtatorcentral", "wb") as f_out:
-            #             shutil.copyfileobj(f_in, f_out)
-            #     with gzip.open(ROOT_DIR + "pubtator_central/disease2pubtatorcentral.gz", "rb") as f_in:
-            #         with open(ROOT_DIR + "pubtator_central/disease2pubtatorcentral", "wb") as f_out:
-            #             shutil.copyfileobj(f_in, f_out)
-            # except (ValueError, TypeError, AttributeError):
-            #     print("Could not load Disgenet data! Using old data instead.")
-            #     if os.path.isfile(ROOT_DIR + "pubtator_central/gene2pubtatorcentral_old"):
-            #         os.rename(ROOT_DIR + "pubtator_central/gene2pubtatorcentral_old",
-            #                   ROOT_DIR + "pubtator_central/gene2pubtatorcentral")
-            #         if os.path.isfile(ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old"):
-            #             os.rename(ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old",
-            #                       ROOT_DIR + "pubtator_central/disease2pubtatorcentral")
+            if os.path.isfile(ROOT_DIR + "pubtator_central/gene2pubtatorcentral"):
+                os.rename(ROOT_DIR + "pubtator_central/gene2pubtatorcentral",
+                          ROOT_DIR + "pubtator_central/gene2pubtatorcentral_old")
+                if os.path.isfile(ROOT_DIR + "pubtator_central/disease2pubtatorcentral"):
+                    os.rename(ROOT_DIR + "pubtator_central/disease2pubtatorcentral",
+                              ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old")
+            try:
+                wget.download("ftp://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/gene2pubtatorcentral.gz",
+                              ROOT_DIR + "pubtator_central/gene2pubtatorcentral.gz")
+                wget.download("ftp://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/disease2pubtatorcentral.gz",
+                              ROOT_DIR + "pubtator_central/disease2pubtatorcentral.gz")
+                with gzip.open(ROOT_DIR + "pubtator_central/gene2pubtatorcentral.gz", "rb") as f_in:
+                    with open(ROOT_DIR + "pubtator_central/gene2pubtatorcentral", "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                with gzip.open(ROOT_DIR + "pubtator_central/disease2pubtatorcentral.gz", "rb") as f_in:
+                    with open(ROOT_DIR + "pubtator_central/disease2pubtatorcentral", "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+            except (ValueError, TypeError, AttributeError):
+                print("Could not load Disgenet data! Using old data instead.")
+                if os.path.isfile(ROOT_DIR + "pubtator_central/gene2pubtatorcentral_old"):
+                    os.rename(ROOT_DIR + "pubtator_central/gene2pubtatorcentral_old",
+                              ROOT_DIR + "pubtator_central/gene2pubtatorcentral")
+                    if os.path.isfile(ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old"):
+                        os.rename(ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old",
+                                  ROOT_DIR + "pubtator_central/disease2pubtatorcentral")
 
             self.preprocess_data()
             self.create_pmid_lists()
         else:
             self.gene_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_df_processed.csv")
             self.gene_df.loc[:, "gene_id"] = pd.to_numeric(self.gene_df.loc[:, "gene_id"],
-                                                                downcast="unsigned")
+                                                           downcast="unsigned")
             self.gene_df.loc[:, "pmid"] = pd.to_numeric(self.gene_df.loc[:, "pmid"],
-                                                              downcast="unsigned")
-            # self.gene_disease_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
-            #                                    index_col=False,
-            #                                    # nrows=100000,
-            #                                    dtype={"gene_id": "uint32", "pmid": "uint32", "mesh_term": "category"})
+                                                        downcast="unsigned")
+            self.gene_disease_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
+                                               index_col=False,
+                                               # nrows=100000,
+                                               dtype={"gene_id": "uint32", "pmid": "uint32", "mesh_term": "category"})
 
-        # self.create_pmid_lists()
         self.bootstrap()
-        # self.calculate_mesh_ratios()
-        # self.calculate_empirical_p()
-        # self.gene_scores_exp()
-        # self.lin_rank_genes()
+        self.gene_scores_exp()
+        self.lin_rank_genes()
 
     def preprocess_data(self):
         """This method needs two files: gene2pubtatorcentral and disease2pubtatorcentral. It first cleans the datasets
@@ -933,7 +950,7 @@ class PubtatorCentral:
         all_genes = list(self.gene_disease_df.gene_id.unique())
         # all_genes = all_genes[:400]
         n_splits = 6
-        gene_chunks = [all_genes[round(i * len(all_genes)/n_splits):round((i+1) * len(all_genes)/n_splits)]
+        gene_chunks = [all_genes[round(i * len(all_genes) / n_splits):round((i + 1) * len(all_genes) / n_splits)]
                        for i in range(n_splits)]
         df_chunks = [self.gene_disease_df.loc[self.gene_disease_df.gene_id.isin(gene_chunk)].reset_index(drop=True)
                      for gene_chunk in gene_chunks]
@@ -954,15 +971,15 @@ class PubtatorCentral:
             self.gene_mesh_df.loc[:, "gene_id"] = pd.to_numeric(self.gene_mesh_df.loc[:, "gene_id"],
                                                                 downcast="unsigned")
             self.gene_mesh_df.loc[:, "count"] = pd.to_numeric(self.gene_mesh_df.loc[:, "count"],
-                                                                downcast="unsigned")
+                                                              downcast="unsigned")
         gene_df = ray.put(self.gene_df)
         len_process_chunks = self.n_bootstraps / self.n_cores
         process_id_lists = [list(range(round(i * len_process_chunks),
-                                       round((i+1) * len_process_chunks))) for i in range(self.n_cores)]
+                                       round((i + 1) * len_process_chunks))) for i in range(self.n_cores)]
 
         if create_new_total_count_dict:
             create_total_dict_temp = ray.get([create_process_id_total_counts_dict.remote(process_ids, gene_df)
-                                      for process_ids in process_id_lists])
+                                              for process_ids in process_id_lists])
             process_id_total_counts_dict = {}
             [process_id_total_counts_dict.update(dict_chunk) for dict_chunk in create_total_dict_temp]
             with open(ROOT_DIR + "pubtator_central/process_id_total_counts_dict.pickle", "wb") as pickle_file:
@@ -975,16 +992,17 @@ class PubtatorCentral:
         mesh_pval_dict = {}
 
         mesh_terms_to_check = list(self.gene_mesh_df.loc[
-            self.gene_mesh_df.gene_id.isin(list(set(negative_gene_list + positive_gene_list)))].mesh_term.unique())
+                                       self.gene_mesh_df.gene_id.isin(
+                                           list(set(negative_gene_list + sysid_primary.entrez_id.to_list())))].mesh_term.unique())
 
-        pos_pmid_total_original = self.gene_df[self.gene_df.gene_id.isin(positive_gene_list)].pmid.nunique()
+        pos_pmid_total_original = self.gene_df[self.gene_df.gene_id.isin(sysid_primary.entrez_id)].pmid.nunique()
         neg_pmid_total_original = self.gene_df[self.gene_df.gene_id.isin(negative_gene_list)].pmid.nunique()
 
         for i, _mesh_term in enumerate(mesh_terms_to_check):
-            print(f"Processing {i+1} of {len(mesh_terms_to_check)}...")
+            print(f"Processing {i + 1} of {len(mesh_terms_to_check)}...")
             _mesh_df = self.gene_mesh_df.loc[self.gene_mesh_df.mesh_term == _mesh_term]
 
-            ratio_original = calculate_mesh_ratios(positive_gene_list, negative_gene_list,
+            ratio_original = calculate_mesh_ratios(sysid_primary.entrez_id.to_list(), negative_gene_list,
                                                    _mesh_df, pos_pmid_total_original, neg_pmid_total_original)
             # print(ratio_original)
             # ratio_original = ray.get(ratio_original_command)
@@ -1001,56 +1019,9 @@ class PubtatorCentral:
 
         self.ratio_pval_df = pd.DataFrame.from_dict(mesh_pval_dict, orient='index')
         self.ratio_pval_df.reset_index(inplace=True)
-        self.ratio_pval_df.columns = ["mesh_term", "empirical_p"]
+        self.ratio_pval_df.columns = ["mesh_term", "p_empirical"]
         self.ratio_pval_df.to_csv(ROOT_DIR + f"pubtator_central/bootstrap/mesh_p_values.csv", index=False)
         print("bootstrap done!!")
-
-    # @ray.remote
-    # def bootstrap_helper(self, process_id_list):
-    #     ratio_list = []
-    #     for process_id in process_id_list:
-    #         random.seed(process_id)
-    #
-    #         pos_list = random.sample(self.all_genes, len(positive_gene_list))
-    #         neg_list = random.sample(list(set(self.all_genes) - set(pos_list)), len(negative_gene_list))
-    #
-    #         ratio = self.calculate_mesh_ratios(pos_list, neg_list)
-    #
-    #         ratio_list.append(ratio)
-    #
-    #     return_ratio_list = ray.get(ratio_list)
-    #     del ratio_list
-    #     return return_ratio_list
-
-    # def calculate_mesh_ratios(self, pos_list, neg_list):
-    #     pos_pmid_total = self.gene_df[self.gene_df.gene_id.isin(pos_list)].pmid.nunique()
-    #     neg_pmid_total = self.gene_df[self.gene_df.gene_id.isin(neg_list)].pmid.nunique()
-    #
-    #     pos_pmid_mesh_count = self._mesh_df.loc[self._mesh_df.gene_id.isin(pos_list)]["count"].sum(axis=0)
-    #     neg_pmid_mesh_count = self._mesh_df.loc[self._mesh_df.gene_id.isin(neg_list)]["count"].sum(axis=0)
-    #
-    #     ratio = round((1.0 * pos_pmid_mesh_count / pos_pmid_total) /
-    #                   ((1.0 + neg_pmid_mesh_count) / neg_pmid_total), 4)
-    #     return ratio
-
-
-    # def calculate_empirical_p(self):
-    #     self.ratio_pval_df = pd.read_csv(ROOT_DIR + "pubtator_central/mesh_ratios_observed.csv")
-    #     self.bootstrap_ratio_df = pd.read_csv(ROOT_DIR + "pubtator_central/bootstrap/bootstrap_ratio_df.csv")
-    #     bootstraps = [f"ratio_{i}" for i in range(len(self.bootstrap_ratio_df.columns) - 1)]
-    #     for n, mesh_term in enumerate(self.bootstrap_ratio_df.mesh_term):
-    #         # n += 1
-    #         print(n)
-    #         count_equal_or_greater = \
-    #         self.bootstrap_ratio_df.loc[self.bootstrap_ratio_df.mesh_term == mesh_term][bootstraps].apply(
-    #             lambda x: x >=
-    #                       self.ratio_pval_df.loc[self.ratio_pval_df.mesh_term == mesh_term, "ratio_observed"].values[
-    #                           0]).sum(axis=1)[n]
-    #         self.ratio_pval_df.loc[
-    #             self.ratio_pval_df.mesh_term == mesh_term, "p_empirical"] = 1. * count_equal_or_greater / (
-    #                 len(self.bootstrap_ratio_df.columns) - 1)
-    #
-    #     self.ratio_pval_df.to_csv(ROOT_DIR + f"pubtator_central/bootstrap/mesh_p_values.csv", index=False)
 
     def gene_scores_exp(self):
         # in order to check if ratio_pval_df exists, otherwise load from data
@@ -1089,7 +1060,7 @@ class PubtatorCentral:
         self.gene_scores_df = add_categories(self.gene_scores_df, "entrez_id", "entrez")
 
         self.gene_scores_df = lin_rank(self.gene_scores_df, "pubtator_score")
-        self.gene_scores_df.to_csv("/home/johann/AutoCaSc_core/data/pubtator_central/gene_scores.csv", index=False)
+        self.gene_scores_df.to_csv(ROOT_DIR + "pubtator_central/gene_scores.csv", index=False)
 
 
 def update_data(n_cores=psutil.cpu_count()):
@@ -1102,20 +1073,18 @@ def update_data(n_cores=psutil.cpu_count()):
     :return:
     """
     # HGNC()
-    # MGI(n_cores, download=True)
+    # MGI(n_cores, download=False)
     # StringDB(n_cores)
     # PsyMuKB()
     # GTEx()
     # Disgenet(n_cores, download=True)
-    PubtatorCentral(n_cores=44, download=False)
-    # fuse_data()
+    PubtatorCentral(n_cores=48, download=False)
+    fuse_data()
 
 
-# fuse_data()
+if __name__ == "__main__":
+    update_data()
 
-# update_gnomad_data()
-update_data()
-# fuse_data()
 # for corr_exp in np.arange(0.3, 0.7, 0.05):
 #     for rnk_exp in np.arange(1.5, 3, 0.5):
 #         evaluate_parameters(MGI(10).calculate_gene_scores(corr_exp, rnk_exp), "entrez_id", "gene_score", (corr_exp, rnk_exp))
