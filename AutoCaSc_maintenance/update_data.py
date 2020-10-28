@@ -16,64 +16,31 @@ import requests
 from io import StringIO
 import ray
 
-validation_run = True
-if validation_run:
-    random.seed(42)
-
-ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-
-sysid_primary = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv",
-                            usecols=["Entrez id", "Ensembl id"])
-sysid_primary.columns = ["entrez_id", "ensemble_id"]
-sysid_candidates = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv",
-                               usecols=["Entrez id", "Ensembl id"])
-sysid_candidates.columns = ["entrez_id", "ensemble_id"]
-princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
-
-
-morbid_gene_symbols_list = pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
-                                       "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()
-all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
-                           usecols=["entrez_id", "gene_symbol"], sep="\t",
-                           dtype={"entrez_id": "Int32", "gene_symbol": str})
-morbid_genes = all_genes_df.loc[all_genes_df.gene_symbol.isin(morbid_gene_symbols_list)]["entrez_id"].dropna().to_list()
-panel_app_genes = pd.read_csv(ROOT_DIR + "Intellectual disability.tsv", sep="\t", usecols=["HGNC"])["HGNC"].to_list()
-panel_app_genes = [int(x.strip("HGNC:")) for x in panel_app_genes if type(x) == str]
-g2p_dd_list = pd.read_csv(ROOT_DIR + "DDG2P_26_10_2020.csv",
-                          usecols=["hgnc id"],
-                          dtype={"hgnc id":"Int32"})
-g2p_dd_list = g2p_dd_list["hgnc id"].to_list()
-negative_gene_list = list(set(morbid_genes) - set(panel_app_genes)
-                          - set(sysid_primary.entrez_id.to_list() + sysid_candidates.entrez_id.to_list())
-                          - set(g2p_dd_list))
-
-if validation_run:
-    negative_gene_list = random.sample(negative_gene_list, round(0.8 * len(negative_gene_list)))
-    rows_id = random.sample(range(0, len(sysid_primary)), round(0.8 * len(sysid_primary)))
-    sysid_primary = sysid_primary.loc[rows_id, :].reset_index(drop=True)
-    rows_id = random.sample(range(len(sysid_candidates)), round(0.8 * len(sysid_candidates)))
-    sysid_candidates = sysid_candidates.loc[rows_id, :].reset_index(drop=True)
-    del rows_id
-del all_genes_df, morbid_gene_symbols_list, validation_run, morbid_genes, panel_app_genes, g2p_dd_list,\
-    princeton_negative
-
 
 def HGNC():
-    r = requests.get(
-        "https://www.genenames.org/cgi-bin/download/custom?col=gd_hgnc_id&col=gd_app_sym&col=gd_pub_refseq_ids&col=gd_pub_eg_id&col=gd_pub_ensembl_id&status=Approved&status=Entry%20Withdrawn&hgnc_dbtag=on&order_by=gd_app_sym_sort&format=text&submit=submit")
-    if r.ok:
-        hgnc_table = pd.read_csv(StringIO(r.text),
-                                 sep="\t",
-                                 header=0,
-                                 names=["hgnc_id", "gene_symbol", "refseq_id", "entrez_id", "ensemble_id"])
-        if os.path.isfile(ROOT_DIR + "hgnc_protein_coding.tsv"):
-            os.rename(ROOT_DIR + "hgnc_protein_coding.tsv",
-                      ROOT_DIR + "hgnc_protein_coding.tsv_old")
-        hgnc_table.to_csv(ROOT_DIR + "hgnc_protein_coding.tsv",
-                          sep="\t",
-                          index=False)
-    else:
-        print("Could not load HGNC data! Using old data instead.")
+    # r = requests.get(
+    #     "https://www.genenames.org/cgi-bin/download/custom?col=gd_app_sym&col=gd_locus_group&col=gd_pub_eg_id&col=gd_pub_ensembl_id&status=Approved&status=Entry%20Withdrawn&hgnc_dbtag=on&order_by=gd_app_sym_sort&format=text&submit=submit")
+    # if r.ok:
+    #     hgnc_table = pd.read_csv(StringIO(r.text),
+    #                              sep="\t",
+    #                              header=0,
+    #                              names=["hgnc_id", "gene_symbol", "refseq_id", "entrez_id", "ensemble_id"])
+    #     if os.path.isfile(ROOT_DIR + "hgnc_protein_coding.tsv"):
+    #         os.rename(ROOT_DIR + "hgnc_protein_coding.tsv",
+    #                   ROOT_DIR + "hgnc_protein_coding.tsv_old")
+    hgnc_table = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv",
+                      sep="\t")
+    hgnc_table.columns = ["gene_symbol", "gene_type", "entrez_id", "ensemble_id"]
+    hgnc_table = hgnc_table.loc[hgnc_table.gene_type == "protein-coding gene"][["gene_symbol",
+                                                                                "entrez_id",
+                                                                                "ensemble_id"]]
+    hgnc_table.dropna(subset=["entrez_id"], inplace=True)
+    hgnc_table.astype({"entrez_id":"Int32"}, errors="ignore")
+    hgnc_table.to_csv(ROOT_DIR + "hgnc_protein_coding.tsv",
+                      sep="\t",
+                      index=False)
+    # else:
+    #     print("Could not load HGNC data! Using old data instead.")
 
 
 def fuse_data():
@@ -163,6 +130,18 @@ def update_gnomad_data():
 
     df.to_csv(ROOT_DIR + "gnomad/gnomad_data.csv", index=False)
 
+def clean_mgi_phenotype_df(df):
+    df.mgi_id = df.mgi_id.str.strip()
+    i = 0
+    while i < len(df):
+        print(f"{i + 1} of {len(df)}")
+        if "," in df.loc[i, "mgi_id"]:
+            first_id, rest = df.loc[i, "mgi_id"].split(",", 1)
+            df.loc[i, "mgi_id"] = first_id
+            df.loc[len(df), "phenotype"] = df.loc[i, "phenotype"]
+            df.loc[len(df) - 1, "mgi_id"] = rest
+        i += 1
+    return df
 
 class MGI:
     """
@@ -178,13 +157,23 @@ class MGI:
             wget.download("http://www.informatics.jax.org/downloads/reports/HMD_HumanPhenotype.rpt",
                           ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt")
         self.entrez_mgi = pd.read_csv(ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt", sep="\t",
-                                      usecols=[0, 2, 5])
+                                      usecols=[0, 1, 5])
         self.entrez_mgi.columns = ["gene_symbol", "entrez_id", "mgi_id"]
         self.entrez_mgi.mgi_id = self.entrez_mgi.mgi_id.str.strip()
-        self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.txt", sep="\t",
-                                  usecols=[3, 5])
-        self.mgi_mp.columns = ["phenotype", "mgi_id"]
+        self.entrez_mgi.dropna(subset=["entrez_id"], inplace=True)
+        self.entrez_mgi.astype({'entrez_id': 'int32'})
+
+        # self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.txt", sep="\t",
+        #                           usecols=[3, 5])
+        # self.mgi_mp.columns = ["phenotype", "mgi_id"]
+        # self.mgi_mp.mgi_id = self.mgi_mp.mgi_id.str.strip()
+        # self.mgi_mp = clean_mgi_phenotype_df(self.mgi_mp)
+        # self.mgi_mp.to_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t", index=False)
+        self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t")
+        self.mgi_mp.dropna(inplace=True)
         self.df = self.entrez_mgi.merge(self.mgi_mp, on="mgi_id")
+        self.df.drop_duplicates(inplace=True)
+        self.df.loc[:, "entrez_id"] = pd.to_numeric(self.df.entrez_id, downcast="signed")
         self.n_cores = n_cores
         self.pval_df = None
 
@@ -204,6 +193,7 @@ class MGI:
 
         # sufficient for bonferroni correction:
         n_experiments = 20 * len(self.observed_df) + 1
+        # n_experiments = 100
 
         processes_per_chunk = round(n_experiments / self.n_cores)
         process_id_lists = [list(range(n * processes_per_chunk, (n + 1) * processes_per_chunk)) for n in
@@ -261,17 +251,21 @@ class MGI:
 
     def mgi_bootstrap_helper(self, process_ids):
         df_mgi_subset = mgi_df.loc[mgi_df.phenotype.isin(self.observed_df.phenotype)][["entrez_id", "phenotype"]]
-        df_mgi_subset.entrez_id = pd.to_numeric(df_mgi_subset.entrez_id, downcast="unsigned")
         chunk = pd.DataFrame(self.observed_df, columns=["phenotype"])
         for n, process in enumerate(process_ids):
             print(f"{n + 1} of {len(process_ids)}")
             random.seed(process)
+            # pos_list = random.sample(set(self.df.entrez_id.unique()) - set(
+            #     sysid_candidates.entrez_id.to_list() + sysid_primary.entrez_id.to_list()),
+            #                          len(sysid_primary.entrez_id))
             pos_list = random.sample(set(self.df.entrez_id.unique()) - set(
                 sysid_candidates.entrez_id.to_list() + sysid_primary.entrez_id.to_list()),
-                                     len(sysid_primary.entrez_id))
+                                     self.df.loc[self.df.entrez_id.isin(sysid_primary.entrez_id)].entrez_id.nunique())
+            # print(pos_list)
 
             df_pos = df_mgi_subset.loc[df_mgi_subset.entrez_id.isin(pos_list)]
             term_count_pos = df_pos.groupby("phenotype").size().reset_index(name=f"count_{process + 1}")
+            # print(term_count_pos.loc[term_count_pos.phenotype == "MP:0002083"])
 
             chunk = chunk.merge(term_count_pos[["phenotype", f"count_{process + 1}"]], on="phenotype", how="left")
 
@@ -812,7 +806,9 @@ class PubtatorCentral:
         # self.n_cores = 1
         self.n_matrix_column_chunks = 100
         self.cutoff = 0.001  # cutoff of max accepted empirical pvalue per term to be considered significant
-        self.exponent = 0.5  # exponent for correction on total number of publications linked to a gene
+        self.exponent = 0.6  # exponent for correction on total number of publications linked to a gene
+        self.version = f'p_cutoff_{str(self.cutoff).replace(".", ",")}_exp_{str(self.exponent).replace(".", ",")}'
+
 
         self.all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
                                         usecols=["entrez_id"], sep="\t", dtype="Int32")
@@ -1029,8 +1025,6 @@ class PubtatorCentral:
             _ = self.ratio_pval_df
         except AttributeError:
             self.ratio_pval_df = pd.read_csv(ROOT_DIR + f"pubtator_central/bootstrap/mesh_p_values.csv")
-        cut_string = str(self.cutoff).replace(".", ",")
-        exponent_string = str(self.exponent).replace(".", ",")
 
         self.ratio_pval_df = self.ratio_pval_df.loc[self.ratio_pval_df.p_empirical <= self.cutoff]
 
@@ -1045,15 +1039,15 @@ class PubtatorCentral:
             self.expo)
 
         self.gene_scores_df.to_csv(
-            ROOT_DIR + f"pubtator_central/gene_scores/gene_scores_p_cutoff_{cut_string}_exp_{exponent_string}.csv",
+            ROOT_DIR + f"pubtator_central/gene_scores/gene_scores_{self.version}.csv",
             index=False)
         print("done calculating gene scores")
 
     def expo(self, x):
         return x ** self.exponent
 
-    def lin_rank_genes(self, version="p_cutoff_0,001_exp_0,5"):
-        self.gene_scores_df = pd.read_csv(ROOT_DIR + f"pubtator_central/gene_scores/gene_scores_{version}.csv",
+    def lin_rank_genes(self):
+        self.gene_scores_df = pd.read_csv(ROOT_DIR + f"pubtator_central/gene_scores/gene_scores_{self.version}.csv",
                                           index_col=False,
                                           usecols=["gene_id", "gene_score"])
         self.gene_scores_df.columns = ["entrez_id", "pubtator_score"]
@@ -1063,27 +1057,58 @@ class PubtatorCentral:
         self.gene_scores_df.to_csv(ROOT_DIR + "pubtator_central/gene_scores.csv", index=False)
 
 
-def update_data(n_cores=psutil.cpu_count()):
-    """The function calling all the updating function. For those functions where the latest dataset download is not
-    dependent on version numbers, up to date data is automatically downloaded. Manual downloads are necessary for:
-        - PsyMukB
-        - GTEx
-        - StringDB
-    :param n_cores:
-    :return:
-    """
-    # HGNC()
-    # MGI(n_cores, download=False)
-    # StringDB(n_cores)
-    # PsyMuKB()
-    # GTEx()
-    # Disgenet(n_cores, download=True)
-    PubtatorCentral(n_cores=48, download=False)
-    fuse_data()
-
-
 if __name__ == "__main__":
-    update_data()
+    ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+
+    validation_run = False
+    # HGNC()
+    if validation_run:
+        random.seed(42)
+
+    sysid_primary = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv",
+                                usecols=["Entrez id", "Ensembl id"])
+    sysid_primary.columns = ["entrez_id", "ensemble_id"]
+    sysid_candidates = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv",
+                                   usecols=["Entrez id", "Ensembl id"])
+    sysid_candidates.columns = ["entrez_id", "ensemble_id"]
+    princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
+
+    morbid_gene_symbols_list = pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
+                                           "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()
+    all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
+                               usecols=["entrez_id", "gene_symbol"], sep="\t",
+                               dtype={"entrez_id": "Int32", "gene_symbol": str})
+    morbid_genes = all_genes_df.loc[all_genes_df.gene_symbol.isin(morbid_gene_symbols_list)][
+        "entrez_id"].dropna().to_list()
+    panel_app_genes = pd.read_csv(ROOT_DIR + "Intellectual disability.tsv", sep="\t", usecols=["HGNC"])[
+        "HGNC"].to_list()
+    panel_app_genes = [int(x.strip("HGNC:")) for x in panel_app_genes if type(x) == str]
+    g2p_dd_list = pd.read_csv(ROOT_DIR + "DDG2P_26_10_2020.csv",
+                              usecols=["hgnc id"],
+                              dtype={"hgnc id": "Int32"})
+    g2p_dd_list = g2p_dd_list["hgnc id"].to_list()
+    negative_gene_list = list(set(morbid_genes) - set(panel_app_genes)
+                              - set(sysid_primary.entrez_id.to_list() + sysid_candidates.entrez_id.to_list())
+                              - set(g2p_dd_list))
+
+    if validation_run:
+        negative_gene_list = random.sample(negative_gene_list, round(0.8 * len(negative_gene_list)))
+        rows_id = random.sample(range(0, len(sysid_primary)), round(0.8 * len(sysid_primary)))
+        sysid_primary = sysid_primary.loc[rows_id, :].reset_index(drop=True)
+        rows_id = random.sample(range(len(sysid_candidates)), round(0.8 * len(sysid_candidates)))
+        sysid_candidates = sysid_candidates.loc[rows_id, :].reset_index(drop=True)
+        del rows_id
+    del morbid_gene_symbols_list, validation_run, morbid_genes, panel_app_genes, g2p_dd_list, \
+        princeton_negative
+
+    n_cores = psutil.cpu_count()
+    MGI(n_cores, download=False)
+    StringDB(n_cores)
+    PsyMuKB()
+    GTEx()
+    Disgenet(n_cores, download=True)
+    PubtatorCentral(n_cores=46, download=False)
+    fuse_data()
 
 # for corr_exp in np.arange(0.3, 0.7, 0.05):
 #     for rnk_exp in np.arange(1.5, 3, 0.5):

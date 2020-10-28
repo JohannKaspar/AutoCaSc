@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy
@@ -9,153 +11,10 @@ import ptitprince as pt
 import matplotlib.patches as mpatches
 # from sklearn.metrics import r2_score
 
+ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+
 pal = sns.color_palette(["#a8d0db", "#4062BB", "#FED766", "#a37a74"])
 sns.set_palette(pal)
-
-
-# old functions
-def plot_string_sys_sum(parameter="sys_sum"):
-    string_processed = pd.read_csv("/home/johann/AutoCaSc/data/string/interaction_sum_sys_all.csv")
-    string_processed["sys"] = string_processed.gene_id.isin(sysid_candidates + sysid_primary).astype(int)
-    string_processed["sys_primary"] = string_processed.gene_id.isin(sysid_primary).astype(int)
-    string_processed["sys_candidate"] = string_processed.gene_id.isin(sysid_candidates).astype(int)
-    string_processed["negative"] = string_processed.gene_id.isin(princeton_negative).astype(int)
-    string_processed["sys_category"] = "unknown"
-    string_processed.loc[string_processed.sys_candidate == 1, "sys_category"] = "candidate"
-    string_processed.loc[string_processed.sys_primary == 1, "sys_category"] = "known NDD"
-    string_processed.loc[string_processed.negative == 1, "sys_category"] = "negative control"
-
-
-    # for parameter in list(string_processed.columns)[1:7]:
-    #     print(stats.mannwhitneyu(string_processed.loc[string_processed.sys_candidate == 1][parameter].to_list(),
-    #     string_processed.loc[string_processed.sys == 0][parameter].to_list(), alternative="greater"))
-
-    order = ["unknown", "negative control", "candidate", "known NDD"]
-
-    ax = plt.figure(figsize=(7,9))
-    ax = sns.boxplot(x="sys_category", y=parameter, data=string_processed, showfliers=False,
-                     order=order)
-    add_stat_annotation(ax, data=string_processed, x="sys_category", y=parameter, order=order,
-                       box_pairs=[("unknown", "candidate"), ("unknown", "known NDD"), ("candidate", "known NDD")],
-                       test='Mann-Whitney', text_format='full', loc='outside', line_offset_to_box=0.001,
-                        line_height=0.05, text_offset=2, verbose=2)
-    ax.set(ylim=(0, 150))
-
-    ax.set_title(f"sum of interactions with SysID genes in StringDB")
-    ax.set_xlabel("SysID category")
-    ax.set_ylabel(f"corrected sum of interaction confidences with SysID genes")
-
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.get_figure().savefig(ROOT_DIR + f"string/plot_{parameter}.png")
-    plt.show()
-
-def plot_gtex_sum_hue():
-    colors = ["#fadf63", "#3877B6"]
-    gtex_data = pd.read_csv("/home/johann/AutoCaSc/data/gtex/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_median_tpm.gct",
-                                skiprows=2)
-
-    gtex_data["ensemble_id"] = gtex_data["Name"].str.split(".")[0]
-    gtex_data = gtex_data.drop(columns="Name")
-
-    # gtex_data = gtex_data.loc[gtex_data.brain_sum != 0]
-    gtex_data["sys_category"] = "unknown"
-    gtex_data.loc[gtex_data.sys_candidate == 1, "sys_category"] = "candidate"
-    gtex_data.loc[gtex_data.sys_primary == 1, "sys_category"] = "known NDD"
-
-    gtex_temp_brain = gtex_data[["ensemble_id", "sys_primary", "sys_candidate", "sys", "brain_sum", "ratio", "brain_max", "brain_median", "sys_category"]]
-    gtex_temp_brain["tissue"] = "brain"
-    gtex_temp_brain.columns = ["ensemble_id", "sys_primary", "sys_candidate", "sys", "sum", "ratio", "max", "median", "sys_category", "tissue"]
-
-    gtex_temp_other = gtex_data[["ensemble_id", "sys_primary", "sys_candidate", "sys", "other_sum", "ratio", "other_max", "other_median", "sys_category"]]
-    gtex_temp_other["tissue"] = "other"
-    gtex_temp_other.columns = ["ensemble_id", "sys_primary", "sys_candidate", "sys", "sum", "ratio", "max", "median", "sys_category", "tissue"]
-
-    gtex_temp = pd.concat([gtex_temp_brain, gtex_temp_other], ignore_index=True)
-
-    sns.set_palette(sns.color_palette(colors))
-    ax = sns.boxplot(x="sys_category", y="sum", hue="tissue", data=gtex_temp, showfliers=False, order=["unknown", "candidate", "known NDD"])
-
-    ax.set_title("tissue expression by SysID category")
-    ax.set_xlabel("SysID category")
-    ax.set_ylabel("Sum of median TPM")
-
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.get_figure().savefig(ROOT_DIR + "gtex/plot_sum_hue.png")
-    plt.show()
-
-def plot_gtex_ratio(parameter="ratio"):
-    colors = ["windows blue", "amber", "faded green", "greyish", "dusty purple"]
-    sns.set_palette(sns.xkcd_palette(colors))
-
-    gtex_data = pd.read_csv("/home/johann/AutoCaSc/data/gtex/gtex_data.csv")
-
-    # gtex_data = gtex_data.loc[gtex_data.brain_sum != 0]
-    gtex_data["sys_category"] = "unknown"
-    gtex_data.loc[gtex_data.sys_candidate == 1, "sys_category"] = "candidate"
-    gtex_data.loc[gtex_data.sys_primary == 1, "sys_category"] = "known NDD"
-    gtex_data.loc[gtex_data.ensemble_id.isin(princeton_negative_ensemble), "sys_category"] = "negative control"
-
-
-    ax = plt.figure(figsize=(6,6))
-    ax = sns.boxplot(x="sys_category", y=parameter, data=gtex_data, showfliers=False,
-                     order=order)
-
-    add_stat_annotation(ax, data=gtex_data, x="sys_category", y=parameter, order=order,
-                        box_pairs=[("unknown", "candidate"), ("unknown", "known NDD"),
-                                   ("negative control", "candidate")],
-                        test='Mann-Whitney', text_format='simple', loc='outside', line_offset_to_box=0.001,
-                        line_height=0.05, text_offset=2, verbose=2)
-    ax.set(ylim=(0, 1.2))
-
-    ax.set_title(f"{parameter} expression by SysID category")
-    ax.set_xlabel("SysID category")
-    ax.set_ylabel(f"{parameter} of median TPM")
-
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.get_figure().savefig(ROOT_DIR + f"gtex/plot_{parameter}.png")
-    plt.show()
-
-def plot_gtex_all_sum(parameter="all_sum"):
-    colors = ["windows blue", "amber", "faded green", "greyish", "dusty purple"]
-    sns.set_palette(sns.xkcd_palette(colors))
-
-    gtex_data = pd.read_csv("/home/johann/AutoCaSc/data/gtex/gtex_data.csv")
-
-    # gtex_data = gtex_data.loc[gtex_data.brain_sum != 0]
-    gtex_data["sys_category"] = "unknown"
-    gtex_data.loc[gtex_data.sys_candidate == 1, "sys_category"] = "candidate"
-    gtex_data.loc[gtex_data.sys_primary == 1, "sys_category"] = "known NDD"
-    gtex_data.loc[gtex_data.ensemble_id.isin(princeton_negative_ensemble), "sys_category"] = "negative control"
-
-
-    ax = plt.figure(figsize=(6,7))
-    ax = sns.boxplot(x="sys_category", y=parameter, data=gtex_data, showfliers=False,
-                     order=order)
-
-    add_stat_annotation(ax, data=gtex_data, x="sys_category", y=parameter, order=order,
-                        box_pairs=[("unknown", "candidate"), ("unknown", "known NDD"), ("candidate", "known NDD")],
-                        test='Mann-Whitney', text_format='full', loc='outside', line_offset_to_box=0.001,
-                        line_height=0.05, text_offset=2, verbose=2)
-    ax.set(ylim=(0, 5500))
-
-    ax.set_title(f"{parameter} expression by SysID category")
-    ax.set_xlabel("SysID category")
-    ax.set_ylabel(f"{parameter} of median TPM")
-
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.get_figure().savefig(ROOT_DIR + f"gtex/plot_{parameter}.png")
-    plt.show()
-
-
-# global ROOT_DIR
-order = ["unknown", "negative control", "candidate", "known NDD"]
-
-# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 sysid_primary_ensemble = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv", usecols=["Ensembl id"])["Ensembl id"].to_list()
 sysid_candidates_ensemble = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv", usecols=["Ensembl id"])["Ensembl id"].to_list()
@@ -164,6 +23,56 @@ princeton_negative_ensemble = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.
 sysid_primary_entrez = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv", usecols=["Entrez id"])["Entrez id"].to_list()
 sysid_candidates_entrez = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv", usecols=["Entrez id"])["Entrez id"].to_list()
 princeton_negative_entrez = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
+
+
+
+global order
+order = ["unknown", "negative control", "candidate", "known NDD"]
+
+# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+
+def select_validation_df(all_gene_data):
+    sysid_primary = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv",
+                                usecols=["Entrez id", "Ensembl id"])
+    sysid_primary.columns = ["entrez_id", "ensemble_id"]
+    sysid_candidates = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv",
+                                   usecols=["Entrez id", "Ensembl id"])
+    sysid_candidates.columns = ["entrez_id", "ensemble_id"]
+    princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
+
+    morbid_gene_symbols_list = pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
+                                           "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()
+    all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
+                               usecols=["entrez_id", "gene_symbol"], sep="\t",
+                               dtype={"entrez_id": "Int32", "gene_symbol": str})
+    morbid_genes = all_genes_df.loc[all_genes_df.gene_symbol.isin(morbid_gene_symbols_list)][
+        "entrez_id"].dropna().to_list()
+    panel_app_genes = pd.read_csv(ROOT_DIR + "Intellectual disability.tsv", sep="\t", usecols=["HGNC"])[
+        "HGNC"].to_list()
+    panel_app_genes = [int(x.strip("HGNC:")) for x in panel_app_genes if type(x) == str]
+    g2p_dd_list = pd.read_csv(ROOT_DIR + "DDG2P_26_10_2020.csv",
+                              usecols=["hgnc id"],
+                              dtype={"hgnc id": "Int32"})
+    g2p_dd_list = g2p_dd_list["hgnc id"].to_list()
+    negative_gene_list = list(set(morbid_genes) - set(panel_app_genes)
+                              - set(sysid_primary.entrez_id.to_list() + sysid_candidates.entrez_id.to_list())
+                              - set(g2p_dd_list))
+
+    random.seed(42)
+    _negative_gene_list = random.sample(negative_gene_list, round(0.8 * len(negative_gene_list)))
+    negative_control = list(set(negative_gene_list) - set(_negative_gene_list))
+    _rows_id = random.sample(range(0, len(sysid_primary)), round(0.8 * len(sysid_primary)))
+    rows_id = list(set(range(0, len(sysid_primary))) - set(_rows_id))
+    sysid_primary = sysid_primary.loc[rows_id, :].reset_index(drop=True)
+    _rows_id = random.sample(range(len(sysid_candidates)), round(0.8 * len(sysid_candidates)))
+    rows_id = list(set(range(0, len(sysid_candidates))) - set(_rows_id))
+    sysid_candidates = sysid_candidates.loc[rows_id, :].reset_index(drop=True)
+
+    all_gene_data = all_gene_data.loc[all_gene_data.entrez_id.isin(sysid_primary.entrez_id.to_list()
+                                                                   + sysid_candidates.entrez_id.to_list()
+                                                                   + negative_control)]
+    return all_gene_data
 
 
 
@@ -304,11 +213,16 @@ def rain_disgenet():
     # ax.get_figure().savefig("/home/johann/AutoCaSc/manuscript/Fig 2/plots/disgenet.png")
     plt.show()
 
-def plot_parameter_genescores():
-    global all_gene_data
+def plot_parameter_genescores(validation_run=False):
+    global all_gene_data, order
     sns.set(style="ticks", font_scale=0.4)
     fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 10), sharey=True, sharex=True, dpi=300)
     all_gene_data = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
+
+    if validation_run:
+        all_gene_data = select_validation_df(all_gene_data)
+        order = ["negative control", "candidate", "known NDD"]
+
     all_gene_data = add_categories(all_gene_data, "entrez_id", "entrez", "morbid_genes")
     # gtex_data = gtex_data.loc[:4000]
 
@@ -336,7 +250,7 @@ def plot_parameter_genescores():
                        order=order,
                        zorder=-10,
                        jitter=0.35,
-                      ax=axs[row][col]
+                       ax=axs[row][col]
                            )
         subplot = sns.boxplot(x="sys_category", y=_parameter, data=all_gene_data,
                      showcaps=True,
@@ -485,14 +399,15 @@ def plot_pubtator():
     ax.get_figure().savefig("/home/johann/AutoCaSc/manuscript/Fig 2/plots/pubtator.png")
     plt.show()
 
-def weighted_score():
-    all_gene_data = pd.read_csv("/home/johann/AutoCaSc/data/all_gene_data.csv")
+def weighted_score(validation_run=False):
+    all_gene_data = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
     all_gene_data = all_gene_data.drop_duplicates(subset=["entrez_id"])
 
-    all_gene_data.loc[all_gene_data.sys_category == "negative_control", "sys_category"] = "unknown"
+    if validation_run:
+        all_gene_data = select_validation_df(all_gene_data)
+        order = ["negative control", "candidate", "known NDD"]
 
-    # order = ["unknown", "negative control", "candidate", "known NDD"]
-    order = ["unknown", "candidate", "known NDD"]
+    all_gene_data = add_categories(all_gene_data, "entrez_id", "entrez", "morbid_genes")
 
     # ax = plt.figure(figsize=(3,6))
     ax = sns.violinplot(x="sys_category", y="weighted_score", data=all_gene_data,
@@ -500,7 +415,7 @@ def weighted_score():
     ax = sns.stripplot(x="sys_category", y="weighted_score", data=all_gene_data, jitter=True,
                      order=order, alpha=0.2)
     add_stat_annotation(ax, data=all_gene_data, x="sys_category", y="weighted_score", order=order,
-                       box_pairs=[("unknown", "candidate"), ("candidate", "known NDD")],
+                       box_pairs=[("negative control", "candidate"), ("candidate", "known NDD")],
                        test='Mann-Whitney', text_format='star', loc='outside', line_offset_to_box=0.001,
                         line_height=0.05, text_offset=2, verbose=2)
     ax.set(ylim=(0, 1.5))
@@ -511,7 +426,7 @@ def weighted_score():
 
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.get_figure().savefig(ROOT_DIR + "weighted_sum_plot.png")
+    # ax.get_figure().savefig(ROOT_DIR + "weighted_sum_plot.png")
     plt.show()
 
 def plot_candidate_scores():
@@ -597,6 +512,7 @@ def plot_pubtator_clean():
 # plot_disgenet()
 # plot_mgi()
 # rain_disgenet()
-# weighted_score()
+# weighted_score(validation_run=True)
 # plot_candidate_scores()
-plot_parameter_genescores()
+
+plot_parameter_genescores(validation_run=False)
