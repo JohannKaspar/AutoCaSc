@@ -12,7 +12,7 @@ from numpy import isnan
 from AutoCaSc_core.gnomAD import GnomADQuery
 from AutoCaSc_core.tools import safe_get, filterTheDict
 
-AUTOCASC_VERSION = 0.94
+AUTOCASC_VERSION = 0.95
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
 gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
@@ -285,29 +285,16 @@ class AutoCaSc:
     def rate_impact(self):
         """This function scores the variants predicted impact.
         """
-        self.impact_score, self.explanation_dict["impact"] = 0, "no data    -->    0"
+        self.impact_score, self.explanation_dict["impact"] = 0, f"impact {self.impact}    -->    0"
 
         if self.impact == "moderate":
-            if self.inheritance == "comphet":
-                if self.other_impact == "high":
-                    self.impact_score, self.explanation_dict["impact"] = 1, "compound heterozygous, one moderate & one high    -->    1"
-                else:
-                    self.impact_score, self.explanation_dict["impact"] = 0, "compound heterozygous, both not high    -->    0"
-            else:
-                self.impact_score, self.explanation_dict["impact"] = 0, "impact moderate, not compound heterozygous    -->    0"
+            self.impact_score, self.explanation_dict["impact"] = 0, "impact moderate    -->    0"
         if self.impact == "high":
+            self.impact_score, self.explanation_dict["impact"] = 2, "impact high, heterozygous    -->    2"
             if self.inheritance == "homo":
                 self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic    -->    3"
-            if self.inheritance == "comphet":
-                if self.other_impact == "high":
-                    self.impact_score, self.explanation_dict["impact"] = 3, "compound heterozygous, both impacts high    -->    3"
-                else:
-                    #ToDo biallelic one high one moderate != high heterozygous?!
-                    self.impact_score, self.explanation_dict["impact"] = 1, "compound heterozygous, one moderate & one high    -->    1"
-            else:
-                self.impact_score, self.explanation_dict["impact"] = 2, "impact high, heterozygous    -->    2"
-        if self.impact in ["modifier", "low", "unknown"]:
-            self.impact_score, self.explanation_dict["impact"] = 0, "low or unknown impact    -->      0"
+            if self.other_impact == "high":
+                self.impact_score, self.explanation_dict["impact"] = 3, "compound heterozygous, both impacts high    -->    3"
 
     def rate_in_silico(self):
         """This function scores in silico predictions.
@@ -316,8 +303,7 @@ class AutoCaSc:
         score_list = []
         affected_splice_counter = []
 
-        self.in_silico_score = 0
-        self.explanation_dict["in_silico"] = f"{self.impact} and no prediction values --> 0"
+        self.in_silico_score, self.explanation_dict["in_silico"] = 0, f"{self.impact} and no prediction values --> 0"
 
         if self.sift_converted_rankscore is not None:
             score_list.append(float(self.sift_converted_rankscore))
@@ -376,26 +362,23 @@ class AutoCaSc:
         """
         self.frequency_score, self.explanation_dict["frequency"] = 0, "other    -->    0"
 
-        if self.inheritance == "de_novo":
-            if self.maf <= 0.000005:
-                self.frequency_score, self.explanation_dict["frequency"] = 1, "de novo & MAF <= 0.000005    -->    1"
-            elif self.maf <= 0.00002:
+        if self.inheritance in ["de_novo", "ad_inherited"]:
+            if self.maf < 0.000005:
+                self.frequency_score, self.explanation_dict["frequency"] = 1,\
+                    f"{self.inheritance} & MAF < 0.000005    -->    1"
+            elif self.maf < 0.00002:
                 self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
-                    "de novo & MAF <= 0.00002    -->    0.5"
+                    f"{self.inheritance} & MAF < 0.00002    -->    0.5"
             else:
                 self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002    -->    0"
 
-        if self.inheritance == "ad_inherited" and self.maf <= 0.00002:
-            self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
-                "inherited autosomal dominant & MAF <= 0.00002    -->    0.5"
-
         if self.inheritance in ["homo", "comphet"]:
-            if self.maf <= 0.00005:
+            if self.maf < 0.00005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
-                    "autosomal recessive & MAF <= 0.00005    -->    1"
-            elif self.maf <= 0.0005:
+                    "autosomal recessive & MAF < 0.00005    -->    1"
+            elif self.maf < 0.0005:
                 self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
-                    "autosomal recessive & MAF <= 0.0005    -->    0.5"
+                    "autosomal recessive & MAF < 0.0005    -->    0.5"
 
         if self.inheritance == "x_linked":
             gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
