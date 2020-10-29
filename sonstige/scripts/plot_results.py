@@ -221,7 +221,7 @@ def plot_parameter_genescores(validation_run=False):
 
     if validation_run:
         all_gene_data = select_validation_df(all_gene_data)
-        order = ["negative control", "candidate", "known NDD"]
+        order = ["negative control", "known NDD"]
 
     all_gene_data = add_categories(all_gene_data, "entrez_id", "entrez", "morbid_genes")
     # gtex_data = gtex_data.loc[:4000]
@@ -405,7 +405,7 @@ def weighted_score(validation_run=False):
 
     if validation_run:
         all_gene_data = select_validation_df(all_gene_data)
-        order = ["negative control", "candidate", "known NDD"]
+        order = ["negative control", "known NDD"]
 
     all_gene_data = add_categories(all_gene_data, "entrez_id", "entrez", "morbid_genes")
 
@@ -415,7 +415,7 @@ def weighted_score(validation_run=False):
     ax = sns.stripplot(x="sys_category", y="weighted_score", data=all_gene_data, jitter=True,
                      order=order, alpha=0.2)
     add_stat_annotation(ax, data=all_gene_data, x="sys_category", y="weighted_score", order=order,
-                       box_pairs=[("negative control", "candidate"), ("candidate", "known NDD")],
+                       box_pairs=[("negative control", "known NDD")],
                        test='Mann-Whitney', text_format='star', loc='outside', line_offset_to_box=0.001,
                         line_height=0.05, text_offset=2, verbose=2)
     ax.set(ylim=(0, 1.5))
@@ -512,7 +512,7 @@ def plot_pubtator_clean():
 # plot_disgenet()
 # plot_mgi()
 # rain_disgenet()
-# weighted_score(validation_run=True)
+weighted_score(validation_run=True)
 # plot_candidate_scores()
 
-plot_parameter_genescores(validation_run=False)
+# plot_parameter_genescores(validation_run=True)

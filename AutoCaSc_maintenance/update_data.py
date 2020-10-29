@@ -43,7 +43,7 @@ def HGNC():
     #     print("Could not load HGNC data! Using old data instead.")
 
 
-def fuse_data():
+def fuse_data(validation_run=False):
     all_genes = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv",
                             sep="\t",
                             usecols=["entrez_id", "ensemble_id"])
@@ -113,7 +113,10 @@ def fuse_data():
 
     all_data = all_data.sort_values(by="weighted_score", ascending=False).drop_duplicates(
         subset=["entrez_id", "ensemble_id"], keep="first")
-    all_data.to_csv(ROOT_DIR + "all_gene_data.csv", index=False)
+    if validation_run:
+        all_data.to_csv(ROOT_DIR + "all_gene_data_seed_42.csv", index=False)
+    else:
+        all_data.to_csv(ROOT_DIR + "all_gene_data.csv", index=False)
 
 
 def update_gnomad_data():
@@ -149,7 +152,9 @@ class MGI:
     phenotypes attributed to a given genotype.
     """
 
-    def __init__(self, n_cores=4, download=False):
+    def __init__(self, n_cores=4, download=False, exponent=0.5, investigate_parameters=False):
+        self.exponent = exponent
+        self.investigate_parameters = investigate_parameters
         if download:
             if os.path.isfile(ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt"):
                 os.rename(ROOT_DIR + "mgi/HMD_HumanPhenotype.rpt",
@@ -177,6 +182,7 @@ class MGI:
         self.n_cores = n_cores
         self.pval_df = None
 
+    def update(self):
         self.generate_empricial_p_values()
         self.calculate_gene_scores()
 
@@ -223,7 +229,7 @@ class MGI:
 
         self.pval_df.to_csv(ROOT_DIR + "mgi/phenotype_p_values.csv", index=False)
 
-    def calculate_gene_scores(self, correction_exp=0.5, rank_exp=2):
+    def calculate_gene_scores(self, rank_exp=2):
         """
         This part calculates gene scores by counting the number of times a gene has been associated with a significantly
         relevant phenotype and divides it by the square root of the total number of times a gene has been associated with
@@ -237,7 +243,7 @@ class MGI:
 
         gene_counts = df_filtered.groupby("entrez_id").size().reset_index(name="relevant_count")
         gene_df = self.df.groupby("entrez_id").size().reset_index(name="all_count").merge(gene_counts, on="entrez_id")
-        gene_df["gene_score"] = gene_df.relevant_count / (gene_df.all_count ** correction_exp)
+        gene_df["gene_score"] = gene_df.relevant_count / (gene_df.all_count ** self.exponent)
         gene_df = gene_df[["entrez_id", "gene_score"]]
 
         """
@@ -245,7 +251,10 @@ class MGI:
         """
         self.gene_scores = rank_genes(gene_df, "gene_score", rank_exp)
 
-        self.gene_scores.to_csv(ROOT_DIR + "mgi/mgi_gene_scores.csv", index=False)
+        if not self.investigate_parameters:
+            self.gene_scores.to_csv(ROOT_DIR + "mgi/mgi_gene_scores.csv", index=False)
+        else:
+            self.gene_scores.to_csv(ROOT_DIR + f"mgi/mgi_gene_scores_{str(self.exponent).replace('.', ',')}.csv", index=False)
 
         return self.gene_scores
 
@@ -455,7 +464,7 @@ class GTEx:
         gtex_data = gtex_data.drop(columns=["Name"])
 
         translation_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", sep="\t")
-        gtex_data = gtex_data.merge(translation_df[["entrez_id", "ensemble_id", "hgnc_id"]], on="ensemble_id")
+        gtex_data = gtex_data.merge(translation_df[["entrez_id", "ensemble_id"]], on="ensemble_id")
 
         columns = gtex_data.columns
         brain_columns = [x for x in columns if "Brain" in x]
@@ -730,47 +739,27 @@ def process_diseases_helper(param_tuple):
 
 
 @ray.remote
-def bootstrap_helper(process_id_list, df, gene_df, process_id_total_counts_dict):
+def bootstrap_helper(process_id_list, df, process_id_total_counts_dict, process_id_series_dict):
     ratio_list = []
     for i, process_id in enumerate(process_id_list):
-        # print(f"{i} of {len(process_id_list)}")
-        random.seed(process_id)
         # ToDo sollte man auch Gene mit einbeziehen, über de gar nix publiziert wurde?
-        # if process_id == 0:
-        #     print(f"mark 0: {time.process_time()}")
-        pos_list = random.sample(list(gene_df.gene_id.unique()), len(sysid_primary))
-        neg_list = random.sample(list(set(list(gene_df.gene_id.unique())) - set(pos_list)), len(negative_gene_list))
-        # if process_id == 0:
-        #     print(f"mark 1: {time.process_time()}")
-
+        pos_series, neg_series = process_id_series_dict.get(process_id)
         pos_pmid_total, neg_pmid_total = process_id_total_counts_dict.get(process_id)
 
-        # if process_id == 0:
-        #     print(f"mark 1': {time.process_time()}")
-
-        ratio = calculate_mesh_ratios(pos_list, neg_list, df, pos_pmid_total, neg_pmid_total)
+        ratio = calculate_mesh_ratios(pos_series, neg_series, df, pos_pmid_total, neg_pmid_total)
 
         ratio_list.append(ratio)
 
-    # return_ratio_list = ray.get(ratio_list)
-    # del ratio_list
     return ratio_list
 
 
-def calculate_mesh_ratios(pos_list, neg_list, df, pos_pmid_total, neg_pmid_total, process_id=1001):
-    # if process_id == 0:
-    #     print(f"mark 2: {time.process_time()}")
-    pos_pmid_mesh_count = df.loc[df.gene_id.isin(pos_list)]["count"].sum(axis=0)
-    neg_pmid_mesh_count = df.loc[df.gene_id.isin(neg_list)]["count"].sum(axis=0)
-    # if process_id == 0:
-    #     print(f"mark 3: {time.process_time()}")
+def calculate_mesh_ratios(pos_series, neg_series, df, pos_pmid_total, neg_pmid_total):
+    pos_pmid_mesh_count = df.join(pos_series, how="inner")["count"].sum()
+    neg_pmid_mesh_count = df.join(neg_series, how="inner")["count"].sum()
 
     ratio = round((1.0 * pos_pmid_mesh_count / pos_pmid_total) /
                   ((1.0 + neg_pmid_mesh_count) / neg_pmid_total), 4)
-    # if process_id == 0:
-    #     print(f"mark 4: {time.process_time()}")
     return ratio
-
 
 def create_pmid_lists_helper(df_chunk):
     results_chunk = df_chunk.groupby(['gene_id', 'mesh_term']).size().reset_index(name="count")
@@ -779,8 +768,9 @@ def create_pmid_lists_helper(df_chunk):
 
 
 @ray.remote
-def create_process_id_total_counts_dict(process_ids, gene_df):
+def create_process_id_dicts(process_ids, gene_df):
     total_counts_dict_chunk = {}
+    series_dict_chunk = {}
     for i, process_id in enumerate(process_ids):
         print(f"creating dict part {i + 1} of {len(process_ids)}")
         random.seed(process_id)
@@ -789,14 +779,16 @@ def create_process_id_total_counts_dict(process_ids, gene_df):
         pos_pmid_total = gene_df[gene_df.gene_id.isin(pos_list)].pmid.nunique()
         neg_pmid_total = gene_df[gene_df.gene_id.isin(neg_list)].pmid.nunique()
         total_counts_dict_chunk[process_id] = (pos_pmid_total, neg_pmid_total)
-    return total_counts_dict_chunk
+        series_dict_chunk[process_id] = (pd.Series(pos_list, index=pos_list, name=f"process_{process_id}_pos"),
+                                         pd.Series(neg_list, index=neg_list, name=f"process_{process_id}_neg"))
+    return total_counts_dict_chunk, series_dict_chunk
 
 
 class PubtatorCentral:
     """This class handles PubtatorCentral data.
     """
 
-    def __init__(self, n_cores, download=True, n_bootstraps=1000):
+    def __init__(self, n_cores, download=False, preprocess=False, n_bootstraps=1001, exponent=0.7, cutoff=0.0001):
         # self.bootstrap_cores = 40
         self.n_bootstraps = n_bootstraps
         # self.num_runs = bootstraps / self.bootstrap_cores
@@ -805,8 +797,8 @@ class PubtatorCentral:
         self.num_splits = 100  # number of chunk to split the matrix into for parallel processing
         # self.n_cores = 1
         self.n_matrix_column_chunks = 100
-        self.cutoff = 0.001  # cutoff of max accepted empirical pvalue per term to be considered significant
-        self.exponent = 0.6  # exponent for correction on total number of publications linked to a gene
+        self.cutoff = cutoff  # cutoff of max accepted empirical pvalue per term to be considered significant
+        self.exponent = exponent  # exponent for correction on total number of publications linked to a gene
         self.version = f'p_cutoff_{str(self.cutoff).replace(".", ",")}_exp_{str(self.exponent).replace(".", ",")}'
 
 
@@ -843,22 +835,29 @@ class PubtatorCentral:
                         os.rename(ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old",
                                   ROOT_DIR + "pubtator_central/disease2pubtatorcentral")
 
-            self.preprocess_data()
-            self.create_pmid_lists()
         else:
             self.gene_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_df_processed.csv")
             self.gene_df.loc[:, "gene_id"] = pd.to_numeric(self.gene_df.loc[:, "gene_id"],
                                                            downcast="unsigned")
             self.gene_df.loc[:, "pmid"] = pd.to_numeric(self.gene_df.loc[:, "pmid"],
                                                         downcast="unsigned")
-            self.gene_disease_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
-                                               index_col=False,
-                                               # nrows=100000,
-                                               dtype={"gene_id": "uint32", "pmid": "uint32", "mesh_term": "category"})
+            with open(ROOT_DIR + "pubtator_central/gene_disease_df.pickle", "rb") as pickle_file:
+                self.gene_disease_df = pickle.load(pickle_file)
+            # self.gene_disease_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
+            #                                    index_col=False,
+            #                                    # nrows=100000,
+            #                                    dtype={"gene_id": "uint32", "pmid": "uint32", "mesh_term": "category"})
+            # with open(ROOT_DIR + "pubtator_central/gene_disease_df.pickle", "wb") as pickle_file:
+            #     pickle.dump(self.gene_disease_df, pickle_file)
+            #     print("pickle dumped")
 
-        self.bootstrap()
+        if preprocess:
+            self.preprocess_data()
+            self.create_pmid_lists()
+
+        # self.bootstrap()
         self.gene_scores_exp()
-        self.lin_rank_genes()
+        self.lin_rank_genes(investigate_parameters=False)
 
     def preprocess_data(self):
         """This method needs two files: gene2pubtatorcentral and disease2pubtatorcentral. It first cleans the datasets
@@ -937,8 +936,8 @@ class PubtatorCentral:
 
         self.gene_disease_df = disease_df_processed.merge(gene_df_processed, on="pmid")
         self.gene_disease_df = self.gene_disease_df.drop_duplicates()
-        self.gene_disease_df.to_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
-                                    index=False)
+        with open(ROOT_DIR + "pubtator_central/gene_disease_df.pickle", "wb") as pickle_file:
+            pickle.dump(self.gene_disease_df, pickle_file)
 
         print("preprocessing done")
 
@@ -960,7 +959,7 @@ class PubtatorCentral:
             pickle.dump(results_df, pickle_file)
 
     def bootstrap(self):
-        create_new_total_count_dict = False
+        create_new_total_count_dict = True
         ray.init(num_cpus=self.n_cores)
         with open(ROOT_DIR + "pubtator_central/gene_mesh_count.pickle", "rb") as pickle_file:
             self.gene_mesh_df = pickle.load(pickle_file)
@@ -974,16 +973,23 @@ class PubtatorCentral:
                                        round((i + 1) * len_process_chunks))) for i in range(self.n_cores)]
 
         if create_new_total_count_dict:
-            create_total_dict_temp = ray.get([create_process_id_total_counts_dict.remote(process_ids, gene_df)
+            create_dicts_temp = ray.get([create_process_id_dicts.remote(process_ids, gene_df)
                                               for process_ids in process_id_lists])
             process_id_total_counts_dict = {}
-            [process_id_total_counts_dict.update(dict_chunk) for dict_chunk in create_total_dict_temp]
+            process_id_series_dict = {}
+            [process_id_total_counts_dict.update(total_chunk) for total_chunk, _ in create_dicts_temp]
+            [process_id_series_dict.update(series_chunk) for _, series_chunk in create_dicts_temp]
             with open(ROOT_DIR + "pubtator_central/process_id_total_counts_dict.pickle", "wb") as pickle_file:
                 pickle.dump(process_id_total_counts_dict, pickle_file)
+            with open(ROOT_DIR + "pubtator_central/process_id_series_dict.pickle", "wb") as pickle_file:
+                pickle.dump(process_id_series_dict, pickle_file)
         else:
             with open(ROOT_DIR + "pubtator_central/process_id_total_counts_dict.pickle", "rb") as pickle_file:
                 process_id_total_counts_dict = pickle.load(pickle_file)
+            with open(ROOT_DIR + "pubtator_central/process_id_series_dict.pickle", "rb") as pickle_file:
+                process_id_series_dict = pickle.load(pickle_file)
         process_id_total_counts_dict_id = ray.put(process_id_total_counts_dict)
+        process_id_series_dict_id = ray.put(process_id_series_dict)
 
         mesh_pval_dict = {}
 
@@ -994,19 +1000,27 @@ class PubtatorCentral:
         pos_pmid_total_original = self.gene_df[self.gene_df.gene_id.isin(sysid_primary.entrez_id)].pmid.nunique()
         neg_pmid_total_original = self.gene_df[self.gene_df.gene_id.isin(negative_gene_list)].pmid.nunique()
 
+        pos_series_original = pd.Series(sysid_primary.entrez_id.to_list(), index=sysid_primary.entrez_id.to_list(),
+                                        name="pos_series_original")
+        neg_series_original = pd.Series(negative_gene_list, index=negative_gene_list,
+                                        name="neg_series_original")
+
         for i, _mesh_term in enumerate(mesh_terms_to_check):
             print(f"Processing {i + 1} of {len(mesh_terms_to_check)}...")
-            _mesh_df = self.gene_mesh_df.loc[self.gene_mesh_df.mesh_term == _mesh_term]
+            _mesh_df = self.gene_mesh_df.loc[self.gene_mesh_df.mesh_term == _mesh_term].set_index("gene_id")
 
-            ratio_original = calculate_mesh_ratios(sysid_primary.entrez_id.to_list(), negative_gene_list,
-                                                   _mesh_df, pos_pmid_total_original, neg_pmid_total_original)
-            # print(ratio_original)
-            # ratio_original = ray.get(ratio_original_command)
+            ratio_original = calculate_mesh_ratios(pos_series_original,
+                                                   neg_series_original,
+                                                   _mesh_df,
+                                                   pos_pmid_total_original,
+                                                   neg_pmid_total_original)
 
             _mesh_df_id = ray.put(_mesh_df)
 
-            ray_returns = ray.get([bootstrap_helper.remote(process_ids, _mesh_df_id,
-                                                           gene_df, process_id_total_counts_dict_id)
+            ray_returns = ray.get([bootstrap_helper.remote(process_ids,
+                                                           _mesh_df_id,
+                                                           process_id_total_counts_dict_id,
+                                                           process_id_series_dict_id)
                                    for process_ids in process_id_lists])
             ratio_list = itertools.chain.from_iterable(ray_returns)
             ratio_list = [_ for _ in ratio_list if _ >= ratio_original]
@@ -1046,7 +1060,7 @@ class PubtatorCentral:
     def expo(self, x):
         return x ** self.exponent
 
-    def lin_rank_genes(self):
+    def lin_rank_genes(self, investigate_parameters=False):
         self.gene_scores_df = pd.read_csv(ROOT_DIR + f"pubtator_central/gene_scores/gene_scores_{self.version}.csv",
                                           index_col=False,
                                           usecols=["gene_id", "gene_score"])
@@ -1054,13 +1068,58 @@ class PubtatorCentral:
         self.gene_scores_df = add_categories(self.gene_scores_df, "entrez_id", "entrez")
 
         self.gene_scores_df = lin_rank(self.gene_scores_df, "pubtator_score")
-        self.gene_scores_df.to_csv(ROOT_DIR + "pubtator_central/gene_scores.csv", index=False)
+        if not investigate_parameters:
+            self.gene_scores_df.to_csv(ROOT_DIR + "pubtator_central/gene_scores.csv", index=False)
+        else:
+            self.gene_scores_df.to_csv(ROOT_DIR + f"pubtator_central/gene_scores_{self.version}.csv", index=False)
 
+def evaluate_pubtator_parameters():
+    for exponent in [0.5, 0.6, 0.7, 0.8, 0.9]:
+        for cutoff in [0.001, 0.0001]:
+            instance = PubtatorCentral(n_cores=46, download=False, preprocess=False, exponent=exponent, cutoff=cutoff)
+            df = pd.read_csv(ROOT_DIR + f"pubtator_central/gene_scores_{instance.version}.csv")
+            p_val = mannwhitneyu(df.loc[df.sys_candidate == 1]['gene_score'].to_list(),
+                                 df.loc[df.sys == 0]['gene_score'].to_list(), alternative='greater')[1]
+            print(f"{instance.version}: {p_val}")
+    """
+    p_cutoff_0,001_exp_0,5: 3.48123396722439e-120
+    p_cutoff_0,0001_exp_0,5: 8.032792102478241e-129
+    p_cutoff_0,001_exp_0,6: 5.2948946639646326e-138
+    p_cutoff_0,0001_exp_0,6: 2.1828078600604386e-145
+    p_cutoff_0,001_exp_0,7: 3.569346842963668e-152
+    p_cutoff_0,0001_exp_0,7: 3.803133564872067e-157 --> using this one
+    p_cutoff_0,001_exp_0,8: 6.680503164081276e-146
+    p_cutoff_0,0001_exp_0,8: 2.778952026246866e-147
+    p_cutoff_0,001_exp_0,9: 1.2443892018465543e-97
+    p_cutoff_0,0001_exp_0,9: 8.777754069507803e-100
+    """
+
+def evaluate_mgi_parameters():
+    for exponent in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
+        MGI(n_cores=psutil.cpu_count(),
+            download=False,
+            exponent=exponent,
+            investigate_parameters=True).calculate_gene_scores()
+        df = pd.read_csv(ROOT_DIR + f"mgi/mgi_gene_scores_{str(exponent).replace('.', ',')}.csv")
+        df = add_categories(df, "entrez_id", "entrez")
+        p_val = mannwhitneyu(df.loc[df.sys_candidate == 1]['gene_score'].to_list(),
+                             df.loc[df.sys == 0]['gene_score'].to_list(), alternative='greater')[1]
+        print(f"exponent {exponent}: {p_val}")
+    """
+    exponent 0.2: 1.3413141828335412e-23
+    exponent 0.3: 3.83851534927423e-25
+    exponent 0.4: 1.8970705866357454e-26
+    exponent 0.5: 1.6443960386822857e-27
+    exponent 0.6: 9.73622834348643e-27
+    exponent 0.7: 7.48339207409757e-24
+    exponent 0.8: 2.6248413932730707e-19
+    exponent 0.9: 1.0301802549921885e-14
+    """
 
 if __name__ == "__main__":
     ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
-    validation_run = False
+    validation_run = True
     # HGNC()
     if validation_run:
         random.seed(42)
@@ -1102,13 +1161,16 @@ if __name__ == "__main__":
         princeton_negative
 
     n_cores = psutil.cpu_count()
-    MGI(n_cores, download=False)
+    MGI(n_cores, download=False).update()
     StringDB(n_cores)
     PsyMuKB()
     GTEx()
-    Disgenet(n_cores, download=True)
-    PubtatorCentral(n_cores=46, download=False)
-    fuse_data()
+    Disgenet(n_cores, download=False)
+    PubtatorCentral(n_cores=46, download=False, preprocess=False)
+    fuse_data(validation_run=True)
+
+    # evaluate_pubtator_parameters()
+    # evaluate_mgi_parameters()
 
 # for corr_exp in np.arange(0.3, 0.7, 0.05):
 #     for rnk_exp in np.arange(1.5, 3, 0.5):
