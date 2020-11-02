@@ -1,20 +1,22 @@
 import os
+import random
 import shlex
 import subprocess
 from statistics import mean
 import click
 import time
-from AutoCaSc_core import AutoCaSc
+from AutoCaSc import AutoCaSc
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import re
 import shutil
 
+
 def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     print("create bed currently not working")
     """This function expands the exon positions by 50 to each side. Then one has to use the UNIX commands:
     sort -k 1,1 -k2,2n Homo_sapiens.GRCh38.bed | bedtools merge -i - | awk '{print "chr"$0}' - > GRCh38.bed"""
-    df = pd.read_csv(f"/home/johann/AutoCaSc_core/data/BED/Homo_sapiens.{assembly}.{ensembl_version}.gtf", sep="\t", skiprows=5)
+    df = pd.read_csv(f"/home/johann/AutoCaSc/data/BED/Homo_sapiens.{assembly}.{ensembl_version}.gtf", sep="\t", skiprows=5)
     df.columns = ["chr", "source", "type", "start", "stop", "unknown_1", "unknown_2", "unknown_3", "info"]
     exons = df.loc[df.type == "exon"]
     exons = exons.loc[exons["info"].str.contains("protein_coding")]
@@ -22,9 +24,9 @@ def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     exons.start = exons.start - 50
     exons.stop = exons.stop + 50
     "chr" + exons.chr.astype(str)
-    exons.to_csv(f"/home/johann/AutoCaSc_core/data/BED/Homo_sapiens.{assembly}_unsorted.bed", sep="\t", index=False, header=False)
+    exons.to_csv(f"/home/johann/AutoCaSc/data/BED/Homo_sapiens.{assembly}_unsorted.bed", sep="\t", index=False, header=False)
 
-    # cache = "/home/johann/AutoCaSc_core/data/BED/temp/"
+    # cache = "/home/johann/AutoCaSc/data/BED/temp/"
     # if not os.path.exists(cache):
     #     os.mkdir(cache)
     # exons.to_csv(f"{cache}{assembly}_unsorted.bed", sep="\t", index=False, header=False)
@@ -42,53 +44,66 @@ def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     # shutil.rmtree(cache)
 
 def thread_function_AutoCaSc_classic(param_tuple):
-    row, assembly = param_tuple
-    chrom = row["#CHROM"]
-    pos = row["POS"]
-    ref = row["REF"]
-    alt = row["ALT"]
-    alt = alt.replace("*", "-")
-    variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
-    if "de_novo" in row["INFO"]:
-        inheritance = "de_novo"
-    elif "homo" in row["INFO"]:
-        inheritance = "homo"
-    elif "x_linked" in row["INFO"]:
-        inheritance = "x_linked"
-    else:
-        inheritance = "other"
-    AutoCaSc_instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
-    if AutoCaSc_instance.status_code in [503, 497, 496, 201]:
-        print("There has been an issue with a variant. Retrying...")
-        for i in range(10):
-            if AutoCaSc_instance.status_code in [503, 497, 496, 201]:
-                time.sleep(3)
-                AutoCaSc_instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
-            else:
-                break
-    return variant_vcf, AutoCaSc_instance
+    # time.sleep(random.randint(0,10))
+    vcf_chunk, assembly = param_tuple
+    vcf_chunk.reset_index(drop=True, inplace=True)
+    return_dict = {}
+    for row_id in range(len(vcf_chunk)):
+        try:
+            chrom = vcf_chunk.loc[row_id, "#CHROM"]
+        except pd.core.indexing.IndexingError:
+            print("error")
+        pos = vcf_chunk.loc[row_id, "POS"]
+        ref = vcf_chunk.loc[row_id, "REF"]
+        alt = vcf_chunk.loc[row_id, "ALT"]
+        alt = alt.replace("*", "-")
+        variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
+        if "de_novo" in str(vcf_chunk.loc[row_id, "INFO"]):
+            inheritance = "de_novo"
+        elif "homo" in str(vcf_chunk.loc[row_id, "INFO"]):
+            inheritance = "homo"
+        elif "x_linked" in str(vcf_chunk.loc[row_id, "INFO"]):
+            inheritance = "x_linked"
+        elif "comphet" in str(vcf_chunk.loc[row_id, "INFO"]):
+            inheritance = "comphet"
+        else:
+            inheritance = "other"
+        return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+        if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
+            print("There has been an issue with a variant. Retrying...")
+            for i in range(10):
+                if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
+                    time.sleep(3)
+                    return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+                else:
+                    break
+    return return_dict
 
-def thread_function_comphet_classic(param_tuple):
-    """function for bases line annotating cmpound heterozygous variants
-    """
-    row, assembly = param_tuple
-    chrom = row["#CHROM"]
-    pos = row["POS"]
-    ref = row["REF"]
-    alt = row["ALT"]
-    alt = alt.replace("*", "-")
-    variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
-    inheritance = "comphet"
-    AutoCaSc_instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly="GRCh38")
-    if AutoCaSc_instance.status_code in [503, 497, 496, 201]:
-        print("There has been an issue with a variant. Retrying...")
-        for i in range(10):
-            if AutoCaSc_instance.status_code in [503, 497, 496, 201]:
-                time.sleep(3)
-                AutoCaSc_instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly="GRCh38")
-            else:
-                break
-    return variant_vcf, AutoCaSc_instance
+# def thread_function_comphet_classic(param_tuple):
+#     """function for bases line annotating cmpound heterozygous variants
+#     """
+#     time.sleep(random.randint(0,10))
+#     vcf_chunk, assembly = param_tuple
+#     vcf_chunk.reset_index(drop=True, inplace=True)
+#     return_dict = {}
+#     for row_id in range(len(vcf_chunk)):
+#         chrom = vcf_chunk.loc[row_id, "#CHROM"]
+#         pos = vcf_chunk.loc[row_id, "POS"]
+#         ref = vcf_chunk.loc[row_id, "REF"]
+#         alt = vcf_chunk.loc[row_id, "ALT"]
+#
+#         variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
+#         inheritance = "comphet"
+#         return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+#         if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
+#             print("There has been an issue with a variant. Retrying...")
+#             for i in range(10):
+#                 if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
+#                     time.sleep(3)
+#                     return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+#                 else:
+#                     break
+#     return return_dict
 
 def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
     # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
@@ -101,16 +116,20 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
 
     vcf_annotated = pd.read_csv(f"{cache}/temp_{trio_name}.tsv", sep="\t")
     # vcf_annotated = vcf_annotated.loc[vcf_annotated["#CHROM"] == "chr1"]
-    vcf_chunks = [vcf_annotated.loc[i, :] for i in range(len(vcf_annotated))]
+    num_threads = 10
+    vcf_chunks = [vcf_annotated.loc[i * round(len(vcf_annotated) / num_threads):(i+1) * round(len(vcf_annotated) / num_threads),:] for i in range(num_threads)]
 
     # this starts annotation of all variants that are comphet
     with ThreadPoolExecutor() as executor:
-        instances_iterator = executor.map(thread_function_AutoCaSc_classic,
+        dicts_iterator = executor.map(thread_function_AutoCaSc_classic,
                                           zip(vcf_chunks, [assembly] * len(vcf_chunks)))
+        instances_iterator = {}
+        for _dict in dicts_iterator:
+            instances_iterator.update(_dict)
         # instances_iterator = executor.map(thread_function_AutoCaSc_classic, vcf_chunks)
     result_df = pd.DataFrame()
     i = 0
-    for _variant_vcf, _AutoCaSc_instance in instances_iterator:
+    for _variant_vcf, _AutoCaSc_instance in instances_iterator.items():
         result_df.loc[i, "variant"] = _variant_vcf
         try:
             result_df.loc[i, "gene"] = _AutoCaSc_instance.gene_symbol
@@ -128,7 +147,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
 
     return result_df
 
-def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly):
+def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly, num_threads=10):
     #this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
         for row in inp:
@@ -137,7 +156,8 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly):
 
     comphets_df = pd.read_csv(f"{cache}/temp_{trio_name}.tsv", sep="\t")
     # comphets_df = comphets_df.loc[comphets_df["#CHROM"] == "chr1"]
-    comphet_chunks = [comphets_df.loc[i, :] for i in range(len(comphets_df))]
+    # comphet_chunks = [comphets_df.loc[i, :] for i in range(len(comphets_df))]
+    comphet_chunks = [comphets_df[round(i * len(comphets_df) / num_threads):round((i+1) * len(comphets_df) / num_threads)] for i in range(num_threads)]
     comphet_cross_df = pd.DataFrame()
 
     for i in range(len(comphets_df)):
@@ -156,10 +176,11 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly):
             comphet_cross_df.loc[cross_df_index, "var_2"] = vcf_2
 
     with ThreadPoolExecutor() as executor:
-        instances_iterator = executor.map(thread_function_comphet_classic,
+        dicts_iterator = executor.map(thread_function_AutoCaSc_classic,
                                           zip(comphet_chunks, [assembly] * len(comphet_chunks)))
-        instances_dict = {vcf: instance for vcf, instance in instances_iterator}
-
+        instances_dict = {}
+        for _dict in dicts_iterator:
+            instances_dict.update(_dict)
     # loop through the variants and re_rate the impact based on the other corresponding variant
     for i in range(len(comphet_cross_df)):
         var_1 = comphet_cross_df.loc[i, "var_1"]
@@ -179,11 +200,10 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly):
         var_1 = comphet_cross_df.loc[i, "var_1"]
         var_2 = comphet_cross_df.loc[i, "var_2"]
         instance_1 = instances_dict.get(var_1)
+        # if instance_1.variant
         instance_2 = instances_dict.get(var_2)
-        combined_variant_score = mean([instance_1.variant_score,
-                                       instance_2.variant_score])
-        instance_1.variant_score = combined_variant_score
-        instance_2.variant_score = combined_variant_score
+        combined_candidate_score = mean([instance_1.candidate_score,
+                                       instance_2.candidate_score])
 
         try:
             comphet_cross_df.loc[i, "gene"] = instance_1.gene_symbol
@@ -191,7 +211,7 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly):
             comphet_cross_df.loc[i, "gene"] = "-"
         comphet_cross_df.loc[i, "hgvsc"] = instance_1.hgvsc_change
         comphet_cross_df.loc[i, "hgvsp"] = instance_1.hgvsp_change
-        comphet_cross_df.loc[i, "candidate_score"] = instance_1.candidate_score
+        comphet_cross_df.loc[i, "candidate_score"] = combined_candidate_score
         comphet_cross_df.loc[i, "literature_score"] = instance_1.literature_score
         comphet_cross_df.loc[i, "CADD_phred"] = instance_1.__dict__.get("cadd_phred") or 0
         comphet_cross_df.loc[i, "impact"] = instance_1.impact
@@ -201,10 +221,37 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly):
 
     comphet_cross_df = comphet_cross_df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
     comphet_cross_df = comphet_cross_df.drop_duplicates(subset=["var_1"], keep="first")
-    comphet_cross_df.to_csv(f"{output_path}_scored_comphets.csv",
-                            index=False)
-
+    # comphet_cross_df.to_csv(f"{output_path}_scored_comphets.csv",
+    #                         index=False)
     return comphet_cross_df
+
+def edit_java_script_functions(js_file, dp_filter=20, gq_filter=10):
+    with open(js_file, "r") as original_file, open(js_file + ".temp", "w") as new_file:
+        for line in original_file:
+            new_file.write(line)
+        new_file.write(
+            "function hq(sample) {\n"
+                "if(sample.alts == -1) { return false; }\n"
+                "if(sample.DP < 10) { return false; }\n"
+                f"if(sample.GQ < {gq_filter}) {{ return false; }}\n"
+                "if(sample.alts == 0) {\n"
+                    f"if(sample.DP > {dp_filter} && sample.AB > 0.02) {{ return false; }}\n"
+                    f"if(sample.DP <= {dp_filter} && sample.AD[1] > 1) {{ return false; }}\n"
+                    "return true\n"
+                "}\n"
+                "if(sample.alts == 1) {\n"
+                    "if(sample.AB < 0.25 || sample.AB > 0.75) { return false; }\n"
+                    "return true\n"
+                "}\n"
+                "if(sample.alts == 2) {\n"
+                    f"if(sample.DP > {dp_filter} && sample.AB < 0.98) {{ return false; }}\n"
+                    f"if(sample.DP <= {dp_filter} && sample.AD[0] > 1) {{ return false; }}\n"
+                    "return true\n"
+                "}\n"
+            "}\n")
+    js_file += ".temp"
+    return js_file
+
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
 @click.pass_context
@@ -212,9 +259,9 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly):
 def main(ctx, verbose):
     group_commands = ['candidates']
     """
-            AutoCaSc_core is a command line tool that helps scoring
+            AutoCaSc is a command line tool that helps scoring
             variants of NDD patients for their plausible pathogenicity.\n
-            example: python AutoCaSc_core.py batch -i input/file/path
+            example: python AutoCaSc.py batch -i input/file/path
     """
 
     if ctx.invoked_subcommand is None:
@@ -245,7 +292,7 @@ def main(ctx, verbose):
 @click.option("--output_path", "-o",
               help="Output path for table with scored variants.")
 @click.option("--denovo_af_max", "-daf",
-              default="0.00000001",
+              default="0.0000001",
               help="Popmax AF in gnomad for denovo variants.")
 @click.option("--x_recessive_af_max", "-raf",
               default="0.0001",
@@ -253,78 +300,97 @@ def main(ctx, verbose):
 @click.option("--compf_af_max", "-raf",
               default="0.0001",
               help="Popmax AF in gnomad for compound heterozygous variants.")
-@click.option("--nhomalt", "-n",
+@click.option("--nhomalt", "-nh",
               default="0",
               help="Max number of alternative sequence homozygotes in gnomad.")
+@click.option("--quality", "-q",
+              default="100",
+              help="Minimum quality of variants.")
+@click.option("--gq_filter", "-gq",
+              default="10",
+              help="Minimum GQ (quality) for variants.")
+@click.option("--dp_filter", "-dp",
+              default="20",
+              help="Minimum DP (reads) for variants.")
 @click.option("--cache", "-c",
               type=click.Path(exists=True),
               help="Path to cache for temporary data.")
+@click.option("--slivar_dir", "-s",
+              type=click.Path(exists=True),
+              help="Path to slivar executable.")
 @click.option("--assembly", "-a",
               default="GRCh37",
               help="Reference genome to use, either GRCh37 or GRCh38.")
-@click.option("--non_coding", "-n",
+@click.option("--non_coding", "-nc",
               is_flag=True,
               help="Add to deactivate filter for protein coding variants. (-50 and +50bp of exons)")
 def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
-              denovo_af_max, x_recessive_af_max, compf_af_max, nhomalt, cache, assembly, non_coding):
+              denovo_af_max, x_recessive_af_max, compf_af_max, nhomalt, quality,
+              gq_filter, dp_filter, cache, slivar_dir, assembly, non_coding):
     trio_name = vcf_file.split("/")[-1]
     #ToDo noch mal genau mit regex überlegen, damit es nicht "family_XYZ.vcf.gz_filtered" heißt
     if not cache:
-        cache = vcf_file.rstrip(trio_name) + "temp/"
+        cache = vcf_file.rstrip(trio_name) + "temp"
         if not os.path.exists(cache):
             os.mkdir(cache)
-        click.echo(f"Using cache directory: {cache}")
+    click.echo(f"Using cache directory: {cache}")
     if not non_coding:
-        bed_filter_command = f'bedtools intersect -wa -a {vcf_file} -b /home/johann/AutoCaSc_core/data/BED/Homo_sapiens.{assembly}.bed > {cache}_temp'
-        bed_filter_process = subprocess.run(shlex.split(bed_filter_command),
-                                        stdout=subprocess.PIPE,
-                                        universal_newlines=True)
+        with open(f"{cache}/vcf_filtered_temp", "wb") as vcf_filtered:
+            bed_filter_command = f'bedtools intersect -wa -header -a {vcf_file} -b /home/johann/AutoCaSc/data/BED/{assembly}.bed'
+            bed_filter_process = subprocess.run(shlex.split(bed_filter_command),
+                                            stdout=vcf_filtered,
+                                            universal_newlines=True)
         if bed_filter_process.returncode == 0:
-            vcf_file = f"{cache}vcf_protein_coding"
+            vcf_file = f"{cache}/vcf_filtered_temp"
+            click.echo("BED-filtering successfull!")
         else:
             click.echo("There has been a problem filtering for protein coding variants only! Continuing with all variants.")
 
+    javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
+    if float(x_recessive_af_max) == 0.0:
+        x_recessive_af_max = "0.000000001"
     if float(denovo_af_max) == 0.0:
-        denovo_af_max = "0.00000001"
+        denovo_af_max = "0.000000001"
+    if float(compf_af_max) == 0.0:
+        compf_af_max = "0.000000001"
 
-    slivar_noncomp_command = f'slivar_folder/slivar expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                             f'--pass-only -g {gnotate_file} -o {cache}{trio_name}_filtered ' \
-                             f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                             f'&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
-                             f'&& trio_x_linked_recessive(kid, dad, mom)))" ' \
+    slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
+                             f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
+                             f'--info "variant.QUAL >= {quality}" ' \
                              f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
                              f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                             f'--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
+                             '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
                              f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                             f'&& trio_x_linked_recessive(kid, dad, mom)"'
+                             f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
+                             f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
+                             '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
+                             f'&& trio_x_linked_recessive(kid, dad, mom)))" '
     slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
-                                    stdout=subprocess.PIPE,
-                                    universal_newlines=True)
+                            stdout=subprocess.PIPE,
+                            universal_newlines=True)
 
-    slivar_precomp_command = f'slivar_folder/slivar expr -v {vcf_file} -j {javascript_file} -p {ped_file} --pass-only -g {gnotate_file} -o {cache}{trio_name}_comp_prefiltered --info "INFO.gnomad_popmax_af <= {compf_af_max}"'
+    slivar_precomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} ' \
+                             f'-p {ped_file} --pass-only ' \
+                             f'-g {gnotate_file} -o {cache}/{trio_name}_comp_prefiltered ' \
+                             f'--info "INFO.gnomad_popmax_af <= {compf_af_max} && variant.QUAL >= {quality}"'
     slivar_precomp_process = subprocess.run(shlex.split(slivar_precomp_command),
                                     stdout=subprocess.PIPE,
                                     universal_newlines=True)
-    slivar_comp_command = f'slivar_folder/slivar compound-hets -v {cache}/{trio_name}_comp_prefiltered -p {ped_file} -o {cache}{trio_name}_comphets'
+    slivar_comp_command = f'{slivar_dir} compound-hets -v {cache}/{trio_name}_comp_prefiltered ' \
+                          f'-p {ped_file} -o {cache}/{trio_name}_comphets'
     slivar_comp_process = subprocess.run(shlex.split(slivar_comp_command),
                                     stdout=subprocess.PIPE,
                                     universal_newlines=True)
 
-    # slivar_noncomp_process = subprocess.run(shlex.split("echo test"),
-    #                                 stdout=subprocess.PIPE,
-    #                                 universal_newlines=True)
-    # slivar_precomp_process = subprocess.run(shlex.split("echo test"),
-    #                                 stdout=subprocess.PIPE,
-    #                                 universal_newlines=True)
-    # slivar_comp_process = subprocess.run(shlex.split("echo test"),
-    #                                 stdout=subprocess.PIPE,
-    #                                 universal_newlines=True)
+    # slivar_noncomp_process = subprocess.run(shlex.split("echo test"))
+    # slivar_precomp_process = subprocess.run(shlex.split("echo test"))
+    # slivar_comp_process = subprocess.run(shlex.split("echo test"))
 
     if not all(c == 0 for c in [slivar_noncomp_process.returncode, slivar_precomp_process.returncode, slivar_comp_process.returncode]):
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
     else:
         print("Slivar subprocesses successfull, starting scoring!")
-        non_comphet_results = score_non_comphets(f"{cache}/{trio_name}_filtered", cache, trio_name, assembly)
+        non_comphet_results = score_non_comphets(f"{cache}/{trio_name}_non_comphets", cache, trio_name, assembly)
         print("de_novos, x_linked & recessive scored!")
         comphet_results = score_comphets(f"{cache}/{trio_name}_comphets", cache, trio_name, output_path, assembly)
         print("comphets scored!")
@@ -334,13 +400,15 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
         result_df = pd.concat([non_comphet_results, comphet_results.drop(columns="var_2")])
         result_df = result_df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
         result_df.to_csv(f"{output_path}", index=False)
-        print(result_df.head())
+        # print(result_df.head())
         shutil.rmtree(cache)
 
+
 if __name__ == "__main__":
-    score_vcf(shlex.split("-v /home/johann/AutoCaSc_core/slivar_folder/Bernt_VCF/conNDDcohort.annoated.vcf.gz "
-                          "-p /home/johann/AutoCaSc_core/slivar_folder/Bernt_VCF/pedigree_MR144.ped"
-                          "-g /home/johann/AutoCaSc_core/slivar_folder/gnomad.hg38.v2.zip"
-                          "-j /home/johann/AutoCaSc_core/slivar_folder/slivar-functions.js"
-                          "-o /home/johann/AutoCaSc_core/slivar_folder/scored/MR144_scored.csv"))
-    # main(obj={})
+    # score_vcf(shlex.split("-v /home/johann/AutoCaSc_core/slivar_folder/Bernt_VCF/conNDDcohort.annoated.vcf.gz "
+    #                       "-p /home/johann/AutoCaSc_core/slivar_folder/Bernt_VCF/pedigree_MR144.ped"
+    #                       "-g /home/johann/AutoCaSc_core/slivar_folder/gnomad.hg38.v2.zip"
+    #                       "-j /home/johann/AutoCaSc_core/slivar_folder/slivar-functions.js"
+    #                       "-o /home/johann/AutoCaSc_core/slivar_folder/scored/MR144_scored.csv"))
+    main(obj={})
+

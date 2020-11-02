@@ -855,7 +855,7 @@ class PubtatorCentral:
             self.preprocess_data()
             self.create_pmid_lists()
 
-        # self.bootstrap()
+        self.bootstrap()
         self.gene_scores_exp()
         self.lin_rank_genes(investigate_parameters=False)
 
@@ -1119,7 +1119,7 @@ def evaluate_mgi_parameters():
 if __name__ == "__main__":
     ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
-    validation_run = True
+    validation_run = False
     # HGNC()
     if validation_run:
         random.seed(42)
@@ -1161,13 +1161,13 @@ if __name__ == "__main__":
         princeton_negative
 
     n_cores = psutil.cpu_count()
-    MGI(n_cores, download=False).update()
-    StringDB(n_cores)
-    PsyMuKB()
-    GTEx()
-    Disgenet(n_cores, download=False)
-    PubtatorCentral(n_cores=46, download=False, preprocess=False)
-    fuse_data(validation_run=True)
+    # MGI(n_cores, download=False).update()
+    # StringDB(n_cores)
+    # PsyMuKB()
+    # GTEx()
+    # Disgenet(n_cores, download=False)
+    PubtatorCentral(n_cores=46, download=False, preprocess=False, n_bootstraps=100000)
+    fuse_data(validation_run=False)
 
     # evaluate_pubtator_parameters()
     # evaluate_mgi_parameters()

@@ -9,8 +9,10 @@ import pandas as pd
 import requests
 from numpy import isnan
 
-from AutoCaSc_core.gnomAD import GnomADQuery
-from AutoCaSc_core.tools import safe_get, filterTheDict
+# from AutoCaSc_core.gnomAD import GnomADQuery
+from gnomAD import GnomADQuery
+# from AutoCaSc_core.tools import safe_get, filterTheDict
+from tools import safe_get, filterTheDict
 
 AUTOCASC_VERSION = 0.95
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
@@ -791,8 +793,8 @@ def score_single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    score_single(["--variant", "1:7725246:G:A",
-                 "-ih", "de_novo",
-                 "-f", "yes"])
+    # score_single(["--variant", "1:7725246:G:A",
+    #              "-ih", "de_novo",
+    #              "-f", "yes"])
     # score_batch(["--input_file", "/home/johann/variant_test_file.txt"])
     main(obj={})
