@@ -401,7 +401,7 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
         result_df = result_df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
         result_df.to_csv(f"{output_path}", index=False)
         # print(result_df.head())
-        shutil.rmtree(cache)
+        # shutil.rmtree(cache)
 
 
 if __name__ == "__main__":

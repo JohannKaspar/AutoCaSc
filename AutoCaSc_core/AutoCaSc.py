@@ -798,8 +798,8 @@ def score_single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    score_single(["--variant", "19:54452636:C:CCT",
-                 "-ih", "de_novo",
-                 "-f", "yes"])
+    # score_single(["--variant", "19:54452636:C:CCT",
+    #              "-ih", "de_novo",
+    #              "-f", "yes"])
     # score_batch(["--input_file", "/home/johann/variant_test_file.txt"])
-    # main(obj={})
+    main(obj={})
