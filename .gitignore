@@ -2,13 +2,11 @@
 /AutoCaSc_maintenance/data/
 /Manuskript/
 /venv/
-/AutoCaSc_core/data/
-/AutoCaSc_core/.idea/
+#/AutoCaSc_core/.idea/
 /AutoCaSc_core/venv/
 /AutoCaSc_core/venv_backup/bin/
 /AutoCaSc_core/venv_backup/lib/python3.7/site-packages/
 /AutoCaSc_core/venv_backup/pyvenv.cfg
-/slivar_folder/
 /autocasc_image.dmg
 
 # User-specific stuff

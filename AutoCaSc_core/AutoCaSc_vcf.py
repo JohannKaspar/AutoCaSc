@@ -330,7 +330,7 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
     trio_name = vcf_file.split("/")[-1]
     #ToDo noch mal genau mit regex überlegen, damit es nicht "family_XYZ.vcf.gz_filtered" heißt
     if not cache:
-        cache = vcf_file.rstrip(trio_name) + "temp"
+        cache = vcf_file.rstrip(trio_name) + "tmp"
         if not os.path.exists(cache):
             os.mkdir(cache)
     click.echo(f"Using cache directory: {cache}")
@@ -402,6 +402,7 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
         result_df.to_csv(f"{output_path}", index=False)
         # print(result_df.head())
         shutil.rmtree(cache)
+        os.remove(javascript_file)
 
 
 if __name__ == "__main__":
