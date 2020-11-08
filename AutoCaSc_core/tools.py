@@ -2,7 +2,7 @@ import random
 
 import pandas as pd
 
-# ROOT_DIR = '/home/johann/AutoCaSc_core/data/'
+# ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 
@@ -60,9 +60,6 @@ def lin_rank(df, poi, mode="median"):
 
 
 def add_categories(original_df, column, identifiers, negative_list="princeton"):
-    ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-    # ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-
     sysid_primary = pd.read_csv(ROOT_DIR + "sysid/sysid_primary.csv",
                                 usecols=["Entrez id", "Ensembl id"])
     sysid_primary.columns = ["entrez_id", "ensemble_id"]
@@ -71,8 +68,8 @@ def add_categories(original_df, column, identifiers, negative_list="princeton"):
     sysid_candidates.columns = ["entrez_id", "ensemble_id"]
     princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv", usecols=["entrez_id", "ensemble_id"])
 
-    morbid_gene_symbols_list = pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
-                                           "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()
+    morbid_gene_symbols_list = pd.read_csv(ROOT_DIR + "MorbidGenes-Panel-v5_2020-08-26_for_varvis.csv",
+                                           header=None).iloc[:, 0].to_list()
     all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
                                usecols=["entrez_id", "ensemble_id", "gene_symbol"], sep="\t",
                                dtype={"entrez_id": "Int32", "gene_symbol": str})

@@ -96,6 +96,7 @@ class AutoCaSc:
         self.mutationtaster_converted_rankscore = None
         self.mutationassessor_rankscore = None
         self.mgi_score = None
+        self.multiple_transcripts = False
 
         self.check_variant_format()  # this function is called to check if the entered variant is valid
 
@@ -630,11 +631,14 @@ class AutoCaSc:
             transcript_df = transcript_df.reset_index(drop=True)
             if len(transcript_df) > 1 and transcript_df.loc[0, "impact_level"] == transcript_df.loc[1, "impact_level"] \
                     and transcript_df.loc[0, "canonical"] == transcript_df.loc[1, "canonical"]:
+                transcript_df = transcript_df.loc[transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
+                transcript_df = transcript_df.loc[transcript_df.canonical == transcript_df.loc[0, "canonical"]]
                 if "protein_coding" in transcript_df.biotype.unique():
                     transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"]
                     if len(transcript_df) > 1:
                         print("CAVE! Two protein_coding transcripts are affected!")
-                transcript_df.reset_index(inplace=True, drop=True)
+                        self.multiple_transcripts = True
+                    transcript_df.reset_index(inplace=True, drop=True)
             return int(transcript_df.loc[0, "transcript_id"])
 
         except AttributeError:
@@ -691,11 +695,12 @@ def main(ctx, verbose, output_path):
 @click.pass_context
 def score_variants(ctx, variants, inheritances, fam_histories):
     # verbose = ctx.obj.get('VERBOSE')
+    assembly = "GRCh38"
     verbose = True
     results_df = pd.DataFrame()
     variant_dict = {}
     for _variant, _inheritance, _fam_history in zip(variants, inheritances, fam_histories):
-        variant_dict[_variant] = AutoCaSc(_variant, _inheritance, _fam_history, assembly="GRCh37")
+        variant_dict[_variant] = AutoCaSc(_variant, _inheritance, _fam_history, assembly=assembly)
 
     if "comphet" in inheritances:
         gene_dict = {}
@@ -793,7 +798,7 @@ def score_single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    # score_single(["--variant", "1:7725246:G:A",
+    # score_single(["--variant", "19:54452636:C:CCT",
     #              "-ih", "de_novo",
     #              "-f", "yes"])
     # score_batch(["--input_file", "/home/johann/variant_test_file.txt"])
