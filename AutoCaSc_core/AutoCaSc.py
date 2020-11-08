@@ -654,18 +654,6 @@ class AutoCaSc:
             return None
 
 
-# print(AutoCaSc_core("2:46803383:G:A", "de_novo").candidate_score)  # benign
-# print(AutoCaSc_core("1:1737948:A:G", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("X:153040798:C:A", "de_novo").candidate_score)  # benign
-# print(AutoCaSc_core("1:3732936:A:G", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("1:7725246:G:A", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("1:2234850:G:A", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("1:3755660:A:C", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("1:1959699:G:A", "other").candidate_score)  # benign, high expressesed, GABA receptor.......
-# print(AutoCaSc_core("CBLB:c.1822C>T", "other").candidate_score)
-# print(AutoCaSc_core("NM_001113498.2:c.794T>A", "de_novo").candidate_score)
-# print(AutoCaSc_core("chr4:175812275:T:C", inheritance="de_novo", assembly="GRCh38").candidate_score)
-# print(AutoCaSc_core("3:149619809:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:-", "de_novo").candidate_score)  # benign, high expressesed, GABA receptor.......
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
@@ -792,14 +780,23 @@ def score_single(variant, inheritance, family_history):
     results_df = score_variants([variant], [inheritance], [family_history])
     click.echo(results_df.head(len(results_df)))
 
-# @main.command("single")
-# @click.option("--variant", help="Single variant to score.")
-# @click.option("--inheritance", default="de_novo", help="Enter inheritance mode. Default is de novo.")
-
 
 if __name__ == "__main__":
     # score_single(["--variant", "19:54452636:C:CCT",
     #              "-ih", "de_novo",
     #              "-f", "yes"])
-    # score_batch(["--input_file", "/home/johann/variant_test_file.txt"])
+    # score_batch(["--input_file", "/home/johann/CLI_batch_test_variants.txt"])
     main(obj={})
+
+# print(AutoCaSc_core("2:46803383:G:A", "de_novo").candidate_score)  # benign
+# print(AutoCaSc_core("1:1737948:A:G", "de_novo").candidate_score)  # pathogenic
+# print(AutoCaSc_core("X:153040798:C:A", "de_novo").candidate_score)  # benign
+# print(AutoCaSc_core("1:3732936:A:G", "de_novo").candidate_score)  # pathogenic
+# print(AutoCaSc_core("1:7725246:G:A", "de_novo").candidate_score)  # pathogenic
+# print(AutoCaSc_core("1:2234850:G:A", "de_novo").candidate_score)  # pathogenic
+# print(AutoCaSc_core("1:3755660:A:C", "de_novo").candidate_score)  # pathogenic
+# print(AutoCaSc_core("1:1959699:G:A", "other").candidate_score)  # benign, high expressesed, GABA receptor.......
+# print(AutoCaSc_core("CBLB:c.1822C>T", "other").candidate_score)
+# print(AutoCaSc_core("NM_001113498.2:c.794T>A", "de_novo").candidate_score)
+# print(AutoCaSc_core("chr4:175812275:T:C", inheritance="de_novo", assembly="GRCh38").candidate_score)
+# print(AutoCaSc_core("3:149619809:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:-", "de_novo").candidate_score)  # benign, high expressesed, GABA receptor.......

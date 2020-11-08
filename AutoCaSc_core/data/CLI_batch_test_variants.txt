@@ -1,0 +1,2 @@
+NM_001145165.1:c.446C>G, comphet
+NM_001145165.1:c.224T>G, comphet

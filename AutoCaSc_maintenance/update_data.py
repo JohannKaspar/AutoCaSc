@@ -118,7 +118,6 @@ def fuse_data(validation_run=False):
     else:
         all_data.to_csv(ROOT_DIR + "all_gene_data.csv", index=False)
 
-
 def update_gnomad_data():
     all_genes = pd.read_csv(ROOT_DIR + "protein_gene_table.csv")
     gnomad_data = pd.read_csv(ROOT_DIR + "gnomad/gnomad.v2.1.1.lof_metrics.by_gene.txt.csv",
@@ -1171,7 +1170,3 @@ if __name__ == "__main__":
 
     # evaluate_pubtator_parameters()
     # evaluate_mgi_parameters()
-
-# for corr_exp in np.arange(0.3, 0.7, 0.05):
-#     for rnk_exp in np.arange(1.5, 3, 0.5):
-#         evaluate_parameters(MGI(10).calculate_gene_scores(corr_exp, rnk_exp), "entrez_id", "gene_score", (corr_exp, rnk_exp))
