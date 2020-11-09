@@ -10,9 +10,9 @@ import requests
 from numpy import isnan
 
 # from AutoCaSc_core.gnomAD import GnomADQuery
-from gnomAD import GnomADQuery
+from AutoCaSc_core.gnomAD import GnomADQuery
 # from AutoCaSc_core.tools import safe_get, filterTheDict
-from tools import safe_get, filterTheDict
+from AutoCaSc_core.tools import safe_get, filterTheDict
 
 AUTOCASC_VERSION = 0.95
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
@@ -26,8 +26,13 @@ class AutoCaSc:
     Class attributes correspond to variant parameters ranging from position to candidate score.
     """
 
-    def __init__(self, variant, inheritance="other",
-                 family_history=False, other_impact="unknown", assembly="GRCh37", CADD_based=False):
+    def __init__(self, variant,
+                 inheritance="other",
+                 family_history=False,
+                 other_impact="unknown",
+                 assembly="GRCh37",
+                 CADD_based=False,
+                 transcript_num=None):
         """This function assigns basic parameters and initializes the scoring process.
 
         :param variant: the variant including position and alternative sequence
@@ -97,6 +102,7 @@ class AutoCaSc:
         self.mutationassessor_rankscore = None
         self.mgi_score = None
         self.multiple_transcripts = False
+        self.transcript_num = transcript_num
 
         self.check_variant_format()  # this function is called to check if the entered variant is valid
 
@@ -636,8 +642,11 @@ class AutoCaSc:
                 if "protein_coding" in transcript_df.biotype.unique():
                     transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"]
                     if len(transcript_df) > 1:
-                        print("CAVE! Two protein_coding transcripts are affected!")
-                        self.multiple_transcripts = True
+                        if not self.transcript_num:
+                            print("CAVE! Two protein_coding transcripts are affected!")
+                            self.multiple_transcripts = len(transcript_df)
+                        else:
+                            return int(transcript_df.loc[self.transcript_num, "transcript_id"])
                     transcript_df.reset_index(inplace=True, drop=True)
             return int(transcript_df.loc[0, "transcript_id"])
 

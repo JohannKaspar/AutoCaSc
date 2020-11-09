@@ -5,11 +5,27 @@ import subprocess
 from statistics import mean
 import click
 import time
-from AutoCaSc import AutoCaSc
+from AutoCaSc_core.AutoCaSc import AutoCaSc
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import re
 import shutil
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(reraise=True, stop=(stop_after_attempt(10)|wait_exponential(multiplier=1, min=1, max=5)))
+def iteration_func(variant_vcf, inheritance, assembly):
+     instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+     if instance.status_code == 200:
+         return instance
+     else:
+         raise IOError("There has been an issue with a variant.")
+
+def annotate_variant(variant_vcf, inheritance, assembly, transcript_num=None):
+ try:
+     instance = iteration_func(variant_vcf, inheritance, assembly, transcript_num)
+ except IOError:
+     instance = AutoCaSc(variant_vcf, inheritance, assembly, transcript_num)
+ return instance
 
 
 def create_bed_file(assembly="GRCh37", ensembl_version="101"):
@@ -44,7 +60,6 @@ def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     # shutil.rmtree(cache)
 
 def thread_function_AutoCaSc_classic(param_tuple):
-    # time.sleep(random.randint(0,10))
     vcf_chunk, assembly = param_tuple
     vcf_chunk.reset_index(drop=True, inplace=True)
     return_dict = {}
@@ -68,15 +83,31 @@ def thread_function_AutoCaSc_classic(param_tuple):
             inheritance = "comphet"
         else:
             inheritance = "other"
-        return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
-        if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
-            print("There has been an issue with a variant. Retrying...")
-            for i in range(10):
-                if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
-                    time.sleep(3)
-                    return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
-                else:
-                    break
+        autocasc_instance = annotate_variant(variant_vcf, inheritance, assembly)
+        return_dict[variant_vcf] = autocasc_instance
+
+        # autocasc_instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+        # return_dict[variant_vcf] = autocasc_instance
+        # if autocasc_instance.status_code in [503, 497, 496, 201]:
+        #     print("There has been an issue with a variant. Retrying...")
+        #     for i in range(10):
+        #         if autocasc_instance.status_code in [503, 497, 496, 201]:
+        #             time.sleep(3)
+        #             autocasc_instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+        #             return_dict[variant_vcf] = autocasc_instance
+        #         else:
+        #             break
+
+        # if there are multiple transcripts of same significance, calculate CaSc for all of them
+        if autocasc_instance.multiple_transcripts:
+            for i in range(autocasc_instance.multiple_transcripts - 1):
+                transcript_num = i + 1
+                alternative_instance = annotate_variant(variant_vcf,
+                                                        inheritance,
+                                                        assembly,
+                                                        transcript_num)
+                return_dict[variant_vcf + f"_({i})"] = alternative_instance
+
     return return_dict
 
 # def thread_function_comphet_classic(param_tuple):
