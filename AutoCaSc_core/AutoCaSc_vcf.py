@@ -440,9 +440,9 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
                                     stdout=subprocess.PIPE,
                                     universal_newlines=True)
 
-    slivar_noncomp_process = subprocess.run(shlex.split("echo test"))
-    slivar_precomp_process = subprocess.run(shlex.split("echo test"))
-    slivar_comp_process = subprocess.run(shlex.split("echo test"))
+    # slivar_noncomp_process = subprocess.run(shlex.split("echo test"))
+    # slivar_precomp_process = subprocess.run(shlex.split("echo test"))
+    # slivar_comp_process = subprocess.run(shlex.split("echo test"))
 
     if not all(c == 0 for c in [slivar_noncomp_process.returncode, slivar_precomp_process.returncode, slivar_comp_process.returncode]):
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
