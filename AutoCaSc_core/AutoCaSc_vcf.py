@@ -121,31 +121,6 @@ def thread_function_AutoCaSc_classic(param_tuple):
 
     return return_dict
 
-# def thread_function_comphet_classic(param_tuple):
-#     """function for bases line annotating cmpound heterozygous variants
-#     """
-#     time.sleep(random.randint(0,10))
-#     vcf_chunk, assembly = param_tuple
-#     vcf_chunk.reset_index(drop=True, inplace=True)
-#     return_dict = {}
-#     for row_id in range(len(vcf_chunk)):
-#         chrom = vcf_chunk.loc[row_id, "#CHROM"]
-#         pos = vcf_chunk.loc[row_id, "POS"]
-#         ref = vcf_chunk.loc[row_id, "REF"]
-#         alt = vcf_chunk.loc[row_id, "ALT"]
-#
-#         variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
-#         inheritance = "comphet"
-#         return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
-#         if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
-#             print("There has been an issue with a variant. Retrying...")
-#             for i in range(10):
-#                 if return_dict.get(variant_vcf).status_code in [503, 497, 496, 201]:
-#                     time.sleep(3)
-#                     return_dict[variant_vcf] = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
-#                 else:
-#                     break
-#     return return_dict
 
 def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
     # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
@@ -178,6 +153,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
         except AttributeError:
             result_df.loc[i, "gene"] = "-"
         result_df.loc[i, "hgvsc"] = _AutoCaSc_instance.hgvsc_change
+        result_df.loc[i, "transcript"] = _AutoCaSc_instance.transcript
         result_df.loc[i, "hgvsp"] = _AutoCaSc_instance.hgvsp_change
         result_df.loc[i, "candidate_score"] = _AutoCaSc_instance.candidate_score
         result_df.loc[i, "literature_score"] = _AutoCaSc_instance.literature_score
@@ -253,8 +229,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=10):
         except AttributeError:
             comphet_cross_df.loc[i, "gene"] = "-"
 
-        comphet_cross_df.loc[i, "transcript"] = instance_1.transcript
         comphet_cross_df.loc[i, "hgvsc"] = instance_1.hgvsc_change
+        comphet_cross_df.loc[i, "transcript"] = instance_1.transcript
         comphet_cross_df.loc[i, "hgvsp"] = instance_1.hgvsp_change
         comphet_cross_df.loc[i, "candidate_score"] = combined_candidate_score
         comphet_cross_df.loc[i, "literature_score"] = instance_1.literature_score
@@ -265,10 +241,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=10):
         comphet_cross_df.loc[i, "inheritance"] = instance_1.inheritance
         comphet_cross_df.loc[i, "status_code"] = instance_1.status_code
 
-        #temporary
+        # ToDo: delete this line
         comphet_cross_df.loc[i, "impact_score"] = instance_1.impact_score
-        if instance_1.variant == "17:8156264:A:G":
-            print("stop")
 
 
     comphet_cross_df = comphet_cross_df.rename(columns={"var_1":"variant", "var_2":"other_variant"})

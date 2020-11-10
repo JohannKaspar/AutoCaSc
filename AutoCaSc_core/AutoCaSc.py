@@ -541,7 +541,6 @@ class AutoCaSc:
 
         if selected_transcript_consequences.get("consequence_terms") is not None:
             self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
-
         if selected_transcript_consequences.get("hgvsc") is not None:
             self.transcript = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 0) or \
                               selected_transcript_consequences.get("transcript_id")
@@ -636,8 +635,6 @@ class AutoCaSc:
             transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
                                                       ascending=[False, False])
             transcript_df = transcript_df.reset_index(drop=True)
-            # if '6:53073495:G:A' in self.variant:
-            #     print("stop")
             if len(transcript_df) > 1 and transcript_df.loc[0, "impact_level"] == transcript_df.loc[1, "impact_level"] \
                     and transcript_df.loc[0, "canonical"] == transcript_df.loc[1, "canonical"]:
                 transcript_df = transcript_df.loc[transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
