@@ -5,7 +5,7 @@ import subprocess
 from statistics import mean
 import click
 import time
-from AutoCaSc_core.AutoCaSc import AutoCaSc
+from AutoCaSc import AutoCaSc
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import re
@@ -13,8 +13,11 @@ import shutil
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 @retry(reraise=True, stop=(stop_after_attempt(10)|wait_exponential(multiplier=1, min=1, max=5)))
-def iteration_func(variant_vcf, inheritance, assembly):
-     instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
+def iteration_func(variant_vcf, inheritance, assembly, transcript_num):
+     instance = AutoCaSc(variant_vcf,
+                               inheritance=inheritance,
+                               assembly=assembly,
+                               transcript_num=transcript_num)
      if instance.status_code == 200:
          return instance
      else:
@@ -22,9 +25,15 @@ def iteration_func(variant_vcf, inheritance, assembly):
 
 def annotate_variant(variant_vcf, inheritance, assembly, transcript_num=None):
  try:
-     instance = iteration_func(variant_vcf, inheritance, assembly, transcript_num)
+     instance = iteration_func(variant_vcf,
+                               inheritance=inheritance,
+                               assembly=assembly,
+                               transcript_num=transcript_num)
  except IOError:
-     instance = AutoCaSc(variant_vcf, inheritance, assembly, transcript_num)
+     instance = AutoCaSc(variant_vcf,
+                         inheritance=inheritance,
+                         assembly=assembly,
+                         transcript_num=transcript_num)
  return instance
 
 
@@ -83,7 +92,9 @@ def thread_function_AutoCaSc_classic(param_tuple):
             inheritance = "comphet"
         else:
             inheritance = "other"
-        autocasc_instance = annotate_variant(variant_vcf, inheritance, assembly)
+        autocasc_instance = annotate_variant(variant_vcf,
+                                             inheritance=inheritance,
+                                             assembly=assembly)
         return_dict[variant_vcf] = autocasc_instance
 
         # autocasc_instance = AutoCaSc(variant_vcf, inheritance=inheritance, assembly=assembly)
@@ -103,10 +114,10 @@ def thread_function_AutoCaSc_classic(param_tuple):
             for i in range(autocasc_instance.multiple_transcripts - 1):
                 transcript_num = i + 1
                 alternative_instance = annotate_variant(variant_vcf,
-                                                        inheritance,
-                                                        assembly,
-                                                        transcript_num)
-                return_dict[variant_vcf + f"_({i})"] = alternative_instance
+                                                        inheritance=inheritance,
+                                                        assembly=assembly,
+                                                        transcript_num=transcript_num)
+                return_dict[variant_vcf + f"({transcript_num})"] = alternative_instance
 
     return return_dict
 
@@ -178,7 +189,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
 
     return result_df
 
-def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly, num_threads=10):
+def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=10):
     #this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
         for row in inp:
@@ -206,12 +217,14 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly, num_th
             vcf_2 = ":".join([chrom_2, pos_2, ref_2, alt_2])
             comphet_cross_df.loc[cross_df_index, "var_2"] = vcf_2
 
+    # score all variants
     with ThreadPoolExecutor() as executor:
         dicts_iterator = executor.map(thread_function_AutoCaSc_classic,
                                           zip(comphet_chunks, [assembly] * len(comphet_chunks)))
         instances_dict = {}
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
+
     # loop through the variants and re_rate the impact based on the other corresponding variant
     for i in range(len(comphet_cross_df)):
         var_1 = comphet_cross_df.loc[i, "var_1"]
@@ -231,15 +244,16 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly, num_th
         var_1 = comphet_cross_df.loc[i, "var_1"]
         var_2 = comphet_cross_df.loc[i, "var_2"]
         instance_1 = instances_dict.get(var_1)
-        # if instance_1.variant
         instance_2 = instances_dict.get(var_2)
         combined_candidate_score = mean([instance_1.candidate_score,
-                                       instance_2.candidate_score])
+                                         instance_2.candidate_score])
 
         try:
             comphet_cross_df.loc[i, "gene"] = instance_1.gene_symbol
         except AttributeError:
             comphet_cross_df.loc[i, "gene"] = "-"
+
+        comphet_cross_df.loc[i, "transcript"] = instance_1.transcript
         comphet_cross_df.loc[i, "hgvsc"] = instance_1.hgvsc_change
         comphet_cross_df.loc[i, "hgvsp"] = instance_1.hgvsp_change
         comphet_cross_df.loc[i, "candidate_score"] = combined_candidate_score
@@ -247,11 +261,19 @@ def score_comphets(comphets_vcf, cache, trio_name, output_path, assembly, num_th
         comphet_cross_df.loc[i, "CADD_phred"] = instance_1.__dict__.get("cadd_phred") or 0
         comphet_cross_df.loc[i, "impact"] = instance_1.impact
         comphet_cross_df.loc[i, "other_impact"] = instance_1.other_impact
+        comphet_cross_df.loc[i, "other_transcript"] = instance_2.transcript
         comphet_cross_df.loc[i, "inheritance"] = instance_1.inheritance
         comphet_cross_df.loc[i, "status_code"] = instance_1.status_code
 
-    comphet_cross_df = comphet_cross_df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
-    comphet_cross_df = comphet_cross_df.drop_duplicates(subset=["var_1"], keep="first")
+        #temporary
+        comphet_cross_df.loc[i, "impact_score"] = instance_1.impact_score
+        if instance_1.variant == "17:8156264:A:G":
+            print("stop")
+
+
+    comphet_cross_df = comphet_cross_df.rename(columns={"var_1":"variant", "var_2":"other_variant"})
+    # comphet_cross_df = comphet_cross_df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
+    # comphet_cross_df = comphet_cross_df.drop_duplicates(subset=["var_1"], keep="first")
     # comphet_cross_df.to_csv(f"{output_path}_scored_comphets.csv",
     #                         index=False)
     return comphet_cross_df
@@ -283,6 +305,11 @@ def edit_java_script_functions(js_file, dp_filter=20, gq_filter=10):
     js_file += ".temp"
     return js_file
 
+def clean_up_duplicates(df):
+    df = df.sort_values(by="variant", ascending=True)
+    df = df.drop_duplicates(subset=list(df.columns)[1:], keep="first")
+    df = df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
+    return df
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
 @click.pass_context
@@ -367,7 +394,7 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
     click.echo(f"Using cache directory: {cache}")
     if not non_coding:
         with open(f"{cache}/vcf_filtered_temp", "wb") as vcf_filtered:
-            bed_filter_command = f'bedtools intersect -wa -header -a {vcf_file} -b /home/johann/AutoCaSc/data/BED/{assembly}.bed'
+            bed_filter_command = f'bedtools intersect -wa -header -a {vcf_file} -b /home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_core/data/BED/{assembly}.bed'
             bed_filter_process = subprocess.run(shlex.split(bed_filter_command),
                                             stdout=vcf_filtered,
                                             universal_newlines=True)
@@ -413,9 +440,9 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
                                     stdout=subprocess.PIPE,
                                     universal_newlines=True)
 
-    # slivar_noncomp_process = subprocess.run(shlex.split("echo test"))
-    # slivar_precomp_process = subprocess.run(shlex.split("echo test"))
-    # slivar_comp_process = subprocess.run(shlex.split("echo test"))
+    slivar_noncomp_process = subprocess.run(shlex.split("echo test"))
+    slivar_precomp_process = subprocess.run(shlex.split("echo test"))
+    slivar_comp_process = subprocess.run(shlex.split("echo test"))
 
     if not all(c == 0 for c in [slivar_noncomp_process.returncode, slivar_precomp_process.returncode, slivar_comp_process.returncode]):
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
@@ -423,13 +450,14 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
         print("Slivar subprocesses successfull, starting scoring!")
         non_comphet_results = score_non_comphets(f"{cache}/{trio_name}_non_comphets", cache, trio_name, assembly)
         print("de_novos, x_linked & recessive scored!")
-        comphet_results = score_comphets(f"{cache}/{trio_name}_comphets", cache, trio_name, output_path, assembly)
+        comphet_results = score_comphets(f"{cache}/{trio_name}_comphets", cache, trio_name, assembly)
         print("comphets scored!")
 
         comphet_columns = list(comphet_results.columns)
         comphet_results.columns = ["variant"] + comphet_columns[1:]
-        result_df = pd.concat([non_comphet_results, comphet_results.drop(columns="var_2")])
-        result_df = result_df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
+        # result_df = pd.concat([non_comphet_results, comphet_results.drop(columns="var_2")])
+        result_df = pd.concat([non_comphet_results, comphet_results])
+        result_df = clean_up_duplicates(result_df)
         result_df.to_csv(f"{output_path}", index=False)
         # print(result_df.head())
         shutil.rmtree(cache)
@@ -437,10 +465,13 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
 
 
 if __name__ == "__main__":
-    # score_vcf(shlex.split("-v /home/johann/AutoCaSc_core/slivar_folder/Bernt_VCF/conNDDcohort.annoated.vcf.gz "
-    #                       "-p /home/johann/AutoCaSc_core/slivar_folder/Bernt_VCF/pedigree_MR144.ped"
-    #                       "-g /home/johann/AutoCaSc_core/slivar_folder/gnomad.hg38.v2.zip"
-    #                       "-j /home/johann/AutoCaSc_core/slivar_folder/slivar-functions.js"
-    #                       "-o /home/johann/AutoCaSc_core/slivar_folder/scored/MR144_scored.csv"))
+    # score_vcf(shlex.split("-v /home/johann/Bernt_VCF/bernt_vcf_coding "
+    #                       "-p /home/johann/Bernt_VCF/pedigrees/pedigree_MR144.ped "
+    #                       "-g /home/johann/tools/slivar/gnotate/gnomad.hg38.v2.zip "
+    #                       "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_core/data/slivar-functions.js "
+    #                       "-o /home/johann/Bernt_VCF/scored/MR144_scored.csv "
+    #                       "-a GRCh38 "
+    #                       "-s /home/johann/tools/slivar/slivar "
+    #                       "-nc"))
     main(obj={})
 

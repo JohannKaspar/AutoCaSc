@@ -8,13 +8,13 @@ import click
 import pandas as pd
 import requests
 from numpy import isnan
-
 # from AutoCaSc_core.gnomAD import GnomADQuery
-from AutoCaSc_core.gnomAD import GnomADQuery
 # from AutoCaSc_core.tools import safe_get, filterTheDict
-from AutoCaSc_core.tools import safe_get, filterTheDict
 
-AUTOCASC_VERSION = 0.95
+from gnomAD import GnomADQuery
+from tools import safe_get, filterTheDict
+
+AUTOCASC_VERSION = 0.96
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
 gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
@@ -541,6 +541,7 @@ class AutoCaSc:
 
         if selected_transcript_consequences.get("consequence_terms") is not None:
             self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
+
         if selected_transcript_consequences.get("hgvsc") is not None:
             self.transcript = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 0) or \
                               selected_transcript_consequences.get("transcript_id")
@@ -635,6 +636,8 @@ class AutoCaSc:
             transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
                                                       ascending=[False, False])
             transcript_df = transcript_df.reset_index(drop=True)
+            # if '6:53073495:G:A' in self.variant:
+            #     print("stop")
             if len(transcript_df) > 1 and transcript_df.loc[0, "impact_level"] == transcript_df.loc[1, "impact_level"] \
                     and transcript_df.loc[0, "canonical"] == transcript_df.loc[1, "canonical"]:
                 transcript_df = transcript_df.loc[transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
@@ -700,6 +703,9 @@ def score_variants(ctx, variants, inheritances, fam_histories):
         variant_dict[_variant] = AutoCaSc(_variant, _inheritance, _fam_history, assembly=assembly)
 
     if "comphet" in inheritances:
+        #ToDo: check this again, maybe write one function for both vcf and batch CLI
+
+        # make a dict of all compound heterozygous variants and the gene_id to match corresponding comphets
         gene_dict = {}
         for _variant, _inheritance in zip(variants, inheritances):
             if _inheritance == "comphet":
@@ -709,7 +715,7 @@ def score_variants(ctx, variants, inheritances, fam_histories):
         # comphet_df = pd.DataFrame.from_dict(gene_dict, orient='index').reset_index()
         # comphet_df.columns = ['variant', 'gene_id']
 
-        for _variant in variants:
+        for _variant in gene_dict.keys():
             try:
                 variant_gene = gene_dict.get(_variant)
                 other_variant = list(filterTheDict(gene_dict, variant_gene, _variant).keys())[0]
@@ -720,23 +726,33 @@ def score_variants(ctx, variants, inheritances, fam_histories):
                 pass
 
         comphet_id = 0  # unique identifier for clear identification of corresponding compound heterozygous variants
-        for _variant in variants:
-            if variant_dict.get(_variant).comphet_id:
+        for _variant, variant_gene in gene_dict.items():
+            instance_1 = variant_dict.get(_variant)
+            if instance_1.comphet_id:
                 continue
-            variant_gene = gene_dict.get(_variant)
+            # variant_gene = gene_dict.get(_variant)
             other_variant = list(filterTheDict(gene_dict, variant_gene, _variant).keys())[0]
+            instance_2 = variant_dict.get(other_variant)
 
-            combined_variant_score = mean([variant_dict.get(_variant).variant_score,
-                                           variant_dict.get(other_variant).variant_score])
-            variant_dict.get(_variant).variant_score = combined_variant_score
-            variant_dict.get(other_variant).variant_score = combined_variant_score
-            variant_dict.get(_variant).comphet_id = comphet_id
-            variant_dict.get(other_variant).comphet_id = comphet_id
-            variant_dict.get(_variant).calculate_canidate_score()
-            variant_dict.get(other_variant).calculate_canidate_score()
+            if instance_1.status_code == 200 and instance_2.status_code == 200:
+                try:
+                    instance_1.other_impact = instance_2.impact
+                    instance_2.other_impact = instance_1.impact
+                    instance_1.rate_impact()
+                    instance_2.rate_impact()
+                except AttributeError:
+                    pass
+
+            combined_candidate_score = mean([instance_1.candidate_score,
+                                             instance_2.candidate_score])
+            instance_1.candidate_score, instance_2.candidate_score = combined_candidate_score, combined_candidate_score
+            instance_1.comphet_id, instance_2.comphet_id = comphet_id, comphet_id
+
+            variant_dict[_variant] = instance_1
+            variant_dict[other_variant] = instance_2
             comphet_id += 1
 
-
+    # create the final result_df containing scoring results
     for _variant, _inheritance, _fam_history in zip(variants, inheritances, fam_histories):
         variant_instance = variant_dict.get(_variant)
         results_df.loc[_variant, "candidate_score"] = variant_instance.candidate_score
