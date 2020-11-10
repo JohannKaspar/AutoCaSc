@@ -90,6 +90,8 @@ def thread_function_AutoCaSc_classic(param_tuple):
             inheritance = "x_linked"
         elif "comphet" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "comphet"
+        elif "autosomal_dominant" in str(vcf_chunk.loc[row_id, "INFO"]):
+            inheritance = "ad_inherited"
         else:
             inheritance = "other"
         autocasc_instance = annotate_variant(variant_vcf,
@@ -285,6 +287,17 @@ def clean_up_duplicates(df):
     df = df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
     return df
 
+def parent_affected(ped_file):
+    pedigree = pd.read_csv(ped_file, sep="\t")
+    # affected status = 2 means the individual is affected
+    pedigree.columns = ["family_id", "individual_id", "paternal_id", "maternal_id", "sex", "affected_status"]
+    for i in range(len(pedigree)):
+        if pedigree.loc[i, "paternal_id"] not in pedigree.individual_id \
+                and pedigree.loc[i, "maternal_id"] not in pedigree.individual_id:
+            if pedigree.loc[i, "affected_status"] == 2:
+                return True
+    return False
+
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
 @click.pass_context
 @click.option('--verbose', '-v', is_flag=True, help="Increase output verbosity level")
@@ -332,6 +345,9 @@ def main(ctx, verbose):
 @click.option("--compf_af_max", "-raf",
               default="0.0001",
               help="Popmax AF in gnomad for compound heterozygous variants.")
+@click.option("--autosomal_af_max", "-aaf",
+              default="0.0000001",
+              help="Popmax AF in gnomad for autosomal dominant variants.")
 @click.option("--nhomalt", "-nh",
               default="0",
               help="Max number of alternative sequence homozygotes in gnomad.")
@@ -357,8 +373,8 @@ def main(ctx, verbose):
               is_flag=True,
               help="Add to deactivate filter for protein coding variants. (-50 and +50bp of exons)")
 def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
-              denovo_af_max, x_recessive_af_max, compf_af_max, nhomalt, quality,
-              gq_filter, dp_filter, cache, slivar_dir, assembly, non_coding):
+              denovo_af_max, x_recessive_af_max, compf_af_max, autosomal_af_max, nhomalt,
+              quality, gq_filter, dp_filter, cache, slivar_dir, assembly, non_coding):
     trio_name = vcf_file.split("/")[-1]
     #ToDo noch mal genau mit regex überlegen, damit es nicht "family_XYZ.vcf.gz_filtered" heißt
     if not cache:
@@ -386,20 +402,7 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
     if float(compf_af_max) == 0.0:
         compf_af_max = "0.000000001"
 
-    slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                             f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                             f'--info "variant.QUAL >= {quality}" ' \
-                             f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
-                             f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                             '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
-                             f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                             f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
-                             f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                             '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
-                             f'&& trio_x_linked_recessive(kid, dad, mom)))" '
-    slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
-                            stdout=subprocess.PIPE,
-                            universal_newlines=True)
+
 
     slivar_precomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} ' \
                              f'-p {ped_file} --pass-only ' \
@@ -414,6 +417,38 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
                                     stdout=subprocess.PIPE,
                                     universal_newlines=True)
 
+    if parent_affected(ped_file):
+        slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
+                             f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_autosomal_recessive ' \
+                             f'--info "variant.QUAL >= {quality}" ' \
+                             f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
+                             f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
+                             '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
+                             f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
+                             f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
+                             f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
+                             '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
+                             f'&& trio_x_linked_recessive(kid, dad, mom)))" ' \
+                             f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
+                             '&& (trio_autosomal_dominant(kid, mom, dad)" '
+        slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
+                                        stdout=subprocess.PIPE,
+                                        universal_newlines=True)
+    else:
+        slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
+                                 f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
+                                 f'--info "variant.QUAL >= {quality}" ' \
+                                 f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
+                                 f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
+                                 '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
+                                 f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
+                                 f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
+                                 f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
+                                 '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
+                                 f'&& trio_x_linked_recessive(kid, dad, mom)))" '
+        slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
+                                                stdout=subprocess.PIPE,
+                                                universal_newlines=True)
     # slivar_noncomp_process = subprocess.run(shlex.split("echo test"))
     # slivar_precomp_process = subprocess.run(shlex.split("echo test"))
     # slivar_comp_process = subprocess.run(shlex.split("echo test"))
