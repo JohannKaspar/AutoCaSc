@@ -135,6 +135,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
 
     vcf_annotated = pd.read_csv(f"{cache}/temp_{trio_name}.tsv", sep="\t")
     # vcf_annotated = vcf_annotated.loc[vcf_annotated["#CHROM"] == "chr1"]
+
     num_threads = 10
     vcf_chunks = [vcf_annotated.loc[i * round(len(vcf_annotated) / num_threads):(i+1) * round(len(vcf_annotated) / num_threads),:] for i in range(num_threads)]
 
@@ -288,14 +289,16 @@ def clean_up_duplicates(df):
     return df
 
 def parent_affected(ped_file):
-    pedigree = pd.read_csv(ped_file, sep="\t")
+    pedigree = pd.read_csv(ped_file, sep="\t", header=None)
     # affected status = 2 means the individual is affected
     pedigree.columns = ["family_id", "individual_id", "paternal_id", "maternal_id", "sex", "affected_status"]
     for i in range(len(pedigree)):
         if pedigree.loc[i, "paternal_id"] not in pedigree.individual_id \
                 and pedigree.loc[i, "maternal_id"] not in pedigree.individual_id:
             if pedigree.loc[i, "affected_status"] == 2:
+                print("parent affected")
                 return True
+    print("parent unaffected")
     return False
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
@@ -419,7 +422,7 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
 
     if parent_affected(ped_file):
         slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                             f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_autosomal_recessive ' \
+                             f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
                              f'--info "variant.QUAL >= {quality}" ' \
                              f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
                              f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
@@ -430,7 +433,7 @@ def score_vcf(vcf_file, ped_file, gnotate_file, javascript_file, output_path,
                              '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
                              f'&& trio_x_linked_recessive(kid, dad, mom)))" ' \
                              f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
-                             '&& (trio_autosomal_dominant(kid, mom, dad)" '
+                             '&& trio_autosomal_dominant(kid, mom, dad)" '
         slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
                                         stdout=subprocess.PIPE,
                                         universal_newlines=True)

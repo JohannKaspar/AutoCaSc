@@ -590,7 +590,7 @@ class Disgenet:
             count_equal_or_greater = len(chunk_twisted.loc[chunk_twisted.records >= observed_chunk.loc[
                 observed_chunk.diseaseName == disease_term, "ratio"].values[0]])
             chunk.loc[chunk.diseaseName == disease_term, "p_empirical"] = 1. * count_equal_or_greater / (
-                    20 * len(self.observed_df) + 1)
+                    20 * len(self.observed_df))
 
         return chunk[["diseaseName", "p_empirical"]]
 
@@ -854,9 +854,9 @@ class PubtatorCentral:
             self.preprocess_data()
             self.create_pmid_lists()
 
-        self.bootstrap()
+        # self.bootstrap()
         self.gene_scores_exp()
-        self.lin_rank_genes(investigate_parameters=False)
+        self.lin_rank_genes(investigate_parameters=True)
 
     def preprocess_data(self):
         """This method needs two files: gene2pubtatorcentral and disease2pubtatorcentral. It first cleans the datasets
@@ -1074,23 +1074,27 @@ class PubtatorCentral:
 
 def evaluate_pubtator_parameters():
     for exponent in [0.5, 0.6, 0.7, 0.8, 0.9]:
-        for cutoff in [0.001, 0.0001]:
+        for cutoff in [0.001, 0.0001, 0.00001]:
             instance = PubtatorCentral(n_cores=46, download=False, preprocess=False, exponent=exponent, cutoff=cutoff)
             df = pd.read_csv(ROOT_DIR + f"pubtator_central/gene_scores_{instance.version}.csv")
             p_val = mannwhitneyu(df.loc[df.sys_candidate == 1]['gene_score'].to_list(),
                                  df.loc[df.sys == 0]['gene_score'].to_list(), alternative='greater')[1]
             print(f"{instance.version}: {p_val}")
     """
-    p_cutoff_0,001_exp_0,5: 3.48123396722439e-120
-    p_cutoff_0,0001_exp_0,5: 8.032792102478241e-129
-    p_cutoff_0,001_exp_0,6: 5.2948946639646326e-138
-    p_cutoff_0,0001_exp_0,6: 2.1828078600604386e-145
-    p_cutoff_0,001_exp_0,7: 3.569346842963668e-152
-    p_cutoff_0,0001_exp_0,7: 3.803133564872067e-157 --> using this one
-    p_cutoff_0,001_exp_0,8: 6.680503164081276e-146
-    p_cutoff_0,0001_exp_0,8: 2.778952026246866e-147
-    p_cutoff_0,001_exp_0,9: 1.2443892018465543e-97
-    p_cutoff_0,0001_exp_0,9: 8.777754069507803e-100
+    p_cutoff_0,001_exp_0,5: 1.0050455371702318e-120
+    p_cutoff_0,0001_exp_0,5: 1.1206678948776022e-134
+    p_cutoff_1e-05_exp_0,5: 2.536029138021977e-132
+    p_cutoff_0,001_exp_0,6: 1.2182866524894282e-138
+    p_cutoff_0,0001_exp_0,6: 8.469634478024799e-148
+    p_cutoff_1e-05_exp_0,6: 3.912806508743547e-146
+    p_cutoff_0,001_exp_0,7: 1.2431371571945905e-152
+    p_cutoff_0,0001_exp_0,7: 3.2414372875537876e-157
+    p_cutoff_1e-05_exp_0,7: 1.1597853586730318e-152
+    p_cutoff_0,001_exp_0,8: 1.8797958968014228e-147
+    p_cutoff_0,0001_exp_0,8: 3.1111897268660445e-140
+    p_cutoff_1e-05_exp_0,8: 2.0275673897096633e-131
+    p_cutoff_0,001_exp_0,9: 7.519095823436918e-97
+    p_cutoff_0,0001_exp_0,9: 4.803675773940467e-95
     """
 
 def evaluate_mgi_parameters():
@@ -1131,8 +1135,8 @@ if __name__ == "__main__":
     sysid_candidates.columns = ["entrez_id", "ensemble_id"]
     princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
 
-    morbid_gene_symbols_list = pd.read_csv("/home/johann/AutoCaSc/data/pubtator_central/MorbidGenes-Panel"
-                                           "-v5_2020-08-26_for_varvis.csv", header=None).iloc[:, 0].to_list()
+    morbid_gene_symbols_list = pd.read_csv(ROOT_DIR + "MorbidGenes-Panel-v5_2020-08-26_for_varvis.csv",
+                                           header=None).iloc[:, 0].to_list()
     all_genes_df = pd.read_csv(ROOT_DIR + "hgnc_protein_coding.tsv", index_col=False,
                                usecols=["entrez_id", "gene_symbol"], sep="\t",
                                dtype={"entrez_id": "Int32", "gene_symbol": str})
@@ -1165,8 +1169,8 @@ if __name__ == "__main__":
     # PsyMuKB()
     # GTEx()
     # Disgenet(n_cores, download=False)
-    PubtatorCentral(n_cores=46, download=False, preprocess=False, n_bootstraps=100000)
-    fuse_data(validation_run=False)
+    # PubtatorCentral(n_cores=46, download=False, preprocess=False, n_bootstraps=100000)
+    # fuse_data(validation_run=False)
 
-    # evaluate_pubtator_parameters()
+    evaluate_pubtator_parameters()
     # evaluate_mgi_parameters()

@@ -8,11 +8,11 @@ import click
 import pandas as pd
 import requests
 from numpy import isnan
-# from AutoCaSc_core.gnomAD import GnomADQuery
-# from AutoCaSc_core.tools import safe_get, filterTheDict
+from AutoCaSc_core.gnomAD import GnomADQuery
+from AutoCaSc_core.tools import safe_get, filterTheDict
 
-from gnomAD import GnomADQuery
-from tools import safe_get, filterTheDict
+# from gnomAD import GnomADQuery
+# from tools import safe_get, filterTheDict
 
 AUTOCASC_VERSION = 0.96
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
