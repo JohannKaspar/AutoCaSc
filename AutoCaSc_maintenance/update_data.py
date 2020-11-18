@@ -77,11 +77,11 @@ def fuse_data(validation_run=False):
     gnomad = gnomad[["gene_id", "pLI", "oe_lof",
                      "oe_lof_lower", "oe_lof_upper",
                      "oe_mis", "oe_mis_lower",
-                     "oe_mis_upper", "mis_z"]]
+                     "oe_mis_upper", "mis_z", "obs_hom_lof"]]
     gnomad.columns = ["ensemble_id", "pLI", "oe_lof",
                       "oe_lof_lower", "oe_lof_upper",
                       "oe_mis", "oe_mis_lower",
-                      "oe_mis_upper", "mis_z"]
+                      "oe_mis_upper", "mis_z", "obs_hom_lof"]
 
     all_data = all_genes.merge(gtex, on="ensemble_id", how="outer")
     all_data = all_data.merge(denovo, on="entrez_id", how="outer")

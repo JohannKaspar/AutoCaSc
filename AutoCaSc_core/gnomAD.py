@@ -103,16 +103,21 @@ class GnomADQuery:
         else:
             self.variant = identifier.replace(":", "-")
             self.query = """query Variant($variantId: String!
-                ){
-                  variant(dataset: gnomad_r2_1, variantId: $variantId) {
-                    colocatedVariants
-                    exome {
-                      ac_hemi
-                      ac_hom
-                      ac
-                    }
-                  }
-                }"""
+                            ){
+                              variant(dataset: gnomad_r2_1, variantId: $variantId) {
+                                colocatedVariants
+                                exome {
+                                  ac_hemi
+                                  ac_hom
+                                  ac
+                                }
+                                genome {
+                                  ac_hemi
+                                  ac_hom
+                                  ac
+                                }
+                              }
+                            }"""
             self.query_variables = '{"variantId": "' + self.variant + '"}'
         self.req_count = 0
         self.last_req = 0
@@ -154,12 +159,15 @@ class GnomADQuery:
                 else:
                     status_code = 495
             else:
-                if result_dict.get("ac_hemi") is not None and result_dict.get("ac") is not None:
-                    result_dict["male_count"] = result_dict.get("ac_hemi")
-                    result_dict["female_count"] = result_dict.get("ac") - result_dict.get("ac_hemi")
-                else:
-                    result_dict["male_count"] = 0
-                    result_dict["female_count"] = 0
+                if "ac_hemi_exome" in result_dict.keys():
+                    result_dict["ac_hemi"] = result_dict.get("ac_hemi_exome") + result_dict.get("ac_hemi_genome")
+                    result_dict["ac_hom"] = result_dict.get("ac_hom_exome") + result_dict.get("ac_hom_genome")
+                    result_dict["ac"] = result_dict.get("ac_exome") + result_dict.get("ac_genome")
+
+                if self.variant[0] in ["X", "x"]:
+                    result_dict["male_count"] = result_dict.get("ac_hemi") or 0
+                    total_allele_count = result_dict.get("ac") or 0
+                    result_dict["female_count"] = total_allele_count - result_dict.get("male_count")
 
             return result_dict, status_code
 
@@ -174,18 +182,21 @@ class GnomADQuery:
 
 
     # formats data into a one dimensional dictionary
-    def recursion(self, dict):
+    def recursion(self, dict, suffix="", sub_dirs=["exome", "genome"]):
         for key, value in dict.items():
             if type(value) == type(dict):
-                self.recursion(value)
+                if key in sub_dirs:
+                    suffix = "_" + key
+                self.recursion(value, suffix)
             else:
                 if isinstance(value, float):
-                    result_dict[key] = round(value, 2)
+                    result_dict[key + suffix] = round(value, 2)
                 else:
-                    result_dict[key] = value
+                    result_dict[key + suffix] = value
         return result_dict
 
-# print(GnomADQuery("X:153032470:G:A", "variant").get_gnomad_info())
+print(GnomADQuery("X:153032470:G:A", "variant").get_gnomad_info())
+# print(GnomADQuery("1-55516888-G-GA", "variant").get_gnomad_info())
 # gnomad_variant_result = gnomad_variant_instance.get_gnomad_info()
 # gnomad_instance = GnomADQuery("ENSG00000198753")
 # gnomad_info = gnomad_instance.get_gnomad_info()

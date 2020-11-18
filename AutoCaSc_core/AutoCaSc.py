@@ -7,7 +7,7 @@ from statistics import mean
 import click
 import pandas as pd
 import requests
-from numpy import isnan
+from numpy import isnan, poly1d, product
 from AutoCaSc_core.gnomAD import GnomADQuery
 from AutoCaSc_core.tools import safe_get, filterTheDict
 
@@ -106,110 +106,94 @@ class AutoCaSc:
 
         self.check_variant_format()  # this function is called to check if the entered variant is valid
 
-        if self.status_code != 401:  # if variant format is valid (not 401) continue
-            if self.variant_format == "vcf":
-                # definition of instance variables
-                self.chromosome = self.variant.split(":")[0]
-                self.pos_start = self.variant.split(":")[1]
-                self.ref_seq = self.variant.split(":")[2]
-                self.pos_end = str(int(self.pos_start) + len(self.ref_seq) - 1)
-                # calculates end of sequence using length of reference sequence to start position
-                self.alt_seq = self.variant.split(":")[3]
-                self.ext_url = "/vep/human/region/" + ":".join([str(self.chromosome), str(self.pos_start), str(
-                    self.pos_end)]) + "/" + self.alt_seq + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
-
-            elif self.variant_format == "hgvs":
-                # Assigning sequences in case they have been entered. This enables the program to check if
-                # the entered reference sequence matches the VEP reference sequence at the given position.
-                if ">" in self.variant:
-                    self.ref_seq = re.search(r"(?<=\d)[CTGA]+(?=>)", variant).group()
-                    self.alt_seq = re.search(r"(?<=>)[CTGA]+", variant).group()
-                else:
-                    self.ref_seq = None
-                    self.alt_seq = None
-                self.ext_url = "/vep/human/hgvs/" + self.variant + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
-
+        if not self.status_code == 401:  # if variant format is valid (not 401) continue
+            self.get_url(variant)
             self.annotate()  # this method call initiates the annotation of the given variant
 
         try:
-            # gene contraint gnomad
             if self.status_code != 498:
-                # 498 would be if no matching transcript index has been found, usually occuring when entering an
-                # intergenic variant.
-                if self.gene_id in gene_scores.ensemble_id.to_list():
-                    # checks if there are contraint values in gnomad for the given gene
-                    for parameter in ["pLI", "mis_z", "oe_lof", "oe_lof_lower", "oe_lof_upper", "oe_mis",
-                                      "oe_mis_lower",
-                                      "oe_mis_upper"]:
-                        self.__dict__[parameter] = round(
-                            gene_scores.loc[gene_scores.ensemble_id == self.gene_id, parameter].values[0], 2)
-                        if isnan(self.__dict__[parameter]):
-                            self.__dict__[parameter] = None
+                # 498 = no matching transcript index has been found (e.g. variant is intergenic)
+                self.get_gnomad_constraint()
+            self.get_scores()  # this calls the function for scoring the variant
 
-                    self.oe_mis_interval = f"{self.oe_mis}  [{self.oe_mis_lower} - {self.oe_mis_upper}]"
-                    self.oe_lof_interval = f"{self.oe_lof}  [{self.oe_lof_lower} - {self.oe_lof_upper}]"
+        except (AttributeError, TypeError) as e:
+            print(f"variant: {self.variant}"
+                  f"status_code: {self.status_code}"
+                  f"{e}")
 
-            self.get_scores(CADD_based)  # this calls the function for scoring the variant
 
-        except AttributeError:
-            pass
-            # print(f"ATTRIBUTE ERROR IN AUTOCASC: {self.status_code}")
-        except TypeError:
-            pass
-            # print(f"TYPE ERROR IN AUTOCASC: {self.status_code}")
+    def get_url(self, variant):
+        if self.variant_format == "vcf":
+            # definition of instance variables
+            self.chromosome = self.variant.split(":")[0]
+            self.pos_start = self.variant.split(":")[1]
+            self.ref_seq = self.variant.split(":")[2]
+            self.pos_end = str(int(self.pos_start) + len(self.ref_seq) - 1)
+            # calculates end of sequence using length of reference sequence to start position
+            self.alt_seq = self.variant.split(":")[3]
+            self.ext_url = "/vep/human/region/" + ":".join([str(self.chromosome), str(self.pos_start), str(
+                self.pos_end)]) + "/" + self.alt_seq + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
+
+        elif self.variant_format == "hgvs":
+            # Assigning sequences in case they have been entered. This enables the program to check if
+            # the entered reference sequence matches the VEP reference sequence at the given position.
+            if ">" in self.variant:
+                self.ref_seq = re.search(r"(?<=\d)[CTGA]+(?=>)", variant).group()
+                self.alt_seq = re.search(r"(?<=>)[CTGA]+", variant).group()
+            else:
+                self.ref_seq = None
+                self.alt_seq = None
+            self.ext_url = "/vep/human/hgvs/" + self.variant + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
+
+    def get_gnomad_constraint(self):
+        if self.gene_id in gene_scores.ensemble_id.to_list():
+            # checks if there are contraint values in gnomad for the given gene
+            for parameter in ["pLI", "mis_z", "oe_lof", "oe_lof_lower", "oe_lof_upper", "oe_mis",
+                              "oe_mis_lower",
+                              "oe_mis_upper"]:
+                self.__dict__[parameter] = round(
+                    gene_scores.loc[gene_scores.ensemble_id == self.gene_id, parameter].values[0], 2)
+                if isnan(self.__dict__[parameter]):
+                    self.__dict__[parameter] = None
+
+            self.oe_mis_interval = f"{self.oe_mis}  [{self.oe_mis_lower} - {self.oe_mis_upper}]"
+            self.oe_lof_interval = f"{self.oe_lof}  [{self.oe_lof_lower} - {self.oe_lof_upper}]"
 
     # master calculation function, calls sub calculations as described in Büttner et al and returns dict of category results
-    def get_scores(self, CADD_based=False):
+    def get_scores(self):
         """This method calls all the scoring functions and assigns their results to class attributes.
         """
         self.explanation_dict = {}
 
-        if CADD_based:
-            if self.gene_id in gene_scores.ensemble_id.to_list():
-                # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-                self.literature_score = round(
-                    gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "weighted_score"].values[0], 2)
-            else:
-                # If not, the values are set to 0.
-                for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                              "mgi_score", "string_score"]:
-                    self.__dict__[score] = 0.
+        self.rate_inheritance()
+        self.rate_pli_z()
 
-            if self.cadd_phred == 0.0 or self.cadd_phred == 0:
-                self.candidate_score = 0
-            else:
-                self.candidate_score = (self.literature_score * math.log10(self.cadd_phred))
+        self.rate_impact()
+        self.rate_in_silico()
+        self.rate_conservation()
+        self.rate_frequency()
+        self.variant_score = round(sum(filter(None, [self.impact_score,
+                                                     self.in_silico_score,
+                                                     self.conservation_score,
+                                                     self.frequency_score
+                                                     ])), 2)
 
+        if self.gene_id in gene_scores.ensemble_id.to_list():
+            # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
+            self.literature_score = round(
+                6.0 * gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "weighted_score"].values[0], 2)
+            # Assigning the plausibility subscores for being able to call them individually.
+            for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
+                                             2)
         else:
-            self.rate_inheritance()
-            self.rate_pli_z()
+            # If not, the values are set to 0.
+            for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = 0.
 
-            self.rate_impact()
-            self.rate_in_silico()
-            self.rate_conservation()
-            self.rate_frequency()
-            self.variant_score = round(sum(filter(None, [self.impact_score,
-                                                         self.in_silico_score,
-                                                         self.conservation_score,
-                                                         self.frequency_score
-                                                         ])), 2)
-
-            if self.gene_id in gene_scores.ensemble_id.to_list():
-                # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-                self.literature_score = round(
-                    6.0 * gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "weighted_score"].values[0], 2)
-                # Assigning the plausibility subscores for being able to call them individually.
-                for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                              "mgi_score", "string_score"]:
-                    self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
-                                                 2)
-            else:
-                # If not, the values are set to 0.
-                for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                              "mgi_score", "string_score"]:
-                    self.__dict__[score] = 0.
-
-            self.calculate_canidate_score()
+        self.calculate_canidate_score()
 
     def calculate_canidate_score(self):
         candidate_score_list = [i if i is not None else 0 for i in [
@@ -663,7 +647,579 @@ class AutoCaSc:
             return None
 
 
+class AutoCaSc_new:
+    """AutoCaSc_core is a tool for quantifying plausibility of gene variants as a cause for neurodevelopmental delay.
+    This class is the core program. A variant is annotated by initializing the class.
+    Class attributes correspond to variant parameters ranging from position to candidate score.
+    """
+    def __init__(self, variant,
+                 inheritance="other",
+                 parent_affected=False,
+                 has_sibling=False,
+                 cosegregating=False,
+                 other_impact="unknown",
+                 other_variant=None,
+                 assembly="GRCh37",
+                 transcript_num=None):
+        """This function assigns basic parameters and initializes the scoring process.
 
+        :param variant: the variant including position and alternative sequence
+        :param inheritance: segregation/zygosity --> de_novo, homo, comphet, other, ad_inherited, x_linked
+        :param family_history: are there multiple affected family members? if x_linked affected male family members?
+        :param other_impact: impact of the corresponding variant if it is compound heterozygous
+        :param assembly: either GRCh37 or GRCh38
+        """
+
+        self.mutationtaster_converted_rankscore = None
+        self.version = AUTOCASC_VERSION
+        self.variant = variant
+        self.inheritance = inheritance
+        self.comphet_id = None
+        self.parent_affected = parent_affected
+        self.has_sibling = has_sibling
+        self.cosegregating = cosegregating  # this is meant to be True if a sibling is affected and has the same variant
+        self.other_impact = other_impact
+        self.other_variant = other_variant
+        self.assembly = assembly
+        self.status_code = 200  # initial value is set to 200 = all good
+
+        if self.assembly == "GRCh37":
+            self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
+        else:
+            self.server = "http://rest.ensembl.org"  # API endpoint for GRCh38
+
+        # ToDo das hier hübscher machen?
+
+        # assign initial "None" to all parameters
+        self.ada_score = None
+        self.rf_score = None
+        self.maxentscan_ref = None
+        self.maxentscan_alt = None
+        self.maxentscan_decrease = None
+        self.cadd_phred = 0
+        self.vcf_string = None
+        self.ref_seq_vep = None
+        self.gnomad_frequency = None
+        self.maf = None
+        self.impact = None
+        self.gerp_rs_rankscore = None
+        self.transcript = None
+        self.consequence = None
+        self.hgvsc_change = None
+        self.protein = None
+        self.hgvsp_change = None
+        self.polyphen_prediction = None
+        self.ada_consequence = None
+        self.maxentscan_consequence = None
+        self.hgvsc_change = None
+        self.pLI = None
+        self.mis_z = None
+        self.oe_lof = None
+        self.oe_lof_lower = None
+        self.oe_lof_upper = None
+        self.oe_mis = None
+        self.oe_mis_lower = None
+        self.oe_mis_upper = None
+        self.oe_mis_interval = None
+        self.oe_lof_interval = None
+        self.explanation_dict = {}
+        self.inheritance_score = 0
+        self.variant_score = 0
+        self.literature_score = 0
+        self.gene_attribute_score = 0
+        self.candidate_score = 0
+        self.sift_converted_rankscore = None
+        self.mutationtaster_converted_rankscore = None
+        self.mutationassessor_rankscore = None
+        self.mgi_score = None
+        self.multiple_transcripts = False
+        self.transcript_num = transcript_num
+
+        self.check_variant_format()  # this function is called to check if the entered variant is valid
+
+        if not self.status_code == 401:  # if variant format is valid (not 401) continue
+            self.get_url(variant)
+            self.annotate()  # this method call initiates the annotation of the given variant
+            self.get_gnomad_counts()  # gets allele counts in gnomad
+
+        try:
+            if self.status_code != 498:
+                # 498 = no matching transcript index has been found (e.g. variant is intergenic)
+                self.get_gnomad_constraint()
+            self.get_scores()  # this calls the function for scoring the variant
+
+        except (AttributeError, TypeError) as e:
+            print(f"variant: {self.variant}"
+                  f"status_code: {self.status_code}"
+                  f"{e}")
+
+
+    def get_url(self, variant):
+        if self.variant_format == "vcf":
+            # definition of instance variables
+            self.chromosome = self.variant.split(":")[0]
+            self.pos_start = self.variant.split(":")[1]
+            self.ref_seq = self.variant.split(":")[2]
+            self.pos_end = str(int(self.pos_start) + len(self.ref_seq) - 1)
+            # calculates end of sequence using length of reference sequence to start position
+            self.alt_seq = self.variant.split(":")[3]
+            self.ext_url = "/vep/human/region/" + ":".join([str(self.chromosome), str(self.pos_start), str(
+                self.pos_end)]) + "/" + self.alt_seq + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
+
+        elif self.variant_format == "hgvs":
+            # Assigning sequences in case they have been entered. This enables the program to check if
+            # the entered reference sequence matches the VEP reference sequence at the given position.
+            if ">" in self.variant:
+                self.ref_seq = re.search(r"(?<=\d)[CTGA]+(?=>)", variant).group()
+                self.alt_seq = re.search(r"(?<=>)[CTGA]+", variant).group()
+            else:
+                self.ref_seq = None
+                self.alt_seq = None
+            self.ext_url = "/vep/human/hgvs/" + self.variant + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
+
+    def get_gnomad_constraint(self):
+        if self.gene_id in gene_scores.ensemble_id.to_list():
+            # checks if there are contraint values in gnomad for the given gene
+            for parameter in ["pLI",
+                              "mis_z",
+                              "oe_lof",
+                              "oe_lof_lower",
+                              "oe_lof_upper",
+                              "oe_mis",
+                              "oe_mis_lower",
+                              "oe_mis_upper",
+                              "obs_hom_lof"]:
+                self.__dict__[parameter] = round(
+                    gene_scores.loc[gene_scores.ensemble_id == self.gene_id, parameter].values[0], 2)
+                if isnan(self.__dict__[parameter]):
+                    self.__dict__[parameter] = None
+
+            self.oe_mis_interval = f"{self.oe_mis}  [{self.oe_mis_lower} - {self.oe_mis_upper}]"
+            self.oe_lof_interval = f"{self.oe_lof}  [{self.oe_lof_lower} - {self.oe_lof_upper}]"
+
+    def get_gnomad_counts(self):
+        gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
+        self.n_hom = gnomad_variant_result.get("ac_hom")
+        self.allele_count = gnomad_variant_result.get("ac")
+        self.n_hemi = gnomad_variant_result.get("ac_hemi")
+
+    # master calculation function, calls sub calculations as described in Büttner et al and returns dict of category results
+    def get_scores(self):
+        """This method calls all the scoring functions and assigns their results to class attributes.
+        """
+        self.explanation_dict = {}
+        self.factors = []
+
+        if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:  # autosomal dominant branch
+            if self.inheritance == "de_novo":
+                if self.allele_count == 0:
+                    self.factors.append((1, "denovo and not in gnomad"))
+                    # ToDo add explanations for factors
+                if self.allele_count == 1:
+                    self.factors.append((0.9, "denovo and once in gnomad"))
+                else:
+                    self.factors.append((0, "denovo and multiple times in gnomad"))
+            elif self.inheritance == "unknown":
+                if self.allele_count == 0:
+                    self.factors.append((0.9, "inheritance unknown and not in gnomad"))
+                else:
+                    self.factors.append((0, "inheritance unknown, present in gnoamd"))
+            elif self.inheritance == "ad_inherited":
+                # hier wird davon ausgegangen, dass ad_inherited nur möglich wenn self.parent_affected == True
+                inheritance_factor = 1 - ((self.allele_count + 1) * 0.1)
+                self.factors.append((inheritance_factor,
+                                     f"inherited autosomal dominant, {self.allele_count}x in gnomad"))
+
+            if self.impact == "high":
+                self.factors.append((self.get_loeuf_factor(), f"impact high and LOEUF {self.oe_lof_upper}"))
+            elif self.impact == "moderate":
+                self.factors.append((self.get_Z_factor(), f"impact moderate and LOEUF {self.oe_lof_upper}"))
+            else:
+                self.factors.append((0, "low impact"))  # if impact not moderate or high --> variant == 0
+
+            self.factors.append((self.get_cadd_factor(), f"CADD {self.cadd_phred}"))
+
+        elif self.inheritance in ["comphet", "homo"]:
+            if self.has_sibling:
+                if self.cosegregating:
+                    self.factors.append((1, "variant cosegregating"))
+                else:
+                    self.factors.append((0, "sibling affected but variant not present or "
+                                            "not affected but variant present"))
+            else:
+                self.factors.append((0.95, "no sibling available"))
+
+            if self.inheritance == "homo":
+                if self.impact == "high":
+                    if self.obs_hom_lof == 0:
+                        self.factors.append((1, "homozygous LoF, no LoF present in gnomad in this gene"))
+                    else:
+                        self.factors.append((0, f"homozygous LoF, {self.obs_hom_lof} LoFs present in gnomad in this gene"))
+                elif self.impact == "moderate":
+                    if self.ac_hom == 0:
+                        self.factors.append((1, "moderate impact, variant not in gnomad"))
+                    else:
+                        self.factors.append((0, f"moderate imapct, variant {self.ac_hom}x in gnomad"))
+
+            if self.inheritance == "comphet":
+                other_instance = AutoCaSc(self.other_variant)
+                if self.impact == "high":
+                    if other_instance.impact == "high":
+                        if self.obs_hom_lof == 0:
+                            self.factors.append((1, "comphet, no homozygous LoF in this gene in gnomad"))
+                        else:
+                            self.factors.append((0, f"comphet, {self.obs_hom_lof} homozygous LoFs in this gene in gnomad"))
+                    elif other_instance.impact == "moderate":
+                        if (self.n_hom == 0) and (other_instance.n_hom == 0):
+                            self.factors.append((1, "comphet, one high, one moderate, both not homozygous in gnomad"))
+                        elif (self.n_hom != 0) and (other_instance.n_hom != 0):
+                            self.factors.append((0, "comphet, one high, one moderate, both homozygous in gnomad"))
+                        # elif (self.obs_hom_lof == 0) and (other_instance.n_hom == 0):
+                        #     self.factors.append(0.8)
+                        #     # ToDo was wenn comphet eine homo in gnomad, die andere nicht
+                        else:
+                            self.factors.append((0, "comphet, one homo in gnomad, other one not"))
+
+                elif self.impact == "moderate":
+                    if (self.n_hom == 0) and (other_instance.n_hom == 0):
+                        self.factors.append((1, f"comphet, one moderate, other one {other_instance.impact}, "
+                                                f"both not homozygous in gnomad"))
+                    elif (self.n_hom != 0) and (other_instance.n_hom != 0):
+                        self.factors.append((0, f"comphet, one moderate, other one {other_instance.impact}, "
+                                                f"both homozygous in gnomad"))
+                    else:
+                        self.factors.append((0, "comphet, one homo in gnomad, other one not"))
+
+        if self.inheritance == "homo":
+            self.factors.append((self.get_cadd_factor(), f"homozygous, CADD of {self.cadd_phred}"))
+        elif self.inheritance == "comphet":
+            mean_cadd = mean([self.cadd_phred, other_instance.cadd_phred])
+            self.factors.append((self.get_cadd_factor(mean_cadd), f"comphet, one CADD {self.cadd_phred} "
+                                                                  f"other CADD {other_instance.cadd_phred}"))
+
+        if self.gene_id in gene_scores.ensemble_id.to_list():
+            # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
+            self.factors.append((round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
+                                                          "weighted_score"].values[0], 2), "precalculated plausibility score"))
+            # Assigning the plausibility subscores for being able to call them individually.
+            for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
+                                             2)
+        else:
+            # If not, the values are set to 0.
+            for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = 0.
+            mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
+            self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
+
+        self.calculate_canidate_score()
+
+    def calculate_canidate_score(self):
+        factor_list = [x for (x,_) in self.factors]
+        self.candidate_score = round(product(factor_list), 2)
+
+
+    def check_variant_format(self):
+        """This function checks if the entered variant matches either HGVS or VCF format after doing some formatting.
+        """
+        input = self.variant
+        input = re.sub(r"^[\W]", "", input)  # deletes characters that are not a word character
+        input = re.sub(r"Chr|chr", "", input)
+
+        input_vcf = re.sub(r"\s+", " ", input)  # substitutes whitespaces and tabs with one whitespace
+        input_vcf = re.sub(r"[^A-Za-z0-9](?!$)", ":", input_vcf)  # substitutes special characters by a colon
+        input_vcf = re.sub(r":{2,}", ":", input_vcf)
+
+        input_hgvs = re.sub(r"\s+", "", input)
+
+        if re.fullmatch(r"(\d{1,2}|X):\d+:[a-zA-Z]+:([a-zA-Z]*|-)+", input_vcf) is not None:
+            self.variant_format = "vcf"
+            self.variant = input_vcf
+        elif re.fullmatch(
+                r"^.+:[cgp]\.\d+([_+-]\d+)?(_\d+)?([+-]\d+)?([CTGA]+>[CTGA]+|del[CTGA]*|dup[CTGA]*)?(ins[CTGA]+)?",
+                input_hgvs) is not None:
+            self.variant_format = "hgvs"
+            self.variant = input_hgvs
+        else:
+            self.status_code = 401
+
+    # core function for annotation
+    def annotate(self):
+        """This function requests the VEP API in order to annotate a given variant and selects relevant parameters.
+        :return:
+        """
+        response_decoded = self.retrieve_data()  # calls function to request VEP data on the given variant
+        if self.status_code == 200:
+            transcript_index = self.get_transcript_index(response_decoded)
+            # get the index of the transcript to consider for further annotations
+            if self.status_code == 200:
+                self.assign_results(response_decoded, transcript_index)
+
+    # function that makes the server request
+    # @retry(tries=10, delay=5, backoff=1.2, jitter=(1, 3), logger=logger)
+    def retrieve_data(self, retries=0):
+        """General function for handling API communication.
+        It takes care of certain server responses, for example if too many requests have been sent.
+        Return obtained data as a dict.
+        """
+        REQS_PER_SEC = 15  # limit requests to 15 per seconds
+        req_count = 0
+        last_req = 0
+
+        # check if we need to rate limit ourselves
+        if req_count >= REQS_PER_SEC:
+            delta = time.time() - last_req
+            if delta < 1:
+                time.sleep(1 - delta)
+            last_req = time.time()
+            req_count = 0
+        req_count += 1
+
+        # try to pull the requested data and check if request was successful
+        r = requests.get(self.server + self.ext_url, headers={"content-type": "application/json"})
+
+        # if content is not empty return content
+        if r.status_code == 200:
+            return safe_get(r.json(), 0)
+
+        # if error "too many requests" retry after given time
+        elif r.status_code == 429:
+            if 'Retry-After' in r.headers:
+                retry = r.headers['Retry-After']
+                time.sleep(float(retry))
+                self.retrieve_data()
+        elif r.status_code == 503 and retries < 5:
+            time.sleep(5)
+            self.retrieve_data(retries + 1)
+        else:
+            # if some sort of error occurs
+            if "matches reference" in str(r.content, "utf-8"):
+                # Return None if the given alternative sequence matches the GRCh reference sequence.
+                self.status_code = 496
+                return None
+            else:
+                # Return None if some sort of different error occurs.
+                self.status_code = r.status_code
+                return None
+
+    # stores and returns relevant parameters in a dictionary
+    def assign_results(self, variant_anno_data, transcript_index):
+        """This function filters and formats the received annotation results.
+
+        :param variant_anno_data: received annotation data
+        :param transcript_index: index of the transcript to work with from transcript_consequences
+        """
+        selected_transcript_consequences = variant_anno_data["transcript_consequences"][transcript_index]
+
+        if variant_anno_data.get("vcf_string") is not None:
+            self.vcf_string = re.sub(r"-", ":", variant_anno_data.get("vcf_string"))
+        if self.variant_format == "vcf":
+            # formats given variant into VCF format
+            self.id = re.sub(r"[^a-zA-Z^0-9-]", ":", variant_anno_data.get("id"))
+            # extracts reference sequence from variant id in vcf format
+            self.ref_seq_vep = safe_get(self.id.split(":"), 2)
+        else:
+            self.id = variant_anno_data.get("id")
+        if self.ref_seq is None:
+            self.ref_seq = variant_anno_data.get("vcf_string").split("-")[2]
+            self.alt_seq = variant_anno_data.get("vcf_string").split("-")[3]
+
+        # gets varint gnomad exome frequency and MAF
+        self.gnomad_frequency, self.maf = self.get_frequencies(variant_anno_data.get("colocated_variants"))
+
+        # This list of parameters is assigned to corresponding class attributes.
+        key_list = ["gene_symbol",
+                    "amino_acids",
+                    "gene_id",
+                    "cadd_phred",
+                    "sift_converted_rankscore",
+                    "mutationtaster_converted_rankscore",
+                    "mutationassessor_rankscore",
+                    "ada_score",
+                    "rf_score",
+                    "maxentscan_ref",
+                    "maxentscan_alt"]
+
+        for key in key_list:
+            if selected_transcript_consequences.get(key) is not None:
+                value = selected_transcript_consequences.get(key)
+                if isinstance(value, float):
+                    self.__dict__[key] = round(selected_transcript_consequences.get(key), 2)
+                else:
+                    self.__dict__[key] = selected_transcript_consequences.get(key)
+
+        if selected_transcript_consequences.get("impact") is not None:
+            self.impact = selected_transcript_consequences.get("impact").lower()
+
+        if selected_transcript_consequences.get("gerp++_rs_rankscore") is not None:
+            self.gerp_rs_rankscore = round(selected_transcript_consequences.get("gerp++_rs_rankscore"), 2)
+
+        if selected_transcript_consequences.get("consequence_terms") is not None:
+            self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
+        if selected_transcript_consequences.get("hgvsc") is not None:
+            self.transcript = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 0) or \
+                              selected_transcript_consequences.get("transcript_id")
+            self.hgvsc_change = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 1)
+        if selected_transcript_consequences.get("consequence_terms") is not None:
+            self.consequence = re.sub(r"_", " ", safe_get(selected_transcript_consequences.get("consequence_terms"), 0))
+
+        if selected_transcript_consequences.get("hgvsp") is not None:
+            self.protein = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 0)
+            self.hgvsp_change = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 1)
+
+        if selected_transcript_consequences.get("polyphen_prediction") is not None:
+            self.polyphen_prediction = re.sub(r"_", " ", selected_transcript_consequences.get("polyphen_prediction"))
+
+        # cutoffs correspond to Leipzig guidelines (Alamut)
+        if self.ada_score is not None:
+            if self.ada_score >= 0.6:
+                self.ada_consequence = "splicing affected"
+            else:
+                self.ada_consequence = "splicing not affected"
+
+        if self.rf_score is not None:
+            if self.rf_score >= 0.6:
+                self.rf_consequence = "splicing affected"
+            else:
+                self.rf_consequence = "splicing not affected"
+
+        if self.maxentscan_ref is not None and self.maxentscan_alt is not None:
+            self.maxentscan_decrease = (self.maxentscan_alt - self.maxentscan_ref) / self.maxentscan_ref
+            if self.maxentscan_decrease <= -0.15:
+                self.maxentscan_consequence = "splicing affected"
+            else:
+                self.maxentscan_consequence = "splicing not affected"
+
+        # checks if reference sequences match and returns result dictionary and status code accordingly
+        if self.ref_seq is not None:
+            if self.ref_seq_vep is not None:
+                if self.ref_seq_vep != self.ref_seq:
+                    self.status_code = 201
+
+    # gets variant frequency in gnomAD exomes and minor allele frequency
+    def get_frequencies(self, colocated_variants):
+        """This function checks the annotation data for the variants frequency in gnomad and its
+        minor allele frequency. If it doesn't find a MAF it sets it to the variants frequency.
+
+
+        :param colocated_variants: slice of variant annotation results
+        :return: variant frequency in gnomad, minor allele frequency
+        """
+        gnomad_frequency = 0
+        maf = 0
+
+        if colocated_variants is None:
+            return gnomad_frequency, maf
+        else:
+            # getting variant frequency
+            for colocated_list in colocated_variants:
+                frequencies_dict = colocated_list.get("frequencies")
+                if frequencies_dict is not None:
+                    if frequencies_dict.get(self.alt_seq) is not None:
+                        gnomad_frequency = frequencies_dict.get(self.alt_seq).get("gnomad") or 0
+                        # TODO 'NM_002642.3:c.422C>T' freq for "aa" but not "gnomad" --> calculate total frequency?
+
+            # getting MAF
+            for colocated_dict in colocated_variants:
+                if colocated_dict.get("minor_allele_freq") is not None:
+                    maf = colocated_dict.get("minor_allele_freq")
+            if maf == 0:
+                maf = gnomad_frequency
+
+            return gnomad_frequency, maf
+
+    # selects relevant transcript from given transcripts
+    def get_transcript_index(self, response_dec):
+        """This function selects the transcript index to consider for further calculations, based on
+        1) the transcript with the most severe consequence
+        2) the canonical transcript (if existing if existing and equally severe consequence
+        :param response_dec: VEP response dictionary with a list of transcripts
+        :return: transcript index to consider for further calculations
+        """
+
+        impact_severity_dict = {"MODIFIER": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3}
+
+        transcript_df = pd.DataFrame()
+        # selection prioritisation: 1) most severe consequence    2) canonical
+        try:
+            for i, transcript in enumerate(response_dec["transcript_consequences"]):
+                transcript_df.loc[i, "transcript_id"] = i
+                transcript_df.loc[i, "impact_level"] = impact_severity_dict.get(transcript.get("impact"))
+                transcript_df.loc[i, "biotype"] = transcript.get("biotype")
+                transcript_df.loc[i, "canonical"] = transcript.get("canonical") or 0
+            transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
+                                                      ascending=[False, False])
+            transcript_df = transcript_df.reset_index(drop=True)
+            if len(transcript_df) > 1 and transcript_df.loc[0, "impact_level"] == transcript_df.loc[1, "impact_level"] \
+                    and transcript_df.loc[0, "canonical"] == transcript_df.loc[1, "canonical"]:
+                transcript_df = transcript_df.loc[transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
+                transcript_df = transcript_df.loc[transcript_df.canonical == transcript_df.loc[0, "canonical"]]
+                if "protein_coding" in transcript_df.biotype.unique():
+                    transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"]
+                    if len(transcript_df) > 1:
+                        if not self.transcript_num:
+                            print("CAVE! Two protein_coding transcripts are affected!")
+                            self.multiple_transcripts = len(transcript_df)
+                        else:
+                            return int(transcript_df.loc[self.transcript_num, "transcript_id"])
+                    transcript_df.reset_index(inplace=True, drop=True)
+            return int(transcript_df.loc[0, "transcript_id"])
+
+        except AttributeError:
+            self.status_code = 499
+            return None
+
+        except KeyError:
+            self.status_code = 498  # intergenic variant
+            return None
+
+        except TypeError:
+            self.status_code = 497
+            return None
+
+    def get_loeuf_factor(self):
+        if self.oe_lof_upper >= 0.5:
+            loeuf_score = 0.
+        elif self.oe_lof_upper <= 0.2:
+            loeuf_score = 1.
+        else:
+            loeuf_model = poly1d([218.18181818, -341.01010101,175.33333333,-37.33665224,3.82452381])
+            loeuf_score = loeuf_model(self.oe_lof_upper)
+        if loeuf_score >= 1.:
+            loeuf_score = 1.
+        self.loeuf_score = loeuf_score
+        return loeuf_score
+
+    def get_Z_factor(self):
+        if self.mis_z <= 0.:
+            z_score = 0.
+        elif self.mis_z >= 3.09:
+            z_score = 1.
+        else:
+            z_model = poly1d([0.00542974, -0.09183755, 0.55584498, 0.00952595])
+            z_score = z_model(self.mis_z)
+        if z_score >= 1.:
+            z_score = 1.
+        self.z_score = z_score
+        return z_score
+
+    def get_cadd_factor(self, cadd_phred=None):
+        if not cadd_phred:
+            cadd_phred = self.cadd_phred
+        if cadd_phred >= 3.09:
+            cadd_score = 1.
+        else:
+            cadd_model = poly1d([3.83333333e-05, -3.85000000e-03, 1.28666667e-01, -4.40000000e-01])
+            cadd_score = cadd_model(cadd_phred)
+
+        if cadd_score < 0.:
+            cadd_score = 0.
+        elif cadd_score > 1.:
+            cadd_score = 1.
+        self.cadd_score = cadd_score
+        return cadd_score
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
 @click.pass_context
