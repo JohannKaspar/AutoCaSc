@@ -104,8 +104,8 @@ def fuse_data(validation_run=False):
             ["mgi_score", "string_score", "pubtator_score", "disgenet_score", "gtex_score",
              "denovo_rank_score"]].fillna(0)
 
-    all_data[
-        "gene_sum"] = all_data.gtex_score + all_data.denovo_rank_score + all_data.disgenet_score + all_data.mgi_score + all_data.pubtator_score + all_data.string_score
+    # all_data[
+    #     "gene_sum"] = all_data.gtex_score + all_data.denovo_rank_score + all_data.disgenet_score + all_data.mgi_score + all_data.pubtator_score + all_data.string_score
     all_data["weighted_score"] = sum(
         [spearmanr(all_data[parameter], all_data.sys_primary)[0] * all_data[parameter] for parameter in
          ["mgi_score", "string_score", "pubtator_score", "disgenet_score", "gtex_score", "denovo_rank_score"]])
@@ -167,13 +167,13 @@ class MGI:
         self.entrez_mgi.dropna(subset=["entrez_id"], inplace=True)
         self.entrez_mgi.astype({'entrez_id': 'int32'})
 
-        # self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.txt", sep="\t",
-        #                           usecols=[3, 5])
-        # self.mgi_mp.columns = ["phenotype", "mgi_id"]
-        # self.mgi_mp.mgi_id = self.mgi_mp.mgi_id.str.strip()
-        # self.mgi_mp = clean_mgi_phenotype_df(self.mgi_mp)
-        # self.mgi_mp.to_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t", index=False)
-        self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t")
+        self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.txt", sep="\t",
+                                  usecols=[3, 5])
+        self.mgi_mp.columns = ["phenotype", "mgi_id"]
+        self.mgi_mp.mgi_id = self.mgi_mp.mgi_id.str.strip()
+        self.mgi_mp = clean_mgi_phenotype_df(self.mgi_mp)
+        self.mgi_mp.to_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t", index=False)
+        # self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t")
         self.mgi_mp.dropna(inplace=True)
         self.df = self.entrez_mgi.merge(self.mgi_mp, on="mgi_id")
         self.df.drop_duplicates(inplace=True)
@@ -296,7 +296,7 @@ class MGI:
             count_equal_or_greater = len(chunk_twisted.loc[chunk_twisted.records >= observed_chunk.loc[
                 observed_chunk.phenotype == phenotype, "count"].values[0]])
             chunk.loc[chunk.phenotype == phenotype, "p_empirical"] = 1. * count_equal_or_greater / (
-                    20 * len(self.observed_df) + 1)
+                    20 * len(self.observed_df))
 
         return chunk[["phenotype", "p_empirical"]]
 
@@ -805,7 +805,6 @@ class PubtatorCentral:
                                         usecols=["entrez_id"], sep="\t", dtype="Int32")
         self.all_genes_df = self.all_genes_df.dropna(subset=["entrez_id"])
         self.all_genes = list(self.all_genes_df["entrez_id"].unique())
-        # self.ratio_pval_df = pd.DataFrame(columns=["pos_count", "neg_count", f"ratio_observed"])
 
         if download:
             if os.path.isfile(ROOT_DIR + "pubtator_central/gene2pubtatorcentral"):
@@ -834,6 +833,10 @@ class PubtatorCentral:
                         os.rename(ROOT_DIR + "pubtator_central/disease2pubtatorcentral_old",
                                   ROOT_DIR + "pubtator_central/disease2pubtatorcentral")
 
+        if preprocess:
+            self.preprocess_data()
+            self.create_pmid_lists()
+
         else:
             self.gene_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_df_processed.csv")
             self.gene_df.loc[:, "gene_id"] = pd.to_numeric(self.gene_df.loc[:, "gene_id"],
@@ -842,17 +845,6 @@ class PubtatorCentral:
                                                         downcast="unsigned")
             with open(ROOT_DIR + "pubtator_central/gene_disease_df.pickle", "rb") as pickle_file:
                 self.gene_disease_df = pickle.load(pickle_file)
-            # self.gene_disease_df = pd.read_csv(ROOT_DIR + "pubtator_central/gene_disease_df.csv",
-            #                                    index_col=False,
-            #                                    # nrows=100000,
-            #                                    dtype={"gene_id": "uint32", "pmid": "uint32", "mesh_term": "category"})
-            # with open(ROOT_DIR + "pubtator_central/gene_disease_df.pickle", "wb") as pickle_file:
-            #     pickle.dump(self.gene_disease_df, pickle_file)
-            #     print("pickle dumped")
-
-        if preprocess:
-            self.preprocess_data()
-            self.create_pmid_lists()
 
         # self.bootstrap()
         self.gene_scores_exp()
@@ -991,7 +983,6 @@ class PubtatorCentral:
         process_id_series_dict_id = ray.put(process_id_series_dict)
 
         mesh_pval_dict = {}
-
         mesh_terms_to_check = list(self.gene_mesh_df.loc[
                                        self.gene_mesh_df.gene_id.isin(
                                            list(set(negative_gene_list + sysid_primary.entrez_id.to_list())))].mesh_term.unique())
@@ -1112,7 +1103,7 @@ def evaluate_mgi_parameters():
     exponent 0.2: 1.3413141828335412e-23
     exponent 0.3: 3.83851534927423e-25
     exponent 0.4: 1.8970705866357454e-26
-    exponent 0.5: 1.6443960386822857e-27
+    exponent 0.5: 1.6443960386822857e-27 --> using this one
     exponent 0.6: 9.73622834348643e-27
     exponent 0.7: 7.48339207409757e-24
     exponent 0.8: 2.6248413932730707e-19
