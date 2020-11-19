@@ -1161,7 +1161,7 @@ if __name__ == "__main__":
     # GTEx()
     # Disgenet(n_cores, download=False)
     # PubtatorCentral(n_cores=46, download=False, preprocess=False, n_bootstraps=100000)
-    # fuse_data(validation_run=False)
+    fuse_data(validation_run=False)
 
-    evaluate_pubtator_parameters()
+    # evaluate_pubtator_parameters()
     # evaluate_mgi_parameters()
