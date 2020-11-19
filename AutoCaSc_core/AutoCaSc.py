@@ -657,6 +657,7 @@ class AutoCaSc_new:
                  parent_affected=False,
                  has_sibling=False,
                  cosegregating=False,
+                 sex="XY",
                  other_impact="unknown",
                  other_variant=None,
                  assembly="GRCh37",
@@ -678,6 +679,7 @@ class AutoCaSc_new:
         self.parent_affected = parent_affected
         self.has_sibling = has_sibling
         self.cosegregating = cosegregating  # this is meant to be True if a sibling is affected and has the same variant
+        self.sex = sex
         self.other_impact = other_impact
         self.other_variant = other_variant
         self.assembly = assembly
@@ -753,16 +755,12 @@ class AutoCaSc_new:
                   f"status_code: {self.status_code}"
                   f"{e}")
 
-
     def get_url(self, variant):
         if self.variant_format == "vcf":
             # definition of instance variables
-            self.chromosome = self.variant.split(":")[0]
-            self.pos_start = self.variant.split(":")[1]
-            self.ref_seq = self.variant.split(":")[2]
+            self.chromosome, self.pos_start, self.ref_seq, self.alt_seq = self.variant.split(":")
             self.pos_end = str(int(self.pos_start) + len(self.ref_seq) - 1)
             # calculates end of sequence using length of reference sequence to start position
-            self.alt_seq = self.variant.split(":")[3]
             self.ext_url = "/vep/human/region/" + ":".join([str(self.chromosome), str(self.pos_start), str(
                 self.pos_end)]) + "/" + self.alt_seq + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
 
@@ -803,7 +801,7 @@ class AutoCaSc_new:
         self.allele_count = gnomad_variant_result.get("ac")
         self.n_hemi = gnomad_variant_result.get("ac_hemi")
 
-    # master calculation function, calls sub calculations as described in Büttner et al and returns dict of category results
+    # master calculation function, calls subcalculations
     def get_scores(self):
         """This method calls all the scoring functions and assigns their results to class attributes.
         """
@@ -811,91 +809,16 @@ class AutoCaSc_new:
         self.factors = []
 
         if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:  # autosomal dominant branch
-            if self.inheritance == "de_novo":
-                if self.allele_count == 0:
-                    self.factors.append((1, "denovo and not in gnomad"))
-                    # ToDo add explanations for factors
-                if self.allele_count == 1:
-                    self.factors.append((0.9, "denovo and once in gnomad"))
-                else:
-                    self.factors.append((0, "denovo and multiple times in gnomad"))
-            elif self.inheritance == "unknown":
-                if self.allele_count == 0:
-                    self.factors.append((0.9, "inheritance unknown and not in gnomad"))
-                else:
-                    self.factors.append((0, "inheritance unknown, present in gnoamd"))
-            elif self.inheritance == "ad_inherited":
-                # hier wird davon ausgegangen, dass ad_inherited nur möglich wenn self.parent_affected == True
-                inheritance_factor = 1 - ((self.allele_count + 1) * 0.1)
-                self.factors.append((inheritance_factor,
-                                     f"inherited autosomal dominant, {self.allele_count}x in gnomad"))
-
-            if self.impact == "high":
-                self.factors.append((self.get_loeuf_factor(), f"impact high and LOEUF {self.oe_lof_upper}"))
-            elif self.impact == "moderate":
-                self.factors.append((self.get_Z_factor(), f"impact moderate and LOEUF {self.oe_lof_upper}"))
-            else:
-                self.factors.append((0, "low impact"))  # if impact not moderate or high --> variant == 0
-
-            self.factors.append((self.get_cadd_factor(), f"CADD {self.cadd_phred}"))
+            self.score_dominant()
 
         elif self.inheritance in ["comphet", "homo"]:
-            if self.has_sibling:
-                if self.cosegregating:
-                    self.factors.append((1, "variant cosegregating"))
-                else:
-                    self.factors.append((0, "sibling affected but variant not present or "
-                                            "not affected but variant present"))
-            else:
-                self.factors.append((0.95, "no sibling available"))
+            self.score_recessive()
 
-            if self.inheritance == "homo":
-                if self.impact == "high":
-                    if self.obs_hom_lof == 0:
-                        self.factors.append((1, "homozygous LoF, no LoF present in gnomad in this gene"))
-                    else:
-                        self.factors.append((0, f"homozygous LoF, {self.obs_hom_lof} LoFs present in gnomad in this gene"))
-                elif self.impact == "moderate":
-                    if self.ac_hom == 0:
-                        self.factors.append((1, "moderate impact, variant not in gnomad"))
-                    else:
-                        self.factors.append((0, f"moderate imapct, variant {self.ac_hom}x in gnomad"))
-
-            if self.inheritance == "comphet":
-                other_instance = AutoCaSc(self.other_variant)
-                if self.impact == "high":
-                    if other_instance.impact == "high":
-                        if self.obs_hom_lof == 0:
-                            self.factors.append((1, "comphet, no homozygous LoF in this gene in gnomad"))
-                        else:
-                            self.factors.append((0, f"comphet, {self.obs_hom_lof} homozygous LoFs in this gene in gnomad"))
-                    elif other_instance.impact == "moderate":
-                        if (self.n_hom == 0) and (other_instance.n_hom == 0):
-                            self.factors.append((1, "comphet, one high, one moderate, both not homozygous in gnomad"))
-                        elif (self.n_hom != 0) and (other_instance.n_hom != 0):
-                            self.factors.append((0, "comphet, one high, one moderate, both homozygous in gnomad"))
-                        # elif (self.obs_hom_lof == 0) and (other_instance.n_hom == 0):
-                        #     self.factors.append(0.8)
-                        #     # ToDo was wenn comphet eine homo in gnomad, die andere nicht
-                        else:
-                            self.factors.append((0, "comphet, one homo in gnomad, other one not"))
-
-                elif self.impact == "moderate":
-                    if (self.n_hom == 0) and (other_instance.n_hom == 0):
-                        self.factors.append((1, f"comphet, one moderate, other one {other_instance.impact}, "
-                                                f"both not homozygous in gnomad"))
-                    elif (self.n_hom != 0) and (other_instance.n_hom != 0):
-                        self.factors.append((0, f"comphet, one moderate, other one {other_instance.impact}, "
-                                                f"both homozygous in gnomad"))
-                    else:
-                        self.factors.append((0, "comphet, one homo in gnomad, other one not"))
-
-        if self.inheritance == "homo":
-            self.factors.append((self.get_cadd_factor(), f"homozygous, CADD of {self.cadd_phred}"))
-        elif self.inheritance == "comphet":
-            mean_cadd = mean([self.cadd_phred, other_instance.cadd_phred])
-            self.factors.append((self.get_cadd_factor(mean_cadd), f"comphet, one CADD {self.cadd_phred} "
-                                                                  f"other CADD {other_instance.cadd_phred}"))
+        elif self.inheritance == "x_linked":
+            if self.sex == "XX":
+                self.score_recessive()
+            elif self.sex == "XY":
+                self.score_x_hemi()
 
         if self.gene_id in gene_scores.ensemble_id.to_list():
             # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
@@ -917,9 +840,9 @@ class AutoCaSc_new:
         self.calculate_canidate_score()
 
     def calculate_canidate_score(self):
-        factor_list = [x for (x,_) in self.factors]
+        factor_list, explanation_list = [[factor for factor, _ in self.factors],
+                                         [explanation for _, explanation in self.factors]]
         self.candidate_score = round(product(factor_list), 2)
-
 
     def check_variant_format(self):
         """This function checks if the entered variant matches either HGVS or VCF format after doing some formatting.
@@ -1178,6 +1101,101 @@ class AutoCaSc_new:
         except TypeError:
             self.status_code = 497
             return None
+
+    def score_dominant(self):
+        if self.inheritance == "de_novo":
+            if self.allele_count == 0:
+                self.factors.append((1, "denovo and not in gnomad"))
+                # ToDo add explanations for factors
+            if self.allele_count == 1:
+                self.factors.append((0.9, "denovo and once in gnomad"))
+            else:
+                self.factors.append((0, "denovo and multiple times in gnomad"))
+        elif self.inheritance == "unknown":
+            if self.allele_count == 0:
+                self.factors.append((0.9, "inheritance unknown and not in gnomad"))
+            else:
+                self.factors.append((0, "inheritance unknown, present in gnoamd"))
+        elif self.inheritance == "ad_inherited":
+            # hier wird davon ausgegangen, dass ad_inherited nur möglich wenn self.parent_affected == True
+            inheritance_factor = 1 - ((self.allele_count + 1) * 0.1)
+            self.factors.append((inheritance_factor,
+                                 f"inherited autosomal dominant, {self.allele_count}x in gnomad"))
+
+        if self.impact == "high":
+            self.factors.append((self.get_loeuf_factor(), f"impact high and LOEUF {self.oe_lof_upper}"))
+        elif self.impact == "moderate":
+            self.factors.append((self.get_Z_factor(), f"impact moderate and LOEUF {self.oe_lof_upper}"))
+        else:
+            self.factors.append((0, "low impact"))  # if impact not moderate or high --> variant == 0
+
+        self.factors.append((self.get_cadd_factor(), f"CADD {self.cadd_phred}"))
+
+    def score_recessive(self):
+            if self.has_sibling:
+                if self.cosegregating:
+                    self.factors.append((1, "variant cosegregating"))
+                else:
+                    self.factors.append((0, "sibling affected but variant not present or "
+                                            "not affected but variant present"))
+            else:
+                self.factors.append((0.95, "no sibling available"))
+
+            if self.inheritance == "homo":
+                if self.impact == "high":
+                    if self.obs_hom_lof == 0:
+                        self.factors.append((1, "homozygous LoF, no LoF present in gnomad in this gene"))
+                    else:
+                        self.factors.append((0, f"homozygous LoF, {self.obs_hom_lof} LoFs present in gnomad in this gene"))
+                elif self.impact == "moderate":
+                    if self.ac_hom == 0:
+                        self.factors.append((1, "moderate impact, variant not in gnomad"))
+                    else:
+                        self.factors.append((0, f"moderate imapct, variant {self.ac_hom}x in gnomad"))
+
+            if self.inheritance == "comphet":
+                other_instance = AutoCaSc(self.other_variant)
+                if self.impact == "high":
+                    if other_instance.impact == "high":
+                        if self.obs_hom_lof == 0:
+                            self.factors.append((1, "comphet, no homozygous LoF in this gene in gnomad"))
+                        else:
+                            self.factors.append((0, f"comphet, {self.obs_hom_lof} homozygous LoFs in this gene in gnomad"))
+                    elif other_instance.impact == "moderate":
+                        if (self.n_hom == 0) and (other_instance.n_hom == 0):
+                            self.factors.append((1, "comphet, one high, one moderate, both not homozygous in gnomad"))
+                        elif (self.n_hom != 0) and (other_instance.n_hom != 0):
+                            self.factors.append((0, "comphet, one high, one moderate, both homozygous in gnomad"))
+                        # elif (self.obs_hom_lof == 0) and (other_instance.n_hom == 0):
+                        #     self.factors.append(0.8)
+                        #     # ToDo was wenn comphet eine homo in gnomad, die andere nicht
+                        else:
+                            self.factors.append((0, "comphet, one homo in gnomad, other one not"))
+
+                elif self.impact == "moderate":
+                    if (self.n_hom == 0) and (other_instance.n_hom == 0):
+                        self.factors.append((1, f"comphet, one moderate, other one {other_instance.impact}, "
+                                                f"both not homozygous in gnomad"))
+                    elif (self.n_hom != 0) and (other_instance.n_hom != 0):
+                        self.factors.append((0, f"comphet, one moderate, other one {other_instance.impact}, "
+                                                f"both homozygous in gnomad"))
+                    else:
+                        self.factors.append((0, "comphet, one homo in gnomad, other one not"))
+
+            if (self.inheritance == "homo") or ((self.inheritance == "x_linked" and self.sex == "XX")):
+                self.factors.append((self.get_cadd_factor(), f"homozygous, CADD of {self.cadd_phred}"))
+            elif self.inheritance == "comphet":
+                mean_cadd = mean([self.cadd_phred, other_instance.cadd_phred])
+                self.factors.append((self.get_cadd_factor(mean_cadd), f"comphet, one CADD {self.cadd_phred} "
+                                                                      f"other CADD {other_instance.cadd_phred}"))
+
+    def score_x_hemi(self):
+        if self.n_hemi == 0:
+            self.factors.append((self.get_cadd_factor(),
+                                 f"x-linked hemizygous, CADD {self.cadd_phred}"))
+        else:
+            self.factors.append((self.get_cadd_factor(),
+                                f"x-linked hemizygous, variant {self.n_hemi}x hemizygous in gnomad"))
 
     def get_loeuf_factor(self):
         if self.oe_lof_upper >= 0.5:
