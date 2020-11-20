@@ -5,7 +5,7 @@
       <excludeFolder url="file://$MODULE_DIR$/venv" />
       <excludeFolder url="file://$MODULE_DIR$/venv_new" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.8 (venv_AutoCaSc)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.8 (AutoCaSc_project_folder)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

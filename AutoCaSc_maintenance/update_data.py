@@ -83,12 +83,18 @@ def fuse_data(validation_run=False):
                       "oe_mis", "oe_mis_lower",
                       "oe_mis_upper", "mis_z", "obs_hom_lof"]
 
+    gevir = pd.read_csv(ROOT_DIR + "gevir/gene_ranking.csv",
+                        usecols=["gene_id", "virlof_ar_enrichment"])
+    gevir.columns = ["ensemble_id", "virlof_ar_enrichment"]
+
+
     all_data = all_genes.merge(gtex, on="ensemble_id", how="outer")
     all_data = all_data.merge(denovo, on="entrez_id", how="outer")
     all_data = all_data.merge(disgenet, on="entrez_id", how="outer")
     all_data = all_data.merge(mgi, on="entrez_id", how="outer")
     all_data = all_data.merge(pubtator, on="entrez_id", how="outer")
     all_data = all_data.merge(string, on="ensemble_id", how="outer")
+    all_data = all_data.merge(gevir, on="ensemble_id", how="outer")
 
     all_data = all_data.fillna(0)
 
