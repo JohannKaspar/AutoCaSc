@@ -58,6 +58,9 @@ class AutoCaSc:
         self.assembly = assembly
         self.status_code = 200  # initial value is set to 200 = all good
 
+        self.multiple_transcripts = False
+        self.transcript_num = transcript_num
+
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
         else:
@@ -107,29 +110,28 @@ class AutoCaSc:
         self.mutationtaster_converted_rankscore = None
         self.mutationassessor_rankscore = None
         self.mgi_score = None
-        self.multiple_transcripts = False
-        self.transcript_num = transcript_num
 
         self.check_variant_format()  # this function is called to check if the entered variant is valid
+        if not self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
+            self.retrieve_data()
+        else:
+            self.status_code == 401
 
-        if not self.status_code == 401:  # if variant format is valid (not 401) continue
-            self.get_url(variant)
-            self.annotate()  # this method call initiates the annotation of the given variant
+    def retrieve_data(self):
+        self.get_vep_data()  # this method call initiates the annotation of the given variant
 
-        try:
-            if self.status_code != 498:
+        if self.status_code != 498:
+            try:
                 # 498 = no matching transcript index has been found (e.g. variant is intergenic)
                 self.get_gnomad_constraint()
                 self.get_gnomad_counts()  # gets allele counts in gnomad
 
-            self.get_scores()  # this calls the function for scoring the variant
+            except (AttributeError, TypeError) as e:
+                print(f"variant: {self.variant}\n"
+                      f"status_code: {self.status_code}\n"
+                      f"{e}\n")
 
-        except (AttributeError, TypeError) as e:
-            print(f"variant: {self.variant}"
-                  f"status_code: {self.status_code}"
-                  f"{e}")
-
-    def get_url(self, variant):
+    def create_url(self):
         if self.variant_format == "vcf":
             # definition of instance variables
             self.chromosome, self.pos_start, self.ref_seq, self.alt_seq = self.variant.split(":")
@@ -142,8 +144,8 @@ class AutoCaSc:
             # Assigning sequences in case they have been entered. This enables the program to check if
             # the entered reference sequence matches the VEP reference sequence at the given position.
             if ">" in self.variant:
-                self.ref_seq = re.search(r"(?<=\d)[CTGA]+(?=>)", variant).group()
-                self.alt_seq = re.search(r"(?<=>)[CTGA]+", variant).group()
+                self.ref_seq = re.search(r"(?<=\d)[CTGA]+(?=>)", self.variant).group()
+                self.alt_seq = re.search(r"(?<=>)[CTGA]+", self.variant).group()
             else:
                 self.ref_seq = None
                 self.alt_seq = None
@@ -160,7 +162,8 @@ class AutoCaSc:
                               "oe_mis",
                               "oe_mis_lower",
                               "oe_mis_upper",
-                              "obs_hom_lof"]:
+                              "obs_hom_lof",
+                              "virlof_ar_enrichment"]:
                 self.__dict__[parameter] = round(
                     gene_scores.loc[gene_scores.ensemble_id == self.gene_id, parameter].values[0], 2)
                 if isnan(self.__dict__[parameter]):
@@ -171,52 +174,9 @@ class AutoCaSc:
 
     def get_gnomad_counts(self):
         gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
-        self.n_hom = gnomad_variant_result.get("ac_hom")
+        self.ac_hom = gnomad_variant_result.get("ac_hom")
         self.allele_count = gnomad_variant_result.get("ac")
         self.n_hemi = gnomad_variant_result.get("ac_hemi")
-
-    # master calculation function, calls subcalculations
-    def get_scores(self):
-        """This method calls all the scoring functions and assigns their results to class attributes.
-        """
-        self.explanation_dict = {}
-        self.factors = []
-
-        if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:  # autosomal dominant branch
-            self.score_dominant()
-
-        elif self.inheritance in ["comphet", "homo"]:
-            self.score_recessive()
-
-        elif self.inheritance == "x_linked":
-            if self.sex == "XX":
-                self.score_recessive()
-            elif self.sex == "XY":
-                self.score_x_hemi()
-
-        if self.gene_id in gene_scores.ensemble_id.to_list():
-            # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-            self.factors.append((round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
-                                                          "weighted_score"].values[0], 2), "precalculated plausibility score"))
-            # Assigning the plausibility subscores for being able to call them individually.
-            for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                          "mgi_score", "string_score"]:
-                self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
-                                             2)
-        else:
-            # If not, the values are set to 0.
-            for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                          "mgi_score", "string_score"]:
-                self.__dict__[score] = 0.
-            mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
-            self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
-
-        self.calculate_canidate_score()
-
-    def calculate_canidate_score(self):
-        factor_list, explanation_list = [[factor for factor, _ in self.factors],
-                                         [explanation for _, explanation in self.factors]]
-        self.candidate_score = round(product(factor_list) * 10, 2)
 
     def check_variant_format(self):
         """This function checks if the entered variant matches either HGVS or VCF format after doing some formatting.
@@ -240,7 +200,7 @@ class AutoCaSc:
             self.variant_format = "hgvs"
             self.variant = input_hgvs
         else:
-            self.status_code = 401
+            self.variant_format = "incorrect"
 
     @retry(reraise=True,
            stop=stop_after_attempt(10),
@@ -265,13 +225,16 @@ class AutoCaSc:
                 return None, 496
             else:
                 # Return None if some sort of different error occurs.
+                print(f"Some error occured while requesting VEP data. Retrying...\n"
+                      f"{r.status_code}: {r.reason}")
                 raise IOError("There has been an issue with a variant.")
 
     # core function for annotation
-    def annotate(self):
+    def get_vep_data(self):
         """This function requests the VEP API in order to annotate a given variant and selects relevant parameters.
         :return:
         """
+        self.create_url()
         try:
             response_decoded, status_code = self.vep_api_request()
         except IOError:
@@ -462,6 +425,55 @@ class AutoCaSc:
             self.status_code = 497
             return None
 
+
+    # master calculation function, calls subcalculations
+    def calculate_candidate_score(self):
+        """This method calls all the scoring functions and assigns their results to class attributes.
+        """
+        if self.variant_format == "incorrect":
+            self.candidate_score == 0
+            return
+
+        self.explanation_dict = {}
+        self.factors = []
+
+        if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:  # autosomal dominant branch
+            self.score_dominant()
+
+        elif self.inheritance in ["comphet", "homo"]:
+            self.score_recessive()
+
+        elif self.inheritance == "x_linked":
+            if self.sex == "XX":
+                self.score_recessive()
+            elif self.sex == "XY":
+                self.score_x_hemi()
+
+        if self.gene_id in gene_scores.ensemble_id.to_list():
+            # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
+            self.factors.append((round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
+                                                          "weighted_score"].values[0], 2), "precalculated plausibility score"))
+            # Assigning the plausibility subscores for being able to call them individually.
+            for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
+                                             2)
+        else:
+            # If not, the values are set to 0.
+            for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = 0.
+            mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
+            self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
+
+        factor_list, explanation_list = [[factor for factor, _ in self.factors],
+                                         [explanation for _, explanation in self.factors]]
+        self.candidate_score = round(product(factor_list) * 10, 2)
+
+        # for debugging purpose
+        for factor, explanation in self.factors:
+            print(f"{factor}  because {explanation}")
+
     def score_dominant(self):
         if self.inheritance == "de_novo":
             if self.allele_count == 0:
@@ -485,7 +497,7 @@ class AutoCaSc:
         if self.impact == "high":
             self.factors.append((self.get_loeuf_factor(), f"impact high and LOEUF {self.oe_lof_upper}"))
         elif self.impact == "moderate":
-            self.factors.append((self.get_Z_factor(), f"impact moderate and LOEUF {self.oe_lof_upper}"))
+            self.factors.append((self.get_Z_factor(), f"impact moderate and Z {self.mis_z}"))
         else:
             self.factors.append((0, "low impact"))  # if impact not moderate or high --> variant == 0
 
@@ -531,7 +543,7 @@ class AutoCaSc:
             else:
                 self.factors.append((0, f"moderate imapct, variant {other_instance.ac_hom}x in gnomad"))
 
-
+        self.factors.append((self.get_gevir_score(), f"GEVIR virlof ar enrichment {self.virlof_ar_enrichment}"))
 
         #
         # if self.inheritance == "homo":
@@ -619,7 +631,7 @@ class AutoCaSc:
     def get_cadd_factor(self, cadd_phred=None):
         if not cadd_phred:
             cadd_phred = self.cadd_phred
-        if cadd_phred >= 3.09:
+        if cadd_phred >= 30:
             cadd_score = 1.
         else:
             cadd_model = poly1d([3.83333333e-05, -3.85000000e-03, 1.28666667e-01, -4.40000000e-01])
@@ -632,14 +644,30 @@ class AutoCaSc:
         self.cadd_score = cadd_score
         return cadd_score
 
+    def get_gevir_score(self):
+        return self.virlof_ar_enrichment / 2.0
+
+
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
 @click.pass_context
 @click.option('--verbose', '-v',
               is_flag=True,
               help="Increase output verbosity level")
+@click.option("--assembly", "-a",
+              default="GRCh37",
+              help="Reference assembly to use.")
+@click.option("--parent_affected", "-pa",
+              default="n",
+              help="Is at least one of the parents affected either y or n.")
+@click.option("--cosegregating", "-c",
+              default="no_sibling",
+              help="This option can either be no_sibling, cosegregating or not_cosegregating.")
+@click.option("--sex", "-s",
+              default="XY",
+              help="Sex of index patient. Either XX or XY.")
 @click.option("--output_path", "-o",
               help="Output path for csv-file.")
-def main(ctx, verbose, output_path):
+def main(ctx, verbose, assembly, parent_affected, cosegregating, sex, output_path):
     group_commands = ['single', 'batch']
     """
             AutoCaSc_core is a command line tool that helps scoring
@@ -653,18 +681,51 @@ def main(ctx, verbose, output_path):
         click.echo("Specify one of the commands below")
         print(*group_commands, sep='\n')
 
-    ctx.obj['VERBOSE'] = verbose
-    ctx.obj['OUTPUT_PATH'] = output_path
+    ctx.obj["VERBOSE"] = verbose
+    ctx.obj["ASSEMBLY"] = assembly
+    ctx.obj["PARENT_AFFECTED"] = parent_affected
+    ctx.obj["SEX"] = sex
+    ctx.obj["OUTPUT_PATH"] = output_path
+
+    if cosegregating == "no_sibling":
+        ctx.obj["HAS_SIBLING"] = False
+        ctx.obj["COSEGREGATING"] = False
+    elif cosegregating == "cosegregating":
+        ctx.obj["HAS_SIBLING"] = True
+        ctx.obj["COSEGREGATING"] = True
+    elif cosegregating == "not_cosegregating":
+        ctx.obj["HAS_SIBLING"] = True
+        ctx.obj["COSEGREGATING"] = False
 
 @click.pass_context
-def score_variants(ctx, variants, inheritances, fam_histories):
-    # verbose = ctx.obj.get('VERBOSE')
-    assembly = "GRCh37"
-    verbose = True
+def score_variants(ctx, variants, inheritances):
+    if ctx.obj:
+        verbose = ctx.obj.get('VERBOSE')
+        assembly = ctx.obj.get('ASSEMBLY')
+        parent_affected = ctx.obj.get('PARENT_AFFECTED')
+        sex = ctx.obj.get('SEX')
+        output_path = ctx.obj.get('OUTPUT_PATH')
+        has_sibling = ctx.obj.get('HAS_SIBLING')
+        cosegregating = ctx.obj.get('COSEGREGATING')
+    else:
+        verbose = True
+        assembly = "GRCh37"
+        parent_affected = False
+        sex = "XY"
+        output_path = None
+        has_sibling = False
+        cosegregating = False
+
     results_df = pd.DataFrame()
     variant_dict = {}
-    for _variant, _inheritance, _fam_history in zip(variants, inheritances, fam_histories):
-        variant_dict[_variant] = AutoCaSc(_variant, _inheritance, _fam_history, assembly=assembly)
+    for _variant, _inheritance in zip(variants, inheritances):
+        variant_dict[_variant] = AutoCaSc(variant=_variant,
+                                          inheritance=_inheritance,
+                                          parent_affected=parent_affected,
+                                          has_sibling=has_sibling,
+                                          cosegregating=cosegregating,
+                                          sex=sex,
+                                          assembly=assembly)
 
     if "comphet" in inheritances:
         #ToDo: check this again, maybe write one function for both vcf and batch CLI
@@ -717,7 +778,7 @@ def score_variants(ctx, variants, inheritances, fam_histories):
             comphet_id += 1
 
     # create the final result_df containing scoring results
-    for _variant, _inheritance, _fam_history in zip(variants, inheritances, fam_histories):
+    for _variant, _inheritance in zip(variants, inheritances):
         variant_instance = variant_dict.get(_variant)
         results_df.loc[_variant, "candidate_score"] = variant_instance.candidate_score
         if verbose:
@@ -730,27 +791,27 @@ def score_variants(ctx, variants, inheritances, fam_histories):
         results_df.loc[_variant, "status_code"] = str(int(variant_instance.status_code))
 
     results_df.index.names = ["variant"]
-    # if ctx.obj.get('OUTPUT_PATH'):
-    #     results_df.to_csv(ctx.obj.get('OUTPUT_PATH'))
+    if output_path:
+        results_df.to_csv(output_path, index=False)
     return results_df
+
 
 @main.command("batch")
 @click.option("--input_file", "-i",
               type=click.Path(exists=True),
               help="Path to file containing variants.")
-def score_batch(input_file):
+def batch(input_file):
     lines = open(input_file).readlines()
     lines = [line_.strip("\n ") for line_ in lines]
     try:
         variants = [line_.split(",")[0].strip() for line_ in lines]
         inheritances = [line_.split(",")[1].strip() for line_ in lines]
-        fam_histories = [line_.split(",")[2].strip() for line_ in lines]
     except IndexError:
         #ToDo error handling
         variants = [line_.strip("\n ") for line_ in lines]
         inheritances = ["de_novo" for _ in lines]
 
-    results_df = score_variants(variants, inheritances, fam_histories)
+    results_df = score_variants(variants, inheritances)
 
     click.echo(results_df.head(len(results_df)))
 
@@ -765,22 +826,23 @@ def score_batch(input_file):
 @click.option("--family_history", "-f",
               default="no",
               help="Are there any relatives that are affected too?")
-def score_single(variant, inheritance, family_history):
+def single(variant, inheritance, family_history):
     results_df = score_variants([variant], [inheritance], [family_history])
     click.echo(results_df.head(len(results_df)))
 
 
 if __name__ == "__main__":
-    score_single(["--variant", "19:53959842:xxx:-",
-                 "-ih", "de_novo",
-                 "-f", "yes"])
-    # score_batch(["--input_file", "/home/johann/CLI_batch_test_variants.txt"])
+    # single(["--variant", "NM_024701.3:c.404T>G",
+    #              "-ih", "de_novo",
+    #              "-f", "yes"])
+    batch(["--input_file",
+           "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     # main(obj={})
 
 # print(AutoCaSc_core("2:46803383:G:A", "de_novo").candidate_score)  # benign
 # print(AutoCaSc_core("1:1737948:A:G", "de_novo").candidate_score)  # pathogenic
 # print(AutoCaSc_core("X:153040798:C:A", "de_novo").candidate_score)  # benign
-# print(AutoCaSc_core("1:3732936:A:G", "de_novo").candidate_score)  # pathogenic
+# print(AutoCaSc_core("1:3732936:A:G", "de_novo").candidate_score)  # pathogenic --> impact high LOEUF 0.74
 # print(AutoCaSc_core("1:7725246:G:A", "de_novo").candidate_score)  # pathogenic
 # print(AutoCaSc_core("1:2234850:G:A", "de_novo").candidate_score)  # pathogenic
 # print(AutoCaSc_core("1:3755660:A:C", "de_novo").candidate_score)  # pathogenic
@@ -789,3 +851,6 @@ if __name__ == "__main__":
 # print(AutoCaSc_core("NM_001113498.2:c.794T>A", "de_novo").candidate_score)
 # print(AutoCaSc_core("chr4:175812275:T:C", inheritance="de_novo", assembly="GRCh38").candidate_score)
 # print(AutoCaSc_core("3:149619809:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:-", "de_novo").candidate_score)  # benign, high expressesed, GABA receptor.......
+
+
+# homo: NM_001199266.1:c.132_134del

@@ -138,6 +138,8 @@ class GnomADQuery:
         # if error "too many requests" retry after given time
         else:
             # Reraise if some sort of error occurs.
+            print(f"Some error occured while requesting VEP data. Retrying...\n"
+                  f"{r.status_code}: {r.reason}")
             raise IOError("There has been an issue with a variant while requesting gnomAD.")
 
     # requests and returns gnomAD gene information
