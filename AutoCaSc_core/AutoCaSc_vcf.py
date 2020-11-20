@@ -12,7 +12,7 @@ import re
 import shutil
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-@retry(reraise=True, stop=(stop_after_attempt(10)|wait_exponential(multiplier=1, min=1, max=5)))
+@retry(reraise=True, stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=1, max=5))
 def iteration_func(variant_vcf, inheritance, assembly, transcript_num):
      instance = AutoCaSc(variant_vcf,
                                inheritance=inheritance,

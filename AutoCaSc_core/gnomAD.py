@@ -1,5 +1,6 @@
 import requests
 import time
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 # GraphQL query code
 query_code = '''
@@ -55,7 +56,6 @@ query Gene($geneId: String, $geneSymbol: String, $referenceGenome: ReferenceGeno
 
 result_dict = {}
 REQS_PER_SEC = 15
-
 
 class GnomADQuery:
     def __init__(self, identifier, category="gene", assembly="GRCh37"):
@@ -122,6 +122,24 @@ class GnomADQuery:
         self.req_count = 0
         self.last_req = 0
 
+    @retry(reraise=True,
+           stop=stop_after_attempt(10),
+           wait=wait_exponential(multiplier=1, min=1, max=5))
+    def gnomad_sparql_request(self):
+        """General function for handling API communication.
+        """
+        r = requests.post(url="https://gnomad.broadinstitute.org/api?",
+                          json={'query': self.query, 'variables': self.query_variables},
+                          headers={'Accept': 'application/vnd.cap-collectif.preview+json'})
+
+        # if status code == 200
+        if r.ok:
+            return r
+        # if error "too many requests" retry after given time
+        else:
+            # Reraise if some sort of error occurs.
+            raise IOError("There has been an issue with a variant while requesting gnomAD.")
+
     # requests and returns gnomAD gene information
     def get_gnomad_info(self):
         time.sleep(0.2)
@@ -134,11 +152,14 @@ class GnomADQuery:
             self.req_count = 0
         self.req_count += 1
 
-        r = requests.post(url="https://gnomad.broadinstitute.org/api?",
-                                 json={'query': self.query, 'variables': self.query_variables},
-                                 headers={'Accept': 'application/vnd.cap-collectif.preview+json'})
+        try:
+            r = self.gnomad_sparql_request()
+            status_code = r.status_code
+        except IOError:
+            print("Some problem with gnomAD API request!")
+            status_code = 400
 
-        if r.status_code == 200:
+        if status_code == 200:
             status_code = 200
             decoded = r.json()
             result_dict = self.recursion(decoded)
@@ -169,16 +190,21 @@ class GnomADQuery:
                     total_allele_count = result_dict.get("ac") or 0
                     result_dict["female_count"] = total_allele_count - result_dict.get("male_count")
 
+                if "errors" in result_dict.keys():
+                    for i in range(len(result_dict.get("errors"))):
+                        try:
+                            if result_dict.get("errors")[i].get("message") == "Variant not found":
+                                not_in_gnomad_dict = {}
+                                not_in_gnomad_dict["ac_hemi"] = 0
+                                not_in_gnomad_dict["ac_hom"] = 0
+                                not_in_gnomad_dict["ac"] = 0
+                                return not_in_gnomad_dict, status_code
+                        except (AttributeError, TypeError, IndexError):
+                            print("Could not retrieve Error Code from gnomAD Server response!")
             return result_dict, status_code
 
-
-        elif r.status_code == 429:
-            if 'Retry-After' in r.headers:
-                retry = r.headers['Retry-After']
-                time.sleep(float(retry))
-                self.get_gnomad_info()
         else:
-            return None, r.status_code
+            return None, status_code
 
 
     # formats data into a one dimensional dictionary
@@ -195,7 +221,7 @@ class GnomADQuery:
                     result_dict[key + suffix] = value
         return result_dict
 
-print(GnomADQuery("X:153032470:G:A", "variant").get_gnomad_info())
+# print(GnomADQuery("X:153032470:G:A", "variant").get_gnomad_info())
 # print(GnomADQuery("1-55516888-G-GA", "variant").get_gnomad_info())
 # gnomad_variant_result = gnomad_variant_instance.get_gnomad_info()
 # gnomad_instance = GnomADQuery("ENSG00000198753")
