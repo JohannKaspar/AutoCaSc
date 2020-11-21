@@ -31,6 +31,7 @@ class AutoCaSc:
                  has_sibling=False,
                  cosegregating=False,
                  sex="XY",
+                 other_autocasc_obj=None,
                  other_impact="unknown",
                  other_variant=None,
                  assembly="GRCh37",
@@ -53,6 +54,7 @@ class AutoCaSc:
         self.has_sibling = has_sibling
         self.cosegregating = cosegregating  # this is meant to be True if a sibling is affected and has the same variant
         self.sex = sex
+        self.other_autocasc_obj = other_autocasc_obj
         self.other_impact = other_impact
         self.other_variant = other_variant
         self.assembly = assembly
@@ -525,74 +527,34 @@ class AutoCaSc:
                 self.factors.append((0, f"moderate imapct, variant {self.ac_hom}x in gnomad"))
 
         if self.inheritance == "comphet":
-            other_instance = AutoCaSc(self.other_variant)
-
-            # check prevalence of homozygous variant in gnomad
-            if self.ac_hom == 0:
-                self.factors.append((1, "moderate impact, variant not homozygous in gnomad"))
-            elif self.ac_hom == 1:
-                self.factors.append((0.5, "moderate impact, variant only once homozygous in gnomad"))
+            if self.other_autocasc_obj:
+                for autocasc_object in [self, self.other_autocasc_obj]:
+                    # check prevalence of homozygous variant in gnomad
+                    if self.ac_hom == 0:
+                        self.factors.append((1, f"moderate impact, variant {autocasc_object.ac_hom} not homozygous in gnomad"))
+                    elif self.ac_hom == 1:
+                        self.factors.append((0.5, f"moderate impact, variant {autocasc_object.ac_hom} only once homozygous in gnomad"))
+                    else:
+                        self.factors.append((0, f"moderate imapct, variant {autocasc_object.ac_hom}x in gnomad"))
             else:
-                self.factors.append((0, f"moderate imapct, variant {self.ac_hom}x in gnomad"))
+                self.status_code = 402
 
-            # check prevalence of homozygous other variant in gomad
-            if other_instance.ac_hom == 0:
-                self.factors.append((1, "moderate impact, variant not homozygous in gnomad"))
-            elif other_instance.ac_hom == 1:
-                self.factors.append((0.5, "moderate impact, variant only once homozygous in gnomad"))
-            else:
-                self.factors.append((0, f"moderate imapct, variant {other_instance.ac_hom}x in gnomad"))
+                    # # check prevalence of homozygous other variant in gomad
+                    # if other_instance.ac_hom == 0:
+                    #     self.factors.append((1, "moderate impact, variant not homozygous in gnomad"))
+                    # elif other_instance.ac_hom == 1:
+                    #     self.factors.append((0.5, "moderate impact, variant only once homozygous in gnomad"))
+                    # else:
+                    #     self.factors.append((0, f"moderate imapct, variant {other_instance.ac_hom}x in gnomad"))
 
         self.factors.append((self.get_gevir_score(), f"GEVIR virlof ar enrichment {self.virlof_ar_enrichment}"))
-
-        #
-        # if self.inheritance == "homo":
-        #     if self.impact == "high":
-        #         if self.obs_hom_lof == 0:
-        #             self.factors.append((1, "homozygous LoF, no LoF present in gnomad in this gene"))
-        #         else:
-        #             self.factors.append((0, f"homozygous LoF, {self.obs_hom_lof} LoFs present in gnomad in this gene"))
-        #     elif self.impact == "moderate":
-        #         if self.ac_hom == 0:
-        #             self.factors.append((1, "moderate impact, variant not in gnomad"))
-        #         else:
-        #             self.factors.append((0, f"moderate imapct, variant {self.ac_hom}x in gnomad"))
-        #
-        # if self.inheritance == "comphet":
-        #     other_instance = AutoCaSc(self.other_variant)
-        #     if self.impact == "high":
-        #         if other_instance.impact == "high":
-        #             if self.obs_hom_lof == 0:
-        #                 self.factors.append((1, "comphet, no homozygous LoF in this gene in gnomad"))
-        #             else:
-        #                 self.factors.append((0, f"comphet, {self.obs_hom_lof} homozygous LoFs in this gene in gnomad"))
-        #         elif other_instance.impact == "moderate":
-        #             if (self.n_hom == 0) and (other_instance.n_hom == 0):
-        #                 self.factors.append((1, "comphet, one high, one moderate, both not homozygous in gnomad"))
-        #             elif (self.n_hom != 0) and (other_instance.n_hom != 0):
-        #                 self.factors.append((0, "comphet, one high, one moderate, both homozygous in gnomad"))
-        #             # elif (self.obs_hom_lof == 0) and (other_instance.n_hom == 0):
-        #             #     self.factors.append(0.8)
-        #             #     # ToDo was wenn comphet eine homo in gnomad, die andere nicht
-        #             else:
-        #                 self.factors.append((0, "comphet, one homo in gnomad, other one not"))
-        #
-        #     elif self.impact == "moderate":
-        #         if (self.n_hom == 0) and (other_instance.n_hom == 0):
-        #             self.factors.append((1, f"comphet, one moderate, other one {other_instance.impact}, "
-        #                                     f"both not homozygous in gnomad"))
-        #         elif (self.n_hom != 0) and (other_instance.n_hom != 0):
-        #             self.factors.append((0, f"comphet, one moderate, other one {other_instance.impact}, "
-        #                                     f"both homozygous in gnomad"))
-        #         else:
-        #             self.factors.append((0, "comphet, one homo in gnomad, other one not"))
 
         if (self.inheritance == "homo") or ((self.inheritance == "x_linked" and self.sex == "XX")):
             self.factors.append((self.get_cadd_factor(), f"homozygous, CADD of {self.cadd_phred}"))
         elif self.inheritance == "comphet":
-            mean_cadd = mean([self.cadd_phred, other_instance.cadd_phred])
+            mean_cadd = mean([self.cadd_phred, self.other_autocasc_obj.cadd_phred])
             self.factors.append((self.get_cadd_factor(mean_cadd), f"comphet, one CADD {self.cadd_phred} "
-                                                                  f"other CADD {other_instance.cadd_phred}"))
+                                                                  f"other CADD {self.other_autocasc_obj.cadd_phred}"))
 
     def score_x_hemi(self):
         if self.n_hemi == 0:
@@ -720,62 +682,34 @@ def score_variants(ctx, variants, inheritances):
     variant_dict = {}
     for _variant, _inheritance in zip(variants, inheritances):
         variant_dict[_variant] = AutoCaSc(variant=_variant,
-                                          inheritance=_inheritance,
-                                          parent_affected=parent_affected,
-                                          has_sibling=has_sibling,
-                                          cosegregating=cosegregating,
-                                          sex=sex,
-                                          assembly=assembly)
+                              inheritance=_inheritance,
+                              parent_affected=parent_affected,
+                              has_sibling=has_sibling,
+                              cosegregating=cosegregating,
+                              sex=sex,
+                              assembly=assembly)
 
-    if "comphet" in inheritances:
-        #ToDo: check this again, maybe write one function for both vcf and batch CLI
+    #ToDo: check this again, maybe write one function for both vcf and batch CLI
 
-        # make a dict of all compound heterozygous variants and the gene_id to match corresponding comphets
-        gene_dict = {}
-        for _variant, _inheritance in zip(variants, inheritances):
-            if _inheritance == "comphet":
-                gene_id = variant_dict.get(_variant).gene_id
-                if gene_id:
-                    gene_dict[_variant] = gene_id
-        # comphet_df = pd.DataFrame.from_dict(gene_dict, orient='index').reset_index()
-        # comphet_df.columns = ['variant', 'gene_id']
+    comphet_genes_dict = {}
+    for _variant, _inheritance in zip(variants, inheritances):
+        if _inheritance == "comphet":
+            gene_id = variant_dict.get(_variant).gene_id
+            if gene_id:
+                comphet_genes_dict[_variant] = gene_id
+        else:
+            variant_dict.get(_variant).calculate_candidate_score()
+    # comphet_df = pd.DataFrame.from_dict(gene_dict, orient='index').reset_index()
+    # comphet_df.columns = ['variant', 'gene_id']
 
-        for _variant in gene_dict.keys():
-            try:
-                variant_gene = gene_dict.get(_variant)
-                other_variant = list(filterTheDict(gene_dict, variant_gene, _variant).keys())[0]
-                other_impact = variant_dict.get(other_variant).impact
-                variant_dict[_variant].other_impact = other_impact
-                variant_dict[_variant].get_scores()
-            except IndexError:
-                pass
-
-        comphet_id = 0  # unique identifier for clear identification of corresponding compound heterozygous variants
-        for _variant, variant_gene in gene_dict.items():
-            instance_1 = variant_dict.get(_variant)
-            if instance_1.comphet_id:
-                continue
-            # variant_gene = gene_dict.get(_variant)
-            other_variant = list(filterTheDict(gene_dict, variant_gene, _variant).keys())[0]
-            instance_2 = variant_dict.get(other_variant)
-
-            if instance_1.status_code == 200 and instance_2.status_code == 200:
-                try:
-                    instance_1.other_impact = instance_2.impact
-                    instance_2.other_impact = instance_1.impact
-                    instance_1.rate_impact()
-                    instance_2.rate_impact()
-                except AttributeError:
-                    pass
-
-            combined_candidate_score = mean([instance_1.candidate_score,
-                                             instance_2.candidate_score])
-            instance_1.candidate_score, instance_2.candidate_score = combined_candidate_score, combined_candidate_score
-            instance_1.comphet_id, instance_2.comphet_id = comphet_id, comphet_id
-
-            variant_dict[_variant] = instance_1
-            variant_dict[other_variant] = instance_2
-            comphet_id += 1
+    for _variant in comphet_genes_dict.keys():
+        try:
+            variant_gene = comphet_genes_dict.get(_variant)
+            other_variant = list(filterTheDict(comphet_genes_dict, variant_gene, _variant).keys())[0]
+            variant_dict.get(_variant).other_autocasc_obj = variant_dict.get(other_variant)
+            variant_dict.get(_variant).calculate_candidate_score()
+        except IndexError:
+            pass
 
     # create the final result_df containing scoring results
     for _variant, _inheritance in zip(variants, inheritances):

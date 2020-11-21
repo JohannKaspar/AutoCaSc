@@ -258,6 +258,8 @@ def clear_page(status_code, variant_input=""):
               colors["red"]),
         401: ("Error 401: Variant incorrect. Please try VCF annotation or HGVS annotation using HGNC gene symbol!",
               colors["red"]),  # regex doesn't match
+        402: ("Error 402: Can't score a compound heterozygous variant without the correspoing variant!",
+              colors["red"]),
         497: ("Error 497: Variant incorrect. Please try VCF annotation or HGVS annotation using HGNC gene symbol!",
               colors["red"]),
         498: ("You have entered an intergenic variant.", colors["red"]),
