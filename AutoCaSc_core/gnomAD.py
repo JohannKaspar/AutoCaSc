@@ -124,7 +124,7 @@ class GnomADQuery:
 
     @retry(reraise=True,
            stop=stop_after_attempt(10),
-           wait=wait_exponential(multiplier=1, min=1, max=5))
+           wait=wait_exponential(multiplier=2, min=1, max=30))
     def gnomad_sparql_request(self):
         """General function for handling API communication.
         """
@@ -138,8 +138,7 @@ class GnomADQuery:
         # if error "too many requests" retry after given time
         else:
             # Reraise if some sort of error occurs.
-            print(f"Some error occured while requesting VEP data. Retrying...\n"
-                  f"{r.status_code}: {r.reason}")
+            print(f"GNOMAD ERROR '{r.status_code}: {r.reason}' for {self.query_variables}. Retrying...")
             raise IOError("There has been an issue with a variant while requesting gnomAD.")
 
     # requests and returns gnomAD gene information
@@ -183,9 +182,12 @@ class GnomADQuery:
                     status_code = 495
             else:
                 if "ac_hemi_exome" in result_dict.keys():
-                    result_dict["ac_hemi"] = result_dict.get("ac_hemi_exome") + result_dict.get("ac_hemi_genome")
-                    result_dict["ac_hom"] = result_dict.get("ac_hom_exome") + result_dict.get("ac_hom_genome")
-                    result_dict["ac"] = result_dict.get("ac_exome") + result_dict.get("ac_genome")
+                    result_dict["ac_hemi"] = (result_dict.get("ac_hemi_exome") or 0) \
+                                             + (result_dict.get("ac_hemi_genome") or 0)
+                    result_dict["ac_hom"] = (result_dict.get("ac_hom_exome") or 0) \
+                                            + (result_dict.get("ac_hom_genome") or 0)
+                    result_dict["ac"] = (result_dict.get("ac_exome") or 0) \
+                                        + (result_dict.get("ac_genome") or 0)
 
                 if self.variant[0] in ["X", "x"]:
                     result_dict["male_count"] = result_dict.get("ac_hemi") or 0
@@ -210,7 +212,8 @@ class GnomADQuery:
 
 
     # formats data into a one dimensional dictionary
-    def recursion(self, dict, suffix="", sub_dirs=["exome", "genome"]):
+    def recursion(self, dict, suffix=""):
+        sub_dirs = ["exome", "genome"]
         for key, value in dict.items():
             if type(value) == type(dict):
                 if key in sub_dirs:

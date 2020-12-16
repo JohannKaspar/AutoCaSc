@@ -64,7 +64,7 @@ variant_parameters_to_show = [
 
 # dict of labels for variant results table
 variant_parameters_labels = {
-    "gene_symbol": "Gen",
+    "gene_symbol": "Gene",
     "id": "Variant",
     "vcf_string": "VCF",
     "transcript": "Transcript",
