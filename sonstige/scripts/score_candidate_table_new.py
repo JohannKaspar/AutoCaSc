@@ -28,11 +28,8 @@ def export_results(instance, df_instance, i, strand_shift):
         try:
             instance.calculate_candidate_score()
             df_instance.loc[i, "AutoCaSc_gene_symbol"] = dot2comma(instance.gene_symbol)
-        except AttributeError:
-            print("stop")
-        try:
             df_instance.loc[i, "AutoCaSc_candidate_score"] = dot2comma(instance.candidate_score)
-            df_instance.loc[i, "explanation"] = dot2comma("\n".join([str(x) for x in instance.factors]))
+            df_instance.loc[i, "explanation"] = dot2comma("|".join([str(x) for x in instance.factors]))
             df_instance.loc[i, "AutoCaSc_literature_score"] = dot2comma(instance.literature_score)
             df_instance.loc[i, "AutoCaSc_mgi_score"] = dot2comma(instance.mgi_score)
             df_instance.loc[i, "AutoCaSc_pubtator_score"] = dot2comma(instance.pubtator_score)
@@ -41,6 +38,7 @@ def export_results(instance, df_instance, i, strand_shift):
             df_instance.loc[i, "AutoCaSc_disgenet_score"] = dot2comma(instance.disgenet_score)
             df_instance.loc[i, "AutoCaSc_string_score"] = dot2comma(instance.string_score)
             df_instance.loc[i, "strand_shift"] = dot2comma(strand_shift)
+            df_instance.loc[i, "impact"] = instance.impact
             df_instance.loc[i, "AutoCaSc_version"] = dot2comma(AUTOCASC_VERSION)
         except AttributeError:
             for key in ["AutoCaSc_gene_symbol",
@@ -72,154 +70,6 @@ def export_results(instance, df_instance, i, strand_shift):
         df_instance.loc[i, "AutoCaSc_status_code"] = dot2comma(instance.status_code)
         df_instance.loc[i, "AutoCaSc_version"] = dot2comma(AUTOCASC_VERSION)
     return df_instance
-
-
-# def score_variant(variant, inheritance, family_history, impact_other, chunk_df, i):
-#     instance = AutoCaSc(variant=variant, inheritance=inheritance, family_history=family_history,
-#                         other_impact=impact_other)
-#
-#     if instance.status_code in [200, 201]:
-#         chunk_df = export_results(instance, chunk_df, i)
-#     else:
-#         print("transcript not found")
-#         variant = str(chunk_df.loc[i, "gene_symbol"]).strip() + ":" + str(chunk_df.loc[i, "hgvsc"]).strip()
-#         instance = AutoCaSc(variant, inheritance, family_history, impact_other)
-#         if instance.status_code == 200:
-#             print("found with gene_symbol!")
-#             chunk_df = export_results(instance, chunk_df, i)
-#         else:
-#             print("gene not found")
-#             refseq, altseq = "", ""
-#             if re.search(r"(?<=\d)[CTGA]+(?=>)", chunk_df.loc[i, "hgvsc"].strip()) is not None:
-#                 refseq = re.search(r"(?<=\d)[CTGA]+(?=>)", chunk_df.loc[i, "hgvsc"].strip()).group()
-#             if re.search(r"(?<=>)[CTGA]+", chunk_df.loc[i, "hgvsc"].strip()) is not None:
-#                 altseq = re.search(r"(?<=>)[CTGA]+", chunk_df.loc[i, "hgvsc"].strip()).group()
-#
-#             variant = ":".join([str(chunk_df.loc[i, "chr"]).strip(),
-#                                 str(chunk_df.loc[i, "pos_start"]).strip().replace(",", ""),
-#                                 refseq,
-#                                 altseq])
-#             instance = AutoCaSc(variant, inheritance, family_history, impact_other)
-#             if instance.status_code == 201:
-#                 corresponding_base = {"C": "G",
-#                                       "G": "C",
-#                                       "T": "A",
-#                                       "A": "T",
-#                                       "": ""}
-#
-#                 variant = ":".join([chunk_df.loc[i, "chr"].strip(),
-#                                     chunk_df.loc[i, "pos_start"].strip(),
-#                                     corresponding_base[refseq],
-#                                     corresponding_base[altseq]])
-#                 instance = AutoCaSc(variant, inheritance, family_history, impact_other)
-#             if instance.status_code == 200:
-#                 print("VCF found!")
-#                 chunk_df = export_results(instance, chunk_df, i)
-#             else:
-#                 print("persisting problem")
-#                 chunk_df = export_results(instance, chunk_df, i)
-                # problem_df = pd.concat([problem_df, pd.DataFrame(chunk_df.iloc[i, :]).T])
-
-
-# def helper_function(chunk_df, i):
-#     segregation = chunk_df.loc[i, "segregation"].lower()
-#     zygosity = chunk_df.loc[i, "zygosity"].lower()
-#     if "de novo" in segregation:
-#         inheritance = "de_novo"
-#     elif "het" in zygosity and segregation == "unknown":
-#         inheritance = "other"
-#     elif "het" in zygosity and ("maternal" in segregation or "paternal" in segregation):
-#         inheritance = "ad_inherited"
-#     elif zygosity == "homo":
-#         inheritance = "homo"
-#     elif zygosity == "comphet":
-#         inheritance = "comphet"
-#     elif "hemi" in zygosity:
-#         inheritance = "x_linked"
-#     else:
-#         inheritance = "unknown"
-#
-#     if ":" in str(chunk_df.loc[i, "hgvsc"]):
-#         chunk_df.loc[i, "hgvsc"] = chunk_df.loc[i, "hgvsc"].split(":")[-1]
-#
-#     variant = chunk_df.loc[i, "transcript"].strip() + ":" + chunk_df.loc[i, "hgvsc"].strip()
-#     family_history = chunk_df.loc[i, "family_history"] == "yes"
-#     impact_other = "unknown"
-#     strand_shift = False
-#
-#     instance = AutoCaSc(variant, inheritance, family_history, impact_other)
-#
-#     if inheritance == "comphet":
-#         try:
-#             variant_other = chunk_df.loc[i, "transcript"].strip() + ":" + chunk_df.loc[i, "hgvsc_other"].strip()
-#             instance = calculate_comphet(variant, variant_other, inheritance, family_history)
-#         except (AttributeError, IndexError, TypeError):
-#             return
-#
-#     if instance.status_code == 200:
-#         chunk_df = export_results(instance, chunk_df, i)
-#     else:
-#         print("transcript not found")
-#         variant = str(chunk_df.loc[i, "gene_symbol"]).strip() + ":" + str(chunk_df.loc[i, "hgvsc"]).strip()
-#         instance = AutoCaSc(variant, inheritance, family_history, impact_other)
-#         if instance.status_code == 200:
-#             print("found with gene_symbol!")
-#             try:
-#                 variant_other = chunk_df.loc[i, "gene_symbol"].strip() + ":" + chunk_df.loc[i, "hgvsc_other"].strip()
-#                 instance = calculate_comphet(variant, variant_other, inheritance, family_history)
-#             except (AttributeError, IndexError, TypeError):
-#                 continue
-#             chunk_df = export_results(instance, chunk_df, i)
-#         else:
-#             print("gene not found")
-#             refseq, altseq = "", ""
-#             if re.search(r"(?<=\d)[CTGA]+(?=>)", chunk_df.loc[i, "hgvsc"].strip()) is not None:
-#                 refseq = re.search(r"(?<=\d)[CTGA]+(?=>)", chunk_df.loc[i, "hgvsc"].strip()).group()
-#             if re.search(r"(?<=>)[CTGA]+", chunk_df.loc[i, "hgvsc"].strip()) is not None:
-#                 altseq = re.search(r"(?<=>)[CTGA]+", chunk_df.loc[i, "hgvsc"].strip()).group()
-#
-#             variant = ":".join([str(chunk_df.loc[i, "chr"]).strip(),
-#                                 str(chunk_df.loc[i, "pos_start"]).strip().replace(",", ""),
-#                                 refseq,
-#                                 altseq])
-#             instance = AutoCaSc(variant, inheritance, family_history, impact_other)
-#             if instance.status_code == 201:
-#                 corresponding_base = {"C": "G",
-#                                       "G": "C",
-#                                       "T": "A",
-#                                       "A": "T",
-#                                       "": ""}
-#
-#                 variant = ":".join([chunk_df.loc[i, "chr"].strip(),
-#                                     chunk_df.loc[i, "pos_start"].strip(),
-#                                     corresponding_base[refseq],
-#                                     corresponding_base[altseq]])
-#                 instance = AutoCaSc(variant, inheritance, family_history, impact_other)
-#                 strand_shift = True
-#             if instance.status_code == 200:
-#                 print("VCF found!")
-#                 try:
-#                     if re.search(r"(?<=\d)[CTGA]+(?=>)", chunk_df.loc[i, "hgvsc_other"].strip()) is not None:
-#                         refseq_other = re.search(r"(?<=\d)[CTGA]+(?=>)", chunk_df.loc[i, "hgvsc_other"].strip()).group()
-#                     if re.search(r"(?<=>)[CTGA]+", chunk_df.loc[i, "hgvsc"].strip()) is not None:
-#                         altseq_other = re.search(r"(?<=>)[CTGA]+", chunk_df.loc[i, "hgvsc_other"].strip()).group()
-#
-#                     variant_other = ":".join([str(chunk_df.loc[i, "chr"]).strip(),
-#                                               str(chunk_df.loc[i, "pos_start_other"]).strip().replace(",", ""),
-#                                               refseq_other,
-#                                               altseq_other])
-#                     if strand_shift:
-#                         variant_other = ":".join([chunk_df.loc[i, "chr"].strip(),
-#                                                   chunk_df.loc[i, "pos_start_other"].strip(),
-#                                                   corresponding_base[refseq_other],
-#                                                   corresponding_base[altseq_other]])
-#                     instance = calculate_comphet(variant, variant_other, inheritance, family_history)
-#                 except (AttributeError, IndexError, TypeError):
-#                     continue
-#                 chunk_df = export_results(instance, chunk_df, i)
-#             else:
-#                 print("persisting problem, starting second try in 30 seconds...")
-#                 time.sleep(30)
 
 def score_list(param_tuple):
     index_list, chunk_num = param_tuple
@@ -434,7 +284,7 @@ df = pd.read_excel("/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_fol
                    )
 df.rename(columns=column_dict, inplace=True)
 
-# df = df.iloc[:30,:].reset_index(drop=True)
+# df = df.iloc[:5,:].reset_index(drop=True)
 
 df = process_excel_df(df)
 

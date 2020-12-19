@@ -2,6 +2,9 @@
 /AutoCaSc_maintenance/data/
 /Manuskript/
 /venv/
+/venv_new/
+/_old/
+
 #/AutoCaSc_core/.idea/
 /AutoCaSc_core/venv/
 /AutoCaSc_core/venv_backup/bin/
@@ -27,4 +30,3 @@
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
 .idea/**/dbnavigator.xml
-/venv_new/

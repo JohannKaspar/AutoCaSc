@@ -461,8 +461,9 @@ class AutoCaSc:
 
             if self.gene_id in gene_scores.ensemble_id.to_list():
                 # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-                self.factors.append((round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
-                                                              "weighted_score"].values[0], 2), "precalculated plausibility score"))
+                self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
+                                                              "weighted_score"].values[0], 2)
+                self.factors.append((self.literature_score, "precalculated plausibility score"))
                 # Assigning the plausibility subscores for being able to call them individually.
                 for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
                               "mgi_score", "string_score"]:
@@ -576,7 +577,7 @@ class AutoCaSc:
             self.factors.append((self.get_cadd_factor(),
                                  f"x-linked hemizygous, CADD {self.cadd_phred}"))
         else:
-            self.factors.append((self.get_cadd_factor(),
+            self.factors.append((0,
                                 f"x-linked hemizygous, variant {self.n_hemi}x hemizygous in gnomad"))
 
     def get_loeuf_factor(self):
