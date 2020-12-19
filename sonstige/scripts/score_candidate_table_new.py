@@ -226,6 +226,7 @@ def process_excel_df(df):
     df.loc[:, "hgvsc_other"] = df.loc[:, "hgvsc_other"].apply(
         lambda x: x.split(":")[-1] if isinstance(x, str) and ":" in x else x)
 
+    df["manual_CaSc"] = df["manual_CaSc"].astype(str).str.replace(".",",")
     df["inheritance"] = [inheritance_function(row) for _, row in df.iterrows()]
     df[["has_sibling", "cosegregating"]] = [family_history_function(row) for _, row in
                                                       df.iterrows()]
@@ -284,7 +285,7 @@ df = pd.read_excel("/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_fol
                    )
 df.rename(columns=column_dict, inplace=True)
 
-# df = df.iloc[:5,:].reset_index(drop=True)
+# df = df.iloc[:300].reset_index(drop=True)
 
 df = process_excel_df(df)
 

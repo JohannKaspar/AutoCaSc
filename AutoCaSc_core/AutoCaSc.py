@@ -463,7 +463,14 @@ class AutoCaSc:
                 # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
                 self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
                                                               "weighted_score"].values[0], 2)
-                self.factors.append((self.literature_score, "precalculated plausibility score"))
+
+
+
+                #self.factors.append((self.literature_score, "precalculated plausibility score"))
+
+
+
+
                 # Assigning the plausibility subscores for being able to call them individually.
                 for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
                               "mgi_score", "string_score"]:
@@ -479,7 +486,16 @@ class AutoCaSc:
 
             factor_list, explanation_list = [[factor for factor, _ in self.factors],
                                              [explanation for _, explanation in self.factors]]
-            self.candidate_score = round(product(factor_list) * 10, 2)
+
+
+
+
+            self.candidate_score = round(mean([float(product(factor_list)), float(self.literature_score)]) * 10., 2)
+            # self.candidate_score = round(mean([product(factor_list), self.literature_score]), 2)
+
+
+
+
 
         # for debugging purpose
         # for factor, explanation in self.factors:
