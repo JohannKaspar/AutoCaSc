@@ -10,9 +10,9 @@ from GTEx import GeneExpression  # used for expression visualization
 import dash_table
 import re
 # from dash.exceptions import PreventUpdate
-from webAutoCaSc.AutoCaSc_core.AutoCaSc import AutoCaSc, AUTOCASC_VERSION
+from AutoCaSc_core.AutoCaSc import AutoCaSc, AUTOCASC_VERSION
 from urllib.parse import unquote, quote
-from webAutoCaSc.AutoCaSc_core.tools import filterTheDict
+from AutoCaSc_core.tools import filterTheDict
 
 DASHUI_VERSION = "w0.02"
 

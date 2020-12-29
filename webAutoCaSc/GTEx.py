@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import requests
-from webAutoCaSc.AutoCaSc_core.tools import safe_get
+from AutoCaSc_core.tools import safe_get
 import time
 
 import pandas as pd
