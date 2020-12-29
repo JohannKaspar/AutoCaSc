@@ -6,7 +6,7 @@ import scipy
 import seaborn as sns
 from scipy import stats
 from statannot import add_stat_annotation
-from AutoCaSc_core import add_categories
+from webAutoCaSc.AutoCaSc_core import add_categories
 import ptitprince as pt
 import matplotlib.patches as mpatches
 import numpy as np

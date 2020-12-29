@@ -1,7 +1,7 @@
 from statistics import mean
 
 import pandas as pd
-from AutoCaSc_core import AutoCaSc, AUTOCASC_VERSION
+from webAutoCaSc.AutoCaSc_core import AutoCaSc, AUTOCASC_VERSION
 import re
 from concurrent.futures import ThreadPoolExecutor
 

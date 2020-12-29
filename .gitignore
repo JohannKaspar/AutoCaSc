@@ -6,10 +6,10 @@
 /_old/
 
 #/AutoCaSc_core/.idea/
-/AutoCaSc_core/venv/
-/AutoCaSc_core/venv_backup/bin/
-/AutoCaSc_core/venv_backup/lib/python3.7/site-packages/
-/AutoCaSc_core/venv_backup/pyvenv.cfg
+/webAutoCaSc/AutoCaSc_core/venv/
+/webAutoCaSc/AutoCaSc_core/venv_backup/bin/
+/webAutoCaSc/AutoCaSc_core/venv_backup/lib/python3.7/site-packages/
+/webAutoCaSc/AutoCaSc_core/venv_backup/pyvenv.cfg
 /autocasc_image.dmg
 
 # User-specific stuff
