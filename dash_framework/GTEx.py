@@ -1,5 +1,5 @@
 import requests
-from tools import safe_get
+from AutoCaSc_core.tools import safe_get
 import time
 import sys
 import pandas as pd

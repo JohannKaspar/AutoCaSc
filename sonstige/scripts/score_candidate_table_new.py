@@ -285,7 +285,7 @@ df = pd.read_excel("/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_fol
                    )
 df.rename(columns=column_dict, inplace=True)
 
-# df = df.iloc[:300].reset_index(drop=True)
+# df = df.iloc[:50].reset_index(drop=True)
 
 df = process_excel_df(df)
 

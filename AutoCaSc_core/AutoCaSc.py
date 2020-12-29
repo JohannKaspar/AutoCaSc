@@ -217,7 +217,7 @@ class AutoCaSc:
             self.status_code = 401
 
     @retry(reraise=True,
-           stop=stop_after_attempt(15),
+           stop=stop_after_attempt(25),
            wait=wait_exponential(multiplier=1.3, min=0.1, max=3))
     def vep_api_request(self):
         """General function for handling API communication.
@@ -461,8 +461,11 @@ class AutoCaSc:
 
             if self.gene_id in gene_scores.ensemble_id.to_list():
                 # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
+                """self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
+                                                              "weighted_score"].values[0], 2)"""
+
                 self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
-                                                              "weighted_score"].values[0], 2)
+                                                              "prediction_proba"].values[0], 2)
 
 
 
@@ -490,7 +493,7 @@ class AutoCaSc:
 
 
 
-            self.candidate_score = round(mean([float(product(factor_list)), float(self.literature_score)]) * 10., 2)
+            self.candidate_score = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
             # self.candidate_score = round(mean([product(factor_list), self.literature_score]), 2)
 
 

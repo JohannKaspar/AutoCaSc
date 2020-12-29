@@ -177,6 +177,7 @@ class MGI:
                                   usecols=[3, 5])
         self.mgi_mp.columns = ["phenotype", "mgi_id"]
         self.mgi_mp.mgi_id = self.mgi_mp.mgi_id.str.strip()
+        # self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t")
         self.mgi_mp = clean_mgi_phenotype_df(self.mgi_mp)
         self.mgi_mp.to_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t", index=False)
         # self.mgi_mp = pd.read_csv(ROOT_DIR + "mgi/MGI_PhenoGenoMP.rpt.cleaned", sep="\t")
@@ -1161,7 +1162,7 @@ if __name__ == "__main__":
         princeton_negative
 
     n_cores = psutil.cpu_count()
-    # MGI(n_cores, download=False).update()
+    MGI(n_cores, download=False).update()
     # StringDB(n_cores)
     # PsyMuKB()
     # GTEx()
