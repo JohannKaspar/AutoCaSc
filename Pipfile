@@ -9,7 +9,6 @@ matplotlib = "*"
 psutil = "*"
 ptitprince = "*"
 
-
 [packages]
 click = "*"
 dash = "==1.18.1"
@@ -25,6 +24,7 @@ scipy = "*"
 sklearn = "*"
 tenacity = "*"
 urllib3 = "*"
+uwsgi = "*"
 
 [requires]
 python_version = "3.8"
