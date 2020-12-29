@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from flask import Flask
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -16,7 +21,8 @@ from AutoCaSc_core.tools import filterTheDict
 DASHUI_VERSION = "w0.02"
 
 # CSS stylsheets sind im Ordner "assets"
-app = dash.Dash(__name__)
+server = Flask(__name__)
+app = dash.Dash(server=server)
 
 ###### (STYLE)DICTIONARIES ######
 colors = {

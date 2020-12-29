@@ -25,6 +25,7 @@ sklearn = "*"
 tenacity = "*"
 urllib3 = "*"
 uwsgi = "*"
+flask = "*"
 
 [requires]
 python_version = "3.8"
