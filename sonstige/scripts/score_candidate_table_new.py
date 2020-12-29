@@ -1,12 +1,10 @@
-from concurrent.futures.process import ProcessPoolExecutor
 from statistics import mean
 
 import pandas as pd
-from AutoCaSc_core.AutoCaSc import AutoCaSc, AUTOCASC_VERSION
+from AutoCaSc_core import AutoCaSc, AUTOCASC_VERSION
 import re
 from concurrent.futures import ThreadPoolExecutor
-import xlrd
-import time
+
 
 def calculate_comphet(variant, variant_other, inheritance, family_history):
     instance = AutoCaSc(variant, inheritance, family_history, other_impact="unknkown")

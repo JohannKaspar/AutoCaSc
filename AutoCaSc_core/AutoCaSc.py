@@ -1,15 +1,16 @@
-import math
-import re
-import time
+import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
+
+import re
 from statistics import mean
 from tenacity import retry, stop_after_attempt, wait_exponential
 import click
 import pandas as pd
 import requests
 from numpy import isnan, poly1d, product
-from AutoCaSc_core.gnomAD import GnomADQuery
-from AutoCaSc_core.tools import safe_get, filterTheDict
+from gnomAD import GnomADQuery
+from tools import safe_get, filterTheDict
 
 # from gnomAD import GnomADQuery
 # from tools import safe_get, filterTheDict

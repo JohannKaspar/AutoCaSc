@@ -1,7 +1,7 @@
 import pickle
 
 import pandas as pd
-from AutoCaSc_core.tools import add_categories, rank_genes, lin_rank, negative_product
+from AutoCaSc_core import add_categories, rank_genes, lin_rank, negative_product
 from scipy.stats import spearmanr, mannwhitneyu
 import psutil  # used for counting CPUs
 import random

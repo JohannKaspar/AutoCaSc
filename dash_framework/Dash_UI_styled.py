@@ -11,7 +11,6 @@ import re
 # from dash.exceptions import PreventUpdate
 from AutoCaSc_core.AutoCaSc import AutoCaSc, AUTOCASC_VERSION
 from urllib.parse import unquote, quote
-import pandas as pd
 from AutoCaSc_core.tools import filterTheDict
 
 DASHUI_VERSION = "w0.02"
@@ -1616,4 +1615,7 @@ app.clientside_callback(
 
 ##### RUN #####
 if __name__ == '__main__':
-    app.run_server(debug=False, dev_tools_hot_reload=True)
+    app.run_server(debug=False,
+                   dev_tools_hot_reload=True,
+                   host='0.0.0.0',
+                   port=5000)
