@@ -1,7 +1,6 @@
 from statistics import mean
-
 import pandas as pd
-from webAutoCaSc.AutoCaSc_core import AutoCaSc, AUTOCASC_VERSION
+from webAutoCaSc.AutoCaSc_core.AutoCaSc import AutoCaSc, AUTOCASC_VERSION
 import re
 from concurrent.futures import ThreadPoolExecutor
 
@@ -231,32 +230,6 @@ def process_excel_df(df):
     return df
 
 
-# column_dict_old = {
-#     # "variant_id":"variant_id",
-#     "HGNC symbol of candidate gene\n\n(alternative gene name)": 'gene_symbol',
-#     'Zygosity\n\nhet /\nhomo /\nhemi /\nmosaic': 'zygosity',
-#     'Origin\n\nde novo / paternal & maternal': 'segregation',
-#     'Family history': 'family_history',
-#     'hints to be involved in neuronal functions \nno= 0\nyes= 0,5\nsignalling/development= 1\n': 'neuronal_functions',
-#     'animal models with neuronal-phenotype \nno=0, \nyes= 0,5\nyes and fits=1': 'animal_model',
-#     'The gene has been reported in another database\nHGMD (handle restrictively), DDD, personal communication, GeneMatcher) as a candidate for a related phenotype (autism, epilepsy, neuronal issues, etc,\n0,33 per hit, max value is 2': 'reported_elsewhere',
-#     'related genes with neuronal phenotype, or interactions with genes that has neuronal influence?\nyes: 1': 'interactions',
-#     'expression\nnot in cns= 0\nlow in cns, and more in other tissues= 0,4\nin several tissues, including cns= 0,7\nmost in cns= 1': 'expression',
-#     'Impact': 'impact',
-#     'Chr': 'chr',
-#     'Pos\n\nStart\n\n(formerly it was just one specification for the position)': 'pos_start',
-#     'Pos\n\nEnd': 'pos_end',
-#     'Transcript': 'transcript',
-#     'cDNA': 'hgvsc',
-#     'AAChange': 'hgvsp',
-#     'Gene': 'gene',
-#     'Chr.1': 'chr_other',
-#     'Pos\n\nStart': 'pos_start_other',
-#     'Pos\n\nEnd.1': 'pos_end_other',
-#     'Transcript.1': 'transcript_other',
-#     'cDNA.1': 'hgvsc_other',
-#     'Impact.1': 'impact_other'
-# }
 column_dict = {
     "HGNC symbol": 'gene_symbol',
     "variant 1": "variant_1",

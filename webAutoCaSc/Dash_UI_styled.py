@@ -1156,9 +1156,12 @@ app.layout = html.Div(
 # changes URL to user_input
 @app.callback(Output('url', 'pathname'),
               [Input("search_button", "n_clicks"),
-               Input("text_input", "n_submit")],
+               #Input("text_input", "n_submit")
+               ],
               [State('text_input', 'value')])
-def update_url(n_clicks, n_submit, input_value):
+def update_url(n_clicks,
+               #n_submit,
+               input_value):
     if input_value != None:
         return "/" + input_value.replace("\n", "&")
 
