@@ -130,7 +130,7 @@ def generate_description_card():
             html.H3("Welcome to the Automated Candidate Scoring Tool"),
             html.Div(
                 id="intro",
-                children="Score your candidate genes by entering a Variant in VCF format. The result is calculated based on aggregation of variant prediction scores and gene-specific parameters.",
+                children="Score your NDD candidate genes by entering a Variant in VCF format. The result is calculated based on aggregation of variant prediction scores and gene-specific parameters.",
             ),
             html.Hr()
         ],
@@ -150,7 +150,8 @@ def generate_control_card(inheritance_dd=None,
                 placeholder='Enter a variant in VCF format...',
                 style={"width": "100%",
                        "max-width": "100%",
-                       "min-width": "100%"},
+                       "min-width": "100%",
+                       "height": 5},
             ),
             html.Hr(),
 
@@ -163,7 +164,7 @@ def generate_control_card(inheritance_dd=None,
                     dcc.Link("1:7725246:G:A", href="/1:7725246:G:A", className="example_link", id="example_b"),
                     dcc.Link("10 123809984 C CCCTC", href="/10:123809984:C:CCCTC", className="example_link",
                              id="example_c"),
-                    dcc.Link("19 53959842 xxx -", href="/19:53959842:xxx:-", className="example_link", id="example_d"),
+                    #dcc.Link("19 53959842 xxx -", href="/19:53959842:xxx:-", className="example_link", id="example_d"),
                     dcc.Link("AGT:c.803T>C", href="/AGT:c.803T>C", className="example_link", id="example_e"),
                     dcc.Link("ENST00000003084: c.1431_1433delTTC", href="/ENST00000003084:c.1431_1433delTTC",
                              className="example_link", id="example_f"),
@@ -1623,7 +1624,7 @@ app.clientside_callback(
 
 ##### RUN #####
 if __name__ == '__main__':
-    app.run_server(debug=False,
+    app.run_server(debug=True,
                    dev_tools_hot_reload=True,
                    host='0.0.0.0',
                    port=5000)
