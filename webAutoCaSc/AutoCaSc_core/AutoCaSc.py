@@ -196,6 +196,8 @@ class AutoCaSc:
         """This function checks if the entered variant matches either HGVS or VCF format after doing some formatting.
         """
         input = self.variant
+        if not type(input) == str:
+            input = ""
         input = re.sub(r"^[\W]", "", input)  # deletes characters that are not a word character
         input = re.sub(r"Chr|chr", "", input)
 

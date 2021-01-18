@@ -1,6 +1,6 @@
 #!/bin/sh
 
-for input in /home/johann/Bernt_VCF/pedigrees/*
+for input in /home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files/*
 do
 filename="${input##*/}"
 pedigree_name="${filename##*_}"
