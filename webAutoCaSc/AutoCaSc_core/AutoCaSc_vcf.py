@@ -407,6 +407,16 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                         stdout=subprocess.PIPE,
                                         universal_newlines=True)
 
+
+
+
+
+        slivar_comp_process = subprocess.run(shlex.split("echo test"))
+        slivar_precomp_process = subprocess.run(shlex.split("echo test"))
+
+
+
+
         if parent_affected(ped_file):
             slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                  f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
@@ -513,11 +523,21 @@ if __name__ == "__main__":
                       "-dbed "
                       "-nc "
                       ))"""
-    score_vcf(shlex.split("-v /mnt/raid/users/johann/VCFs/vcf_filtered_temp "
+    """score_vcf(shlex.split("-v /mnt/raid/users/johann/VCFs/vcf_filtered_temp "
                       "-p /home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files/L16-0467.ped "
                        "-g /home/johann/tools/slivar/gnotate/gnomad.hg38.v2.zip "
                        "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
                       "-o /mnt/raid/users/johann/VCFs/scored/L16-0467.csv "
+                      "-a GRCh38 "
+                      "-s /home/johann/tools/slivar/slivar "
+                      #"-ssli "
+                      "-dbed "
+                      ))"""
+    score_vcf(shlex.split("-v /home/johann/VCFs/inserted_vcf.vcf.gz "
+                      "-p /home/johann/PEDs/ceu_Trio.ped "
+                       "-g /home/johann/tools/slivar/gnotate/gnomad.hg38.v2.zip "
+                       "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
+                      "-o /home/johann/VCFs/scored.csv "
                       "-a GRCh38 "
                       "-s /home/johann/tools/slivar/slivar "
                       #"-ssli "

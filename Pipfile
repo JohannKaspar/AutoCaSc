@@ -27,6 +27,7 @@ tenacity = "*"
 urllib3 = "*"
 uwsgi = "*"
 flask = "*"
+bgzip = "*"
 
 [requires]
 python_version = "3.8"
