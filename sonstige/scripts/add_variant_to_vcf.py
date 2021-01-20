@@ -33,8 +33,8 @@ def get_genotype_alleledepth(inheritance,
             index_gt_ad = ("0/1", "50,49")
             father_gt_ad = ("0/1", "50,49")
         else:
-            index_gt_ad = ("1/0", "50,49")
-            mother_gt_ad = ("1/0", "50,49")
+            index_gt_ad = ("0/1", "50,49")
+            mother_gt_ad = ("0/1", "50,49")
     elif inheritance == "x_linked":
         index_gt_ad = ("1/1", "0,99")
         mother_gt_ad = ("1/0", "50, 49")
@@ -43,12 +43,27 @@ def get_genotype_alleledepth(inheritance,
     return index_gt_ad, father_gt_ad, mother_gt_ad
 
 
-def convert_variant(input_variant, inheritance, family_order, var_num=0):
+def translate_gt_ad(gt):
+    if gt == "0/0":
+        return "99,0"
+    if gt == "0/1":
+        return "50,49"
+    if gt == "1/1":
+        return "0,99"
+    if gt == "./.":
+        return ".,."
+
+
+def convert_variant(input_variant, inheritance, family_order,
+                    var_num=0, GT_index=None, GT_father=None, GT_mother=None):
     input_variant = re.sub(r"^[\W]", "", input_variant)
     input_variant = re.sub(r"Chr|chr", "", input_variant)
     input_variant = re.sub(r"[^A-Za-z0-9](?!$)", ":", input_variant)
 
-    CHROM, POS, REF, ALT = input_variant.split(":")
+    variant_parts = input_variant.split(":")
+    if len(variant_parts) == 3:
+        variant_parts.append(".")
+    CHROM, POS, REF, ALT = variant_parts
     ID = "."
     QUAL = "999"
     FILTER = "PASS"
@@ -58,11 +73,19 @@ def convert_variant(input_variant, inheritance, family_order, var_num=0):
     GQ = "99"
     DP = "99"
     PL = ".,.,."
-    index_gt_ad, father_gt_ad, mother_gt_ad = get_genotype_alleledepth(inheritance,
-                                                                       var_num=var_num)
-    GT_index, AD_index = index_gt_ad
-    GT_father, AD_father = father_gt_ad
-    GT_mother, AD_mother = mother_gt_ad
+
+    if not GT_index:
+        index_gt_ad, father_gt_ad, mother_gt_ad = get_genotype_alleledepth(inheritance,
+                                                                           var_num=var_num)
+        GT_index, AD_index = index_gt_ad
+        GT_father, AD_father = father_gt_ad
+        GT_mother, AD_mother = mother_gt_ad
+    else:
+        AD_index = translate_gt_ad(GT_index)
+        AD_father = translate_gt_ad(GT_father)
+        AD_mother = translate_gt_ad(GT_mother)
+
+
     SAMPLE_INFO_index = ":".join([GT_index, AD_index, DP, GQ, PL])
     SAMPLE_INFO_father = ":".join([GT_father, AD_father, DP, GQ, PL])
     SAMPLE_INFO_mother = ":".join([GT_mother, AD_mother, DP, GQ, PL])
@@ -132,7 +155,6 @@ def create_single_var_vcf(header, record, temp_path, other_record=None):
 
 def merge_vcfs(input_path, temp_path, output_path):
     # this is nessecary if comphet variants are not entered in the correct order
-    subprocess.run(shlex.split(f'bcftools sort -o {temp_path} -O z {temp_path}'))
 
     tabix_proc = subprocess.run(shlex.split(f"tabix -p vcf {temp_path}"))
     merge_proc = subprocess.run(shlex.split(f'bcftools concat -a -o {output_path} -O v {input_path} {temp_path}'),
@@ -176,7 +198,8 @@ def get_header(input_path):
               required=False,
               help="Second variant in case of comphet.")
 @click.option('--inheritance', '-ih',
-              required=True,
+              required=False,
+              default=None,
               help="The way in which the variant has been inherited.")
 @click.option('--input_vcf', '-i',
               required=True,
@@ -189,30 +212,68 @@ def get_header(input_path):
 @click.option('--output_vcf', '-o',
               required=True,
               help="Path to output file.")
-def main(variant, other_variant, inheritance, input_vcf, input_ped, output_vcf):
-    temp_path = output_vcf + ".tmp"
+@click.option('--gt_index', '-gti',
+              required=False,
+              default=None,
+              help="Genotype of index.")
+@click.option('--gt_father', '-gtf',
+              required=False,
+              default=None,
+              help="Genotype of father.")
+@click.option('--gt_mother', '-gtm',
+              required=False,
+              default=None,
+              help="Genotype of mother.")
+@click.option('--gt_index_other_variant', '-gtio',
+              required=False,
+              default=None,
+              help="Genotype of index of second variant.")
+@click.option('--gt_father_other_variant', '-gtfo',
+              required=False,
+              default=None,
+              help="Genotype of father of second variant.")
+@click.option('--gt_mother_other_variant', '-gtmo',
+              required=False,
+              default=None,
+              help="Genotype of mother of second variant.")
+def main(variant, other_variant, inheritance, input_vcf, input_ped, output_vcf,
+         gt_index, gt_father, gt_mother, gt_index_other_variant, gt_father_other_variant, gt_mother_other_variant):
+    #temp_path = output_vcf + ".tmp"
+    temp_path = output_vcf.strip(".gz")
     header = get_header(input_vcf)
 
     family_order = get_family_order(input_ped, header)
-    record = convert_variant(variant, inheritance, family_order)
+    record = convert_variant(variant,
+                             inheritance,
+                             family_order,
+                             GT_index=gt_index,
+                             GT_father=gt_father,
+                             GT_mother=gt_mother)
 
     if other_variant:
-        other_record = convert_variant(other_variant, inheritance, family_order, var_num=1)
+        other_record = convert_variant(other_variant, inheritance, family_order, var_num=1,
+                                       GT_index=gt_index_other_variant,
+                                       GT_father=gt_father_other_variant,
+                                       GT_mother=gt_mother_other_variant)
         create_single_var_vcf(header, record, temp_path, other_record=other_record)
+        subprocess.run(shlex.split(f'bcftools sort -o {temp_path}.gz -O z {temp_path}.gz'))
     else:
         create_single_var_vcf(header, record, temp_path)
 
-    temp_path += ".gz"
+    print(f"VCF containing variant has been created as {temp_path}")
+    """    temp_path += ".gz"
     merge_vcfs(input_vcf, temp_path, output_vcf)
 
     os.remove(temp_path)
     os.remove(temp_path + ".tbi")
 
-    print(f"Variant has been inserted and VCF stored as {output_vcf}")
+    print(f"Variant has been inserted and VCF stored as {output_vcf}")"""
+
 
 if __name__ == "__main__":
-    main(shlex.split("-v chr9-134759488-T-C "
+    main()
+    """main(shlex.split("-v chr9-134759488-T-C "
                      "-ov chr9-134736022-G-A "
                      "-ih comphet "
                      "-i /home/johann/VCFs/CeuTrio.hc-joint.MergeVcf.recalibrated.split.vcf.gz "
-                     "-o /home/johann/VCFs/inserted_vcf.vcf.gz -p /home/johann/PEDs/ceu_Trio.ped "))
+                     "-o /home/johann/VCFs/inserted_vcf.vcf.gz -p /home/johann/PEDs/ceu_Trio.ped "))"""

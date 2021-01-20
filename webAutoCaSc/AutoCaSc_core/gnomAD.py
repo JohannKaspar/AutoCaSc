@@ -1,5 +1,7 @@
 import requests
 import time
+
+import pickle
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 # GraphQL query code
@@ -121,6 +123,9 @@ class GnomADQuery:
             self.query_variables = '{"variantId": "' + self.variant + '"}'
         self.req_count = 0
         self.last_req = 0
+        self.assembly = assembly
+        self.variant = identifier
+
 
     @retry(reraise=True,
            stop=stop_after_attempt(10),
@@ -141,17 +146,19 @@ class GnomADQuery:
             print(f"GNOMAD ERROR '{r.status_code}: {r.reason}' for {self.query_variables}. Retrying...")
             raise IOError("There has been an issue with a variant while requesting gnomAD.")
 
+
     # requests and returns gnomAD gene information
     def get_gnomad_info(self):
-        time.sleep(0.2)
-        # check if we need to rate limit ourselves
-        if self.req_count >= REQS_PER_SEC:
-            delta = time.time() - self.last_req
-            if delta < 1:
-                time.sleep(1 - delta)
-            self.last_req = time.time()
-            self.req_count = 0
-        self.req_count += 1
+        try:
+            self.gnomad_requests = {}
+            with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gnomad_requests_{self.assembly}",
+                      "rb") as gnomad_requests_file:
+                self.gnomad_requests = pickle.load(gnomad_requests_file)
+
+            if self.gnomad_requests.get(self.variant):
+                return self.gnomad_requests.get(self.variant), 200
+        except FileNotFoundError:
+            pass
 
         try:
             r = self.gnomad_sparql_request()
@@ -204,6 +211,15 @@ class GnomADQuery:
                                 return not_in_gnomad_dict, status_code
                         except (AttributeError, TypeError, IndexError):
                             print("Could not retrieve Error Code from gnomAD Server response!")
+
+            try:
+                with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gnomad_requests_{self.assembly}",
+                          "wb") as gnomad_requests_file:
+                    self.gnomad_requests[self.variant] = result_dict
+                    pickle.dump(self.gnomad_requests, gnomad_requests_file)
+            except FileNotFoundError:
+                pass
+
             return result_dict, status_code
 
         else:

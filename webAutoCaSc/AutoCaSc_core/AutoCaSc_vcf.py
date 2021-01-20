@@ -6,7 +6,7 @@ import subprocess
 from statistics import mean
 import click
 import time
-from AutoCaSc import AutoCaSc
+from AutoCaSc import AutoCaSc, AutoCaSc_v1
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import re
@@ -77,6 +77,7 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
 
     # iterrating through the rows of the chunk, variant by variant
     for row_id in range(len(vcf_chunk)):
+        print(row_id)
         try:
             chrom = vcf_chunk.loc[row_id, "#CHROM"]
         except pd.core.indexing.IndexingError:
@@ -100,6 +101,7 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance=inheritance,
                                      assembly=assembly)
+
         if autocasc_instance.status_code == 200:
             autocasc_instance.calculate_candidate_score()
 
@@ -134,6 +136,7 @@ def thread_function_AutoCaSc_comp(param_tuple):
 
     # iterrating through the variants
     for variant_vcf in variants:
+        print("working")
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance="comphet",
                                      assembly=assembly)
@@ -142,7 +145,7 @@ def thread_function_AutoCaSc_comp(param_tuple):
     return return_dict
 
 
-def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
+def score_non_comphets(filtered_vcf, cache, trio_name, assembly, num_threads=1):
     # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
     with open(filtered_vcf, "r") as inp, open(
             f"{cache}/temp_{trio_name}.tsv",
@@ -154,7 +157,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
     vcf_annotated = pd.read_csv(f"{cache}/temp_{trio_name}.tsv", sep="\t")
     # vcf_annotated = vcf_annotated.loc[vcf_annotated["#CHROM"] == "chr1"]
 
-    num_threads = 4
+
     vcf_chunks = [vcf_annotated.loc[i * round(len(vcf_annotated) / num_threads):(i+1) * round(len(vcf_annotated) / num_threads),:] for i in range(num_threads)]
 
     # this starts annotation of all variants that are comphet
@@ -168,7 +171,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly):
 
     return variant_df
 
-def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=10):
+def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=1):
     #this loads the vcf containing all compound heterozygous variants and converts it to a DataFrame
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
         for row in inp:
@@ -195,7 +198,6 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=10):
             vcf_2 = ":".join([chrom_2, pos_2, ref_2, alt_2])
             comphet_cross_df.loc[j, "var_2"] = vcf_2
 
-    num_threads = 4
     all_variants = list(list(set(comphet_cross_df.var_1.to_list())) + list(set(comphet_cross_df.var_2.to_list())))
     variant_chunks = [all_variants[round(i * len(all_variants) / num_threads):round((i+1) * len(all_variants) / num_threads)] for i in range(num_threads)]
 
@@ -206,6 +208,14 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=10):
         instances_dict = {}
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
+
+    with open(cache + "/comphet_variant_instances", "wb") as comphet_out:
+        pickle.dump(instances_dict, comphet_out)
+
+    with open(cache + "/comphet_variant_instances", "rb") as comphet_in:
+        instances_dict = pickle.load(comphet_in)
+
+
 
     for i, row in comphet_cross_df.iterrows():
         var_1 = row["var_1"]
@@ -252,7 +262,6 @@ def edit_java_script_functions(js_file, dp_filter=20, gq_filter=10):
 def clean_up_duplicates(df):
     df = df.sort_values(by="variant", ascending=True)
     df = df.drop_duplicates(subset=list(df.columns)[1:], keep="first")
-    df = df.sort_values(by="candidate_score", ascending=False).reset_index(drop=True)
     return df
 
 def parent_affected(ped_file):
@@ -407,16 +416,6 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                         stdout=subprocess.PIPE,
                                         universal_newlines=True)
 
-
-
-
-
-        slivar_comp_process = subprocess.run(shlex.split("echo test"))
-        slivar_precomp_process = subprocess.run(shlex.split("echo test"))
-
-
-
-
         if parent_affected(ped_file):
             slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                  f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
@@ -453,20 +452,21 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
     if not all(c == 0 for c in [slivar_noncomp_process.returncode, slivar_precomp_process.returncode, slivar_comp_process.returncode]):
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
     else:
-        """        print("Slivar subprocesses successfull, starting scoring!")
-        non_comphet_variant_instances = score_non_comphets(f"{cache}/{trio_name}_non_comphets", cache, trio_name, assembly)
-        print("de_novos, x_linked & recessive scored!")
+        print("Slivar subprocesses successfull, starting scoring!")
         comphet_variant_instances = score_comphets(f"{cache}/{trio_name}_comphets", cache, trio_name, assembly)
         print("comphets scored!")
+        non_comphet_variant_instances = score_non_comphets(f"{cache}/{trio_name}_non_comphets", cache, trio_name, assembly)
+        print("de_novos, x_linked & recessive scored!")
 
-        with open(cache + "/non_comphet_variant_instances", "wb") as non_comphet_out:
+
+        with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
             pickle.dump(non_comphet_variant_instances, non_comphet_out)
-        with open(cache + "/comphet_variant_instances", "wb") as comphet_out:
-            pickle.dump(comphet_variant_instances, comphet_out)"""
+        with open(cache + "/comphet_variant_instances_scored", "wb") as comphet_out:
+            pickle.dump(comphet_variant_instances, comphet_out)
 
-        with open(cache + "/non_comphet_variant_instances", "rb") as non_comphet_out:
+        with open(cache + "/non_comphet_variant_instances_scored", "rb") as non_comphet_out:
             non_comphet_variant_instances = pickle.load(non_comphet_out)
-        with open(cache + "/comphet_variant_instances", "rb") as comphet_out:
+        with open(cache + "/comphet_variant_instances_scored", "rb") as comphet_out:
             comphet_variant_instances = pickle.load(comphet_out)
 
         merged_instances = pd.concat([non_comphet_variant_instances, comphet_variant_instances], ignore_index=True)
@@ -477,26 +477,31 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
         for i, row in merged_instances.iterrows():
             _instance = row["instance"]
+            if not _instance == "":
+                result_df.loc[i, "variant"] = row["variant"]
+                if row.other_variant != "":  # if it is not np.nan
+                    try:
+                        result_df.loc[i, "other_variant"] = _instance.other_autocasc_obj.__dict__.get("variant")
+                    except AttributeError:
+                        print("stop")
+                result_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
 
-            result_df.loc[i, "variant"] = row["variant"]
-            if row.other_variant != "":  # if it is not np.nan
-                result_df.loc[i, "other_variant"] = _instance.other_autocasc_obj.__dict__.get("variant")
-            result_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
-
-            result_df.loc[i, "hgvsc"] = _instance.__dict__.get("hgvsc_change")
-            result_df.loc[i, "hgvsp"] = _instance.__dict__.get("hgvsp_change")
-            result_df.loc[i, "candidate_score"] = _instance.__dict__.get("candidate_score")
-            result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
-            result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
-            result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
-            result_df.loc[i, "impact"] = _instance.__dict__.get("impact")
-            result_df.loc[i, "inheritance"] = _instance.__dict__.get("inheritance")
-            result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
-            if _instance.__dict__.get("factors"):
-                try:
-                    result_df.loc[i, "factors"] = " ".join([str(tup) for tup in _instance.__dict__.get("factors")])
-                except TypeError:
-                    print("stop")
+                result_df.loc[i, "hgvsc"] = _instance.__dict__.get("hgvsc_change")
+                result_df.loc[i, "hgvsp"] = _instance.__dict__.get("hgvsp_change")
+                result_df.loc[i, "candidate_score_v1"] = _instance.__dict__.get("candidate_score_v1")
+                result_df.loc[i, "candidate_score_v2"] = _instance.__dict__.get("candidate_score_v2")
+                result_df.loc[i, "candidate_score_v3"] = _instance.__dict__.get("candidate_score_v3")
+                result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
+                result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
+                result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
+                result_df.loc[i, "impact"] = _instance.__dict__.get("impact")
+                result_df.loc[i, "inheritance"] = _instance.__dict__.get("inheritance")
+                result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
+                if _instance.__dict__.get("factors"):
+                    try:
+                        result_df.loc[i, "factors"] = " ".join([str(tup) for tup in _instance.__dict__.get("factors")])
+                    except TypeError:
+                        print("stop")
 
         # comphet_columns = list(comphet_results.columns)
         # comphet_results.columns = ["variant"] + comphet_columns[1:]
@@ -504,10 +509,10 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         # result_df = pd.concat([non_comphet_results, comphet_results])
         result_df.fillna("-", inplace=True)
         result_df = clean_up_duplicates(result_df)
-        result_df = result_df.sort_values("candidate_score", ascending=False)
+        #result_df = result_df.sort_values("candidate_score", ascending=False)
         result_df.to_csv(f"{output_path}", index=False)
 
-        #shutil.rmtree(cache)
+        shutil.rmtree(cache)
         os.remove(javascript_file)
 
 
@@ -533,14 +538,14 @@ if __name__ == "__main__":
                       #"-ssli "
                       "-dbed "
                       ))"""
-    score_vcf(shlex.split("-v /home/johann/VCFs/inserted_vcf.vcf.gz "
-                      "-p /home/johann/PEDs/ceu_Trio.ped "
-                       "-g /home/johann/tools/slivar/gnotate/gnomad.hg38.v2.zip "
+    """    score_vcf(shlex.split("-v /home/johann/VCFs/modified_VCFs/annotated/ASH_sim01.vcf.gz "
+                      "-p /home/johann/PEDs/ASH_a.ped "
+                       "-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                        "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                      "-o /home/johann/VCFs/scored.csv "
-                      "-a GRCh38 "
+                      "-o /home/johann/trio_scoring_results/ASH_sim01.csv "
+                      "-a GRCh37 "
                       "-s /home/johann/tools/slivar/slivar "
-                      #"-ssli "
+                      "-ssli "
                       "-dbed "
-                      ))
+                      ))"""
     main(obj={})

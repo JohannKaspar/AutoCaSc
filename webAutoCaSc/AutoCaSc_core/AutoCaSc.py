@@ -1,3 +1,4 @@
+import pickle
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -37,7 +38,9 @@ class AutoCaSc:
                  other_impact="unknown",
                  other_variant=None,
                  assembly="GRCh37",
-                 transcript_num=None):
+                 transcript_num=None,
+                 version="current",
+                 family_history=False):
         """This function assigns basic parameters and initializes the scoring process.
 
         :param variant: the variant including position and alternative sequence
@@ -61,7 +64,7 @@ class AutoCaSc:
         self.other_variant = other_variant
         self.assembly = assembly
         self.status_code = 200  # initial value is set to 200 = all good
-
+        self.family_history = family_history
         self.multiple_transcripts = False
         self.transcript_num = transcript_num
 
@@ -114,6 +117,13 @@ class AutoCaSc:
         self.mutationtaster_converted_rankscore = None
         self.mutationassessor_rankscore = None
         self.mgi_score = None
+        self.virlof_ar_enrichment = None
+        self.ref_seq = None
+
+        if version == "current":
+            self.version = "v3"
+        else:
+            self.version = version
 
         self.check_variant_format()  # this function is called to check if the entered variant is valid
         if not self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
@@ -196,7 +206,7 @@ class AutoCaSc:
     def check_variant_format(self):
         """This function checks if the entered variant matches either HGVS or VCF format after doing some formatting.
         """
-        input = self.variant
+        input = self.variant.strip()
         if not type(input) == str:
             input = ""
         input = re.sub(r"^[\W]", "", input)  # deletes characters that are not a word character
@@ -251,14 +261,36 @@ class AutoCaSc:
         """This function requests the VEP API in order to annotate a given variant and selects relevant parameters.
         :return:
         """
-        self.create_url()
+        response_decoded = None
+
         try:
-            response_decoded, status_code = self.vep_api_request()
-        except IOError:
-            response_decoded = None
-            self.status_code = 400
+            self.vep_requests = {}
+            with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
+                      "rb") as vep_requests_file:
+                self.vep_requests = pickle.load(vep_requests_file)
+
+            if self.vep_requests.get(self.variant):
+                response_decoded, status_code = self.vep_requests.get(self.variant), 200
+        except FileNotFoundError:
+            pass
+        if not response_decoded:
+            self.create_url()
+            try:
+                response_decoded, status_code = self.vep_api_request()
+            except IOError:
+                response_decoded = None
+                self.status_code = 400
 
         if self.status_code == 200:
+            try:
+                with open(
+                        f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
+                        "wb") as vep_requests_file:
+                    self.vep_requests[self.variant] = response_decoded
+                    pickle.dump(self.vep_requests, vep_requests_file)
+            except (FileNotFoundError, UnboundLocalError):
+                pass
+
             transcript_index = self.get_transcript_index(response_decoded)
             # get the index of the transcript to consider for further annotations
             if self.status_code == 200:
@@ -423,7 +455,7 @@ class AutoCaSc:
                     transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"]
                     if len(transcript_df) > 1:
                         if not self.transcript_num:
-                            print("CAVE! Two protein_coding transcripts are affected!")
+                            #print("CAVE! Two protein_coding transcripts are affected!")
                             self.multiple_transcripts = len(transcript_df)
                         else:
                             return int(transcript_df.loc[self.transcript_num, "transcript_id"])
@@ -442,9 +474,16 @@ class AutoCaSc:
             self.status_code = 497
             return None
 
+    def calculate_candidate_score(self):
+        # in order to compare the performance of all versions, all versions are calculated
+        self.calculate_candidate_score_v2()
+
+        self.calculate_candidate_score_v3()
+
+        self.calculate_candidate_score_v1()
 
     # master calculation function, calls subcalculations
-    def calculate_candidate_score(self):
+    def calculate_candidate_score_v3(self):
         """This method calls all the scoring functions and assigns their results to class attributes.
         """
         if self.status_code == 200:
@@ -465,18 +504,10 @@ class AutoCaSc:
 
             if self.gene_id in gene_scores.ensemble_id.to_list():
                 # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-                """self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
-                                                              "weighted_score"].values[0], 2)"""
-
                 self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
-                                                              "prediction_proba"].values[0], 2)
-
-
+                                                                  "prediction_proba"].values[0], 2)
 
                 #self.factors.append((self.literature_score, "precalculated plausibility score"))
-
-
-
 
                 # Assigning the plausibility subscores for being able to call them individually.
                 for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
@@ -494,25 +525,59 @@ class AutoCaSc:
             factor_list, explanation_list = [[factor for factor, _ in self.factors],
                                              [explanation for _, explanation in self.factors]]
 
+            self.candidate_score_v3 = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
 
+    def calculate_candidate_score_v2(self):
+        """This method calls all the scoring functions and assigns their results to class attributes.
+        """
+        if self.status_code == 200:
+            self.explanation_dict = {}
+            self.factors = []
 
+            if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:  # autosomal dominant branch
+                self.score_dominant()
 
-            self.candidate_score = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
+            elif self.inheritance in ["comphet", "homo"]:
+                self.score_recessive()
+
+            elif self.inheritance == "x_linked":
+                if self.sex == "XX":
+                    self.score_recessive()
+                elif self.sex == "XY":
+                    self.score_x_hemi()
+
+            if self.gene_id in gene_scores.ensemble_id.to_list():
+                # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
+                self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
+                                                              "weighted_score"].values[0], 2)
+
+                #self.factors.append((self.literature_score, "precalculated plausibility score"))
+
+                # Assigning the plausibility subscores for being able to call them individually.
+                for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                              "mgi_score", "string_score"]:
+                    self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
+                                                 2)
+            else:
+                # If not, the values are set to 0.
+                for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                              "mgi_score", "string_score"]:
+                    self.__dict__[score] = 0.
+                mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
+                self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
+
+            factor_list, explanation_list = [[factor for factor, _ in self.factors],
+                                             [explanation for _, explanation in self.factors]]
+
+            self.candidate_score_v2 = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
             # self.candidate_score = round(mean([product(factor_list), self.literature_score]), 2)
 
 
-
-
-
-        # for debugging purpose
-        # for factor, explanation in self.factors:
-        #     print(f"{factor}  because {explanation}")
 
     def score_dominant(self):
         if self.inheritance == "de_novo":
             if self.allele_count == 0:
                 self.factors.append((1, "denovo and not in gnomad"))
-                # ToDo add explanations for factors
             elif self.allele_count == 1:
                 self.factors.append((0.9, "denovo and once in gnomad"))
             else:
@@ -648,8 +713,252 @@ class AutoCaSc:
         return cadd_score
 
     def get_gevir_score(self):
-        return self.virlof_ar_enrichment / 2.0
+        if self.virlof_ar_enrichment:
+            return self.virlof_ar_enrichment / 2.0
+        else:
+            return 0
 
+
+
+    ########## functions from v1 ############
+    def calculate_candidate_score_v1(self, recursively=True):
+        """This method calls all the scoring functions and assigns their results to class attributes.
+        """
+        self.explanation_dict = {}
+
+        self.rate_inheritance()
+        self.rate_pli_z()
+        self.rate_impact()
+        self.rate_in_silico()
+        self.rate_conservation()
+        self.rate_frequency()
+        self.variant_score = round(sum(filter(None, [self.impact_score,
+                                                     self.in_silico_score,
+                                                     self.conservation_score,
+                                                     self.frequency_score
+                                                     ])), 2)
+
+        if self.gene_id in gene_scores.ensemble_id.to_list():
+            # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
+            self.literature_score = round(
+                6.0 * gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "weighted_score"].values[0], 2)
+            # Assigning the plausibility subscores for being able to call them individually.
+            for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
+                                             2)
+        else:
+            # If not, the values are set to 0.
+            for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                          "mgi_score", "string_score"]:
+                self.__dict__[score] = 0.
+
+        candidate_score_list = [i if i is not None else 0 for i in [
+            self.inheritance_score,
+            self.gene_attribute_score,
+            self.variant_score,
+            self.literature_score]]
+        self.candidate_score_v1 = round(sum(candidate_score_list), 2)
+
+        if self.inheritance == "comphet":
+            if self.other_autocasc_obj and recursively:
+                self.other_autocasc_obj.calculate_candidate_score_v1(recursively=False)
+
+                self.candidate_score_v1 = round(mean([self.candidate_score_v1,
+                                                   self.other_autocasc_obj.__dict__.get("candidate_score_v1")]), 2)
+                if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
+                    self.candidate_score_v1 += 1
+
+
+    def rate_inheritance(self):
+        """This function scores zygosity/segregation.
+        """
+        if self.inheritance == "de_novo":
+            # ToDo weniger auf de_novo geben wenn family_history positiv?
+            self.inheritance_score, self.explanation_dict["inheritance"] = 2, "de novo    -->    2"
+        if self.inheritance == "other":
+            self.inheritance_score, self.explanation_dict["inheritance"] = 0, "other    -->    0"
+        if self.inheritance == "ad_inherited":
+            self.inheritance_score, self.explanation_dict["inheritance"] = 0, "inherited autosomal dominant    -->    0"
+        if self.inheritance == "comphet":
+            if self.family_history in [False, "no"]:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 1,\
+                    "compound heterozygous, one affected child    -->    1"
+            elif self.family_history in [True, "yes"]:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
+                    "compound heterozygous, multiple affected children    -->    3"
+        if self.inheritance == "homo":
+            if self.family_history is True:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
+                    "homo, multiple affected children    -->    3"
+            else:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 2, "homo, one affected child    -->    2"
+
+        if self.inheritance == "x_linked":
+            if self.family_history == True:
+                # ToDo was wenn weibliche Verwandte betroffen, extra differenzieren?
+                self.inheritance_score, self.explanation_dict["inheritance"] = 2,\
+                    "x_linked and another maternal male relative    -->    2"
+            else:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 1, "x_linked and a boy    -->    1"
+
+    def rate_pli_z(self):
+        """This function scores gnomAD constraints (pLI/Z).
+        """
+        if self.inheritance in ["homo", "comphet"]:
+            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "recessive    -->    0"
+        else:
+            # if impact is not None:
+            if self.impact == "high":
+                if self.pLI is not None:
+                    if self.pLI < 0.5:
+                        if self.inheritance == "de_novo":
+                            self.gene_attribute_score, self.explanation_dict[
+                                "pli_z"] = -2, "de novo LoF & pLI < 0.5    -->    -2"
+                        else:
+                            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "LoF & pLI < 0.5    -->    0"
+                    elif self.pLI < 0.9:
+                        if self.inheritance == "de_novo":
+                            self.gene_attribute_score, self.explanation_dict[
+                                "pli_z"] = 0, "de novo LoF & 0.5 <= pLI < 0.9    -->    0"
+                        else:
+                            self.gene_attribute_score, self.explanation_dict[
+                                "pli_z"] = 0.5, "LoF & pLI <= 0.5 pLI < 0.9    -->    0.5"
+                    else:
+                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "LoF & pLI >= 0.9    -->    1"
+                else:
+                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on pLI    --> 0"
+            elif self.impact == "moderate":
+                if self.mis_z is not None:
+                    if self.mis_z < 0:
+                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "missense & Z < 0    -->    0"
+                    elif self.mis_z >= 0 and self.mis_z < 2.5:
+                        self.gene_attribute_score, self.explanation_dict[
+                            "pli_z"] = 0.5, "missense & 0 <= Z < 2.5    -->    0.5"
+                    elif self.mis_z >= 2.5:
+                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "missense & Z >= 2.5    -->    1"
+                else:
+                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on Z score    -->    0"
+            else:
+                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "low impact or no data on impact --> 0"
+
+    def rate_impact(self):
+        """This function scores the variants predicted impact.
+        """
+
+        if self.other_autocasc_obj:
+            self.other_impact = self.other_autocasc_obj.__dict__.get("impact")
+
+        self.impact_score, self.explanation_dict["impact"] = 0, f"impact {self.impact}    -->    0"
+
+        if self.impact == "moderate":
+            self.impact_score, self.explanation_dict["impact"] = 0, "impact moderate    -->    0"
+        if self.impact == "high":
+            self.impact_score, self.explanation_dict["impact"] = 2, "impact high, heterozygous    -->    2"
+            if self.inheritance == "homo":
+                self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic    -->    3"
+            # if self.other_impact == "high":
+            #     self.impact_score, self.explanation_dict["impact"] = 3, "compound heterozygous, both impacts high    -->    3"
+            # for the above see new lines added in self.calculate_candidate_score at the end
+
+    def rate_in_silico(self):
+        """This function scores in silico predictions.
+        """
+        # ToDo ranked scores benutzt? checken!
+        score_list = []
+        affected_splice_counter = []
+
+        self.in_silico_score, self.explanation_dict["in_silico"] = 0, f"{self.impact} and no prediction values --> 0"
+
+        if self.sift_converted_rankscore is not None:
+            score_list.append(float(self.sift_converted_rankscore))
+        if self.mutationtaster_converted_rankscore is not None:
+            score_list.append(float(self.mutationtaster_converted_rankscore))
+        if self.mutationassessor_rankscore is not None:
+            score_list.append(float(self.mutationassessor_rankscore))
+
+        # "average of in silico"
+        if score_list:
+            self.in_silico_score, self.explanation_dict["in_silico"] = round(mean(score_list), 2),\
+                    f"mean in silico score    -->    {round(mean(score_list), 2)}"
+        elif self.impact == "high":
+            # If there are no in silico scores for the variant and its impact is high, we assume a score of 1 point.
+            self.in_silico_score, self.explanation_dict["in_silico"] = 1, "LoF --> 1"
+
+        # In case of absent in silico values and a moderate or low impact: consider splice site predictions, if existing
+        else:
+            if self.rf_score is not None:
+                if self.rf_score >= 0.6:  # cutoff from "Leipzig guidelines for use of Alamut splice site prediction tools"
+                    affected_splice_counter.append(1)
+            if self.ada_score is not None:
+                if self.ada_score >= 0.6:
+                    affected_splice_counter.append(1)
+            if self.maxentscan_decrease is not None:
+                if self.maxentscan_decrease <= -0.15:
+                    affected_splice_counter.append(1)
+
+            if not affected_splice_counter and self.impact == "moderate":
+                self.in_silico_score = 0.5
+                self.explanation_dict["in_silico"] = "missense, no available in silico values    -->    0.5"
+            if sum(affected_splice_counter) == 1:  # "splicing affected in one program"
+                self.in_silico_score = 0.5
+                self.explanation_dict["in_silico"] = "splicing affected in one program    -->    0.5"
+            if sum(affected_splice_counter) >= 2:  # "splicing affected in two or more programs"
+                self.in_silico_score = 1
+                self.explanation_dict["in_silico"] = "splicing affected in two or more programs    -->    1"
+
+    def rate_conservation(self):
+        """This function scores the variants conservation.
+        """
+        if self.gerp_rs_rankscore is not None:
+            self.conservation_score, self.explanation_dict["conservation"] = self.gerp_rs_rankscore,\
+                   f"GERP++ rankscore {self.gerp_rs_rankscore}    -->    {self.gerp_rs_rankscore}"
+
+        # "estimation in case of absent GERP++"
+        else:
+            if self.impact == "high":
+                self.conservation_score, self.explanation_dict["conservation"] = 1, "LoF    -->    1"
+            else:
+                self.conservation_score, self.explanation_dict["conservation"] = 0, "no data!    -->    0"
+        # TODO "use UCSC and give Numbers between 0 - 1"?
+
+    def rate_frequency(self):
+        """This function scores the variants frequency.
+        """
+        self.frequency_score, self.explanation_dict["frequency"] = 0, "other    -->    0"
+
+        if self.inheritance in ["de_novo", "ad_inherited"]:
+            if self.maf < 0.000005:
+                self.frequency_score, self.explanation_dict["frequency"] = 1,\
+                    f"{self.inheritance} & MAF < 0.000005    -->    1"
+            elif self.maf < 0.00002:
+                self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
+                    f"{self.inheritance} & MAF < 0.00002    -->    0.5"
+            else:
+                self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002    -->    0"
+
+        if self.inheritance in ["homo", "comphet"]:
+            if self.maf < 0.00005:
+                self.frequency_score, self.explanation_dict["frequency"] = 1,\
+                    "autosomal recessive & MAF < 0.00005    -->    1"
+            elif self.maf < 0.0005:
+                self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
+                    "autosomal recessive & MAF < 0.0005    -->    0.5"
+
+        if self.inheritance == "x_linked":
+            gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
+            self.male_count = gnomad_variant_result.get("male_count") or 0
+            self.female_count = gnomad_variant_result.get("female_count") or 0
+            if self.male_count <= 1 and self.female_count >= 5:
+                self.frequency_score, self.explanation_dict["frequency"] = 2,\
+                    "X linked and discrepancy of MAF in gnomAD between males and females (max.1/min.5)    -->    2"
+                #TODO DAS HIER DRUNTER WURDE ADAPTIERT, MUSS MIT RAMI BESPROCHEN WERDEN
+            elif self.male_count == 0:
+                self.frequency_score = 1
+                self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD  -->    2"
+            else:
+                self.frequency_score = 0
+                self.explanation_dict["frequency"] = "X linked and at least one hemizygote in gnomad"
 
 # version 1 of AutoCaSc, using Addition for calculating scores
 class AutoCaSc_v1:
@@ -1284,7 +1593,7 @@ class AutoCaSc_v1:
               is_flag=True,
               help="Increase output verbosity level")
 @click.option("--assembly", "-a",
-              default="GRCh37",
+              default="GRCh38",
               help="Reference assembly to use.")
 @click.option("--parent_affected", "-pa",
               default="n",
@@ -1339,7 +1648,7 @@ def score_variants(ctx, variants, inheritances):
         cosegregating = ctx.obj.get('COSEGREGATING')
     else:
         verbose = True
-        assembly = "GRCh37"
+        assembly = "GRCh38"
         parent_affected = False
         sex = "XY"
         output_path = None
@@ -1435,7 +1744,7 @@ def single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    single(["--variant", "NM_006651.3:c.250dup ",
+    single(["--variant", "1:16431305:T:C",
                  "-ih", "de_novo",
                  "-f", "yes"])
     # batch(["--input_file",
