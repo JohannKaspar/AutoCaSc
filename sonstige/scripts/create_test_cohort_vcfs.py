@@ -57,4 +57,6 @@ def score_vcfs():
                                        f"-s /home/johann/tools/slivar/slivar "
                                   ))
 
+
+
 score_vcfs()
