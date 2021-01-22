@@ -1,3 +1,4 @@
+import os
 import shutil
 
 import pandas as pd
@@ -31,7 +32,7 @@ def create_vcfs_with_inserted_variants():
                            f"--gt_mother_other_variant {case_df.GT_Mother.values[1]} "
             subprocess.run(shlex.split(command))
 
-def score_vcfs():
+def score_modified_vcfs():
     for case in variant_df.Case_Number.unique():
         for requests_file in ["gnomad_requests_GRCh37",
                               "gnomad_requests_GRCh38",
@@ -44,12 +45,21 @@ def score_vcfs():
                 pass
 
         case_df = variant_df.loc[variant_df.Case_Number == case].reset_index(drop=True)
-        #todo Segregation
+        if len(case_df) == 2:
+            # then it's comphet
+            ped_suffix = ""
+        elif "1" in case_df["GT_Mother"].values[0]:
+            ped_suffix = "_mother_affected"
+        elif "1" in case_df["GT_Father"].values[0]:
+            ped_suffix = "_father_affected"
+        else:
+            # has to be denovo --> parents not affected
+            ped_suffix = ""
 
         for trio in ["CEU", "ASH"]:
             subprocess.run(shlex.split("python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
                                        f"score_vcf -v /home/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
-                                       f"-p /home/johann/PEDs/{trio}_a.ped "
+                                       f"-p /home/johann/PEDs/{trio}_a{ped_suffix}.ped "
                                        f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                                        f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
                                        f"-o /home/johann/trio_scoring_results/{trio}_{case}.csv "
@@ -57,6 +67,19 @@ def score_vcfs():
                                        f"-s /home/johann/tools/slivar/slivar "
                                   ))
 
+def score_original_trios():
+    for entry in os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files"):
+        if entry.is_file():
+            print(f"working on family {entry.name}")
+            subprocess.run(shlex.split(
+                "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
+                f"score_vcf -v /home/johann/VCFs/AutoCaScValidationCohort.hc-joint.MergeVcf.recalibrated.split.vcf.gz "
+                f"-p {entry.path} "
+                f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
+                f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
+                f"-o /home/johann/trio_scoring_results/varvis_trios/{entry.name}.csv "
+                f"-a GRCh37 "
+                f"-s /home/johann/tools/slivar/slivar "
+                ))
 
-
-score_vcfs()
+score_original_trios()

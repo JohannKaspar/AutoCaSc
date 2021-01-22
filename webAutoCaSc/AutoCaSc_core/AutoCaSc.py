@@ -760,6 +760,7 @@ class AutoCaSc:
             self.literature_score]]
         self.candidate_score_v1 = round(sum(candidate_score_list), 2)
 
+
         if self.inheritance == "comphet":
             if self.other_autocasc_obj and recursively:
                 self.other_autocasc_obj.calculate_candidate_score_v1(recursively=False)

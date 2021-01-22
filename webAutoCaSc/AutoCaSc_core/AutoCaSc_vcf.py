@@ -1,3 +1,4 @@
+import copy
 import os
 import sys
 import random
@@ -209,11 +210,11 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=1):
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
 
-    with open(cache + "/comphet_variant_instances", "wb") as comphet_out:
+    """with open(cache + "/comphet_variant_instances", "wb") as comphet_out:
         pickle.dump(instances_dict, comphet_out)
 
     with open(cache + "/comphet_variant_instances", "rb") as comphet_in:
-        instances_dict = pickle.load(comphet_in)
+        instances_dict = pickle.load(comphet_in)"""
 
 
 
@@ -224,8 +225,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=1):
         instance_2 = instances_dict.get(var_2)
 
         if instance_1.status_code == 200 and instance_2.status_code == 200:
-            _instance = instance_1
-            _instance.other_autocasc_obj = instance_2
+            _instance = copy.deepcopy(instance_1)
+            _instance.other_autocasc_obj = copy.deepcopy(instance_2)
             _instance.calculate_candidate_score()
             comphet_cross_df.loc[i, "instance"] = _instance
 
@@ -235,6 +236,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=1):
 def edit_java_script_functions(js_file, dp_filter=20, gq_filter=10):
     with open(js_file, "r") as original_file, open(js_file + ".temp", "w") as new_file:
         for line in original_file:
+            if "function hq(sample)" in line:
+                break
             new_file.write(line)
         new_file.write(
             "function hq(sample) {\n"
@@ -247,7 +250,7 @@ def edit_java_script_functions(js_file, dp_filter=20, gq_filter=10):
                     "return true\n"
                 "}\n"
                 "if(sample.alts == 1) {\n"
-                    "if(sample.AB < 0.25 || sample.AB > 0.75) { return false; }\n"
+                    "if(sample.AB < 0.2 || sample.AB > 0.8) { return false; }\n"
                     "return true\n"
                 "}\n"
                 "if(sample.alts == 2) {\n"
@@ -334,7 +337,7 @@ def main(ctx, verbose):
               default="0",
               help="Max number of alternative sequence homozygotes in gnomad.")
 @click.option("--quality", "-q",
-              default="100",
+              default="30",
               help="Minimum quality of variants.")
 @click.option("--gq_filter", "-gq",
               default="10",
@@ -436,12 +439,12 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                      f'--info "variant.QUAL >= {quality}" ' \
                                      f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
                                      f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                                     '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
+                                     '--trio "x_linked_recessive:variant.CHROM==\'X\' ' \
                                      f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
                                      f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
                                      f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                     '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
-                                     f'&& trio_x_linked_recessive(kid, dad, mom)))" '
+                                     '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'X\' ' \
+                                     f'&& trio_x_linked_denovo(kid, dad, mom)))" '
 
         slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
                                         stdout=subprocess.PIPE,
@@ -459,7 +462,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         print("de_novos, x_linked & recessive scored!")
 
 
-        with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
+        """with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
             pickle.dump(non_comphet_variant_instances, non_comphet_out)
         with open(cache + "/comphet_variant_instances_scored", "wb") as comphet_out:
             pickle.dump(comphet_variant_instances, comphet_out)
@@ -467,7 +470,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         with open(cache + "/non_comphet_variant_instances_scored", "rb") as non_comphet_out:
             non_comphet_variant_instances = pickle.load(non_comphet_out)
         with open(cache + "/comphet_variant_instances_scored", "rb") as comphet_out:
-            comphet_variant_instances = pickle.load(comphet_out)
+            comphet_variant_instances = pickle.load(comphet_out)"""
 
         merged_instances = pd.concat([non_comphet_variant_instances, comphet_variant_instances], ignore_index=True)
         merged_instances.fillna("", inplace=True)
@@ -538,11 +541,11 @@ if __name__ == "__main__":
                       #"-ssli "
                       "-dbed "
                       ))"""
-    """    score_vcf(shlex.split("-v /home/johann/VCFs/modified_VCFs/annotated/ASH_sim01.vcf.gz "
+    """score_vcf(shlex.split("-v /home/johann/VCFs/modified_VCFs/annotated/ASH_sim01.vcf.gz "
                       "-p /home/johann/PEDs/ASH_a.ped "
                        "-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                        "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                      "-o /home/johann/trio_scoring_results/ASH_sim01.csv "
+                      "-o /home/johann/trio_scoring_results/ASH_sim01_new.csv "
                       "-a GRCh37 "
                       "-s /home/johann/tools/slivar/slivar "
                       "-ssli "
