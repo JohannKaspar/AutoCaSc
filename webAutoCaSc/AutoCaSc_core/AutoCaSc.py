@@ -969,7 +969,7 @@ class AutoCaSc:
               is_flag=True,
               help="Increase output verbosity level")
 @click.option("--assembly", "-a",
-              default="GRCh38",
+              default="GRCh37",
               help="Reference assembly to use.")
 @click.option("--parent_affected", "-pa",
               default="n",
@@ -1024,7 +1024,7 @@ def score_variants(ctx, variants, inheritances):
         cosegregating = ctx.obj.get('COSEGREGATING')
     else:
         verbose = True
-        assembly = "GRCh38"
+        assembly = "GRCh37"
         parent_affected = False
         sex = "XY"
         output_path = None
@@ -1120,7 +1120,7 @@ def single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    single(["--variant", "1:16431305:T:C",
+    single(["--variant", "X:70338558:A:T",
                  "-ih", "de_novo",
                  "-f", "yes"])
     # batch(["--input_file",

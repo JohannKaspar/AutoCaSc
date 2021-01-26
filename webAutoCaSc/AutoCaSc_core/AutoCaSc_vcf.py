@@ -1,9 +1,9 @@
-import copy
 import os
 import sys
 import random
 import shlex
 import subprocess
+from io import StringIO
 from statistics import mean
 import click
 import time
@@ -39,6 +39,32 @@ def annotate_variant(variant_vcf, inheritance, assembly, transcript_num=None):
                          transcript_num=transcript_num)
  return instance
 
+
+def load_omim_morbid(path="/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv"):
+    # loading OMIM morbid dump
+    with open(path, "r") as raw_file:
+        filtered_file = ""
+        for line in raw_file:
+            if not line[0] in ["#", "[", "{"]:
+                filtered_file += line
+
+    omim_morbid = pd.read_csv(StringIO(filtered_file),
+                              sep="\t",
+                              header=None,
+                              usecols=range(3))
+    omim_morbid.columns = ["disease", "gene_symbol", "mim_number"]
+    omim_morbid.gene_symbol = omim_morbid.gene_symbol.apply(lambda x: x.split(",")[0] if "," in x else x)
+    return omim_morbid
+
+
+def get_mim_number(gene, omim_morbid=None):
+    if omim_morbid == None:
+        omim_morbid = load_omim_morbid()
+    omim_gene = omim_morbid.loc[omim_morbid.gene_symbol == gene]
+    if omim_gene.empty:
+        return ""
+    else:
+        return omim_gene.mim_number.to_list()
 
 def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     print("create bed currently not working")
@@ -351,7 +377,7 @@ def main(ctx, verbose):
               default="0",
               help="Max number of alternative sequence homozygotes in gnomad.")
 @click.option("--quality", "-q",
-              default="30",
+              default="100",
               help="Minimum quality of variants.")
 @click.option("--gq_filter", "-gq",
               default="10",
@@ -376,11 +402,16 @@ def main(ctx, verbose):
               is_flag=True,
               default=False,
               help="Just for debugging purposes.")
+@click.option("--mim_flag", "-mim",
+              is_flag=True,
+              default=True,
+              help="Map MIM numbers.")
+# todo change mim flag to path to morbid file
 # Todo delete skip-slivar option
 def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, output_path,
               denovo_af_max, x_recessive_af_max, compf_af_max, autosomal_af_max, nhomalt,
               quality, gq_filter, dp_filter, cache, slivar_dir, assembly, deactivate_bed_filter,
-              skip_slivar):
+              skip_slivar, mim_flag):
     trio_name = vcf_file.split("/")[-1]
     #ToDo noch mal genau mit regex überlegen, damit es nicht "family_XYZ.vcf.gz_filtered" heißt
     if not cache:
@@ -407,6 +438,9 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
             click.echo("There has been a problem filtering for protein coding variants only! Continuing with all variants.")
 
     javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
+
+    if mim_flag:
+        omim_morbid = load_omim_morbid()
 
     if float(x_recessive_af_max) == 0.0:
         x_recessive_af_max = "0.000000001"
@@ -453,12 +487,12 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                      f'--info "variant.QUAL >= {quality}" ' \
                                      f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
                                      f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                                     '--trio "x_linked_recessive:variant.CHROM==\'X\' ' \
+                                     '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
                                      f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
                                      f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
                                      f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                     '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'X\' ' \
-                                     f'&& trio_x_linked_denovo(kid, dad, mom)))" '
+                                     '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
+                                     f'&& trio_x_linked_recessive(kid, dad, mom)))" '
 
         slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
                                         stdout=subprocess.PIPE,
@@ -476,7 +510,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         print("de_novos, x_linked & recessive scored!")
 
 
-        """with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
+        with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
             pickle.dump(non_comphet_variant_instances, non_comphet_out)
         with open(cache + "/comphet_variant_instances_scored", "wb") as comphet_out:
             pickle.dump(comphet_variant_instances, comphet_out)
@@ -484,7 +518,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         with open(cache + "/non_comphet_variant_instances_scored", "rb") as non_comphet_out:
             non_comphet_variant_instances = pickle.load(non_comphet_out)
         with open(cache + "/comphet_variant_instances_scored", "rb") as comphet_out:
-            comphet_variant_instances = pickle.load(comphet_out)"""
+            comphet_variant_instances = pickle.load(comphet_out)
 
         merged_instances = pd.concat([non_comphet_variant_instances, comphet_variant_instances], ignore_index=True)
         merged_instances.fillna("", inplace=True)
@@ -505,25 +539,30 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
                 result_df.loc[i, "hgvsc"] = _instance.__dict__.get("hgvsc_change")
                 result_df.loc[i, "hgvsp"] = _instance.__dict__.get("hgvsp_change")
+                result_df.loc[i, "impact"] = _instance.__dict__.get("impact")
+                result_df.loc[i, "inheritance"] = _instance.__dict__.get("inheritance")
                 result_df.loc[i, "candidate_score_v1"] = _instance.__dict__.get("candidate_score_v1")
                 result_df.loc[i, "candidate_score_v2"] = _instance.__dict__.get("candidate_score_v2")
                 result_df.loc[i, "candidate_score_v3"] = _instance.__dict__.get("candidate_score_v3")
                 result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
                 result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
                 result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
-                result_df.loc[i, "impact"] = _instance.__dict__.get("impact")
-                result_df.loc[i, "inheritance"] = _instance.__dict__.get("inheritance")
                 result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
+
                 if _instance.__dict__.get("factors"):
                     try:
                         result_df.loc[i, "factors"] = " ".join([str(tup) for tup in _instance.__dict__.get("factors")])
                     except TypeError:
                         print("stop")
 
+                if mim_flag:
+                    result_df.loc[i, "mim_number"] = get_mim_number(_instance.__dict__.get("gene_symbol"), omim_morbid)
+
         # comphet_columns = list(comphet_results.columns)
         # comphet_results.columns = ["variant"] + comphet_columns[1:]
         # result_df = pd.concat([non_comphet_results, comphet_results.drop(columns="var_2")])
         # result_df = pd.concat([non_comphet_results, comphet_results])
+
         result_df.fillna("-", inplace=True)
         result_df = clean_up_duplicates(result_df)
         #result_df = result_df.sort_values("candidate_score", ascending=False)
@@ -559,7 +598,7 @@ if __name__ == "__main__":
                       "-p /home/johann/PEDs/ASH_a.ped "
                        "-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                        "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                      "-o /home/johann/trio_scoring_results/ASH_sim01_new.csv "
+                      "-o /home/johann/trio_scoring_results/ASH_sim01.csv "
                       "-a GRCh37 "
                       "-s /home/johann/tools/slivar/slivar "
                       "-ssli "
