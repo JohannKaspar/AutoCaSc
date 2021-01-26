@@ -156,7 +156,9 @@ class GnomADQuery:
                 self.gnomad_requests = pickle.load(gnomad_requests_file)
 
             if self.gnomad_requests.get(self.variant):
-                return self.gnomad_requests.get(self.variant), 200
+                r, status_code = self.gnomad_requests.get(self.variant), 200
+                if r.ok:
+                    return r, status_code
         except FileNotFoundError:
             pass
 

@@ -73,13 +73,15 @@ def score_original_trios():
             print(f"working on family {entry.name}")
             subprocess.run(shlex.split(
                 "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
-                f"score_vcf -v /home/johann/VCFs/AutoCaScValidationCohort.hc-joint.MergeVcf.recalibrated.split.vcf.gz "
+                f"score_vcf -v /home/johann/VCFs/vcf_filtered_temp_split "
                 f"-p {entry.path} "
                 f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                 f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
                 f"-o /home/johann/trio_scoring_results/varvis_trios/{entry.name}.csv "
                 f"-a GRCh37 "
                 f"-s /home/johann/tools/slivar/slivar "
+                f"-dbed "
+                #f"-ssli"
                 ))
 
 score_original_trios()

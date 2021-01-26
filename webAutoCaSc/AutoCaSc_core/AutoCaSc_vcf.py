@@ -7,7 +7,7 @@ import subprocess
 from statistics import mean
 import click
 import time
-from AutoCaSc import AutoCaSc, AutoCaSc_v1
+from AutoCaSc import AutoCaSc
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import re
@@ -88,6 +88,13 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
         alt = vcf_chunk.loc[row_id, "ALT"]
         alt = alt.replace("*", "-")
         variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
+
+
+        # todo change this back
+        #if "," in variant_vcf:
+        #    continue
+
+
         if "de_novo" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "de_novo"
         elif "homo" in str(vcf_chunk.loc[row_id, "INFO"]):
@@ -137,7 +144,8 @@ def thread_function_AutoCaSc_comp(param_tuple):
 
     # iterrating through the variants
     for variant_vcf in variants:
-        print("working")
+
+        print(f"working {variant_vcf}")
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance="comphet",
                                      assembly=assembly)
@@ -190,13 +198,19 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=1):
         ref_1 = comphets_df.loc[i,"REF"]
         alt_1 = comphets_df.loc[i,"ALT"]
         vcf_1 = ":".join(map(str, [chrom_1, pos_1, ref_1, alt_1]))
+
         info = comphets_df.loc[i,"INFO"]
         slivar_substrings = re.findall(r'(?:[^\/\,]+\/){6}[CTGA\-*]+', info.split("slivar_comphet=")[1])
         for substring in slivar_substrings:
             j = len(comphet_cross_df)
-            comphet_cross_df.loc[j, "var_1"] = vcf_1
             chrom_2, pos_2, ref_2, alt_2 = substring.split("/")[-4:]
             vcf_2 = ":".join([chrom_2, pos_2, ref_2, alt_2])
+
+            # todo change this back
+            #if "," in vcf_1 + vcf_2:
+            #    continue
+
+            comphet_cross_df.loc[j, "var_1"] = vcf_1
             comphet_cross_df.loc[j, "var_2"] = vcf_2
 
     all_variants = list(list(set(comphet_cross_df.var_1.to_list())) + list(set(comphet_cross_df.var_2.to_list())))
