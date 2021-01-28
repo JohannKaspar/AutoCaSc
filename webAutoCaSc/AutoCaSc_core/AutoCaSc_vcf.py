@@ -155,7 +155,7 @@ def thread_function_AutoCaSc_comp(param_tuple):
     return return_dict
 
 
-def score_non_comphets(filtered_vcf, cache, trio_name, assembly, num_threads=1):
+def score_non_comphets(filtered_vcf, cache, trio_name, assembly, num_threads=5):
     # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
     with open(filtered_vcf, "r") as inp, open(
             f"{cache}/temp_{trio_name}.tsv",
@@ -181,7 +181,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, num_threads=1):
 
     return variant_df
 
-def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=1):
+def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=5):
     #this loads the vcf containing all compound heterozygous variants and converts it to a DataFrame
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
         for row in inp:
