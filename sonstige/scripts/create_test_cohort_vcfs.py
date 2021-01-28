@@ -6,7 +6,7 @@ import shlex
 import subprocess
 
 variant_excel = pd.read_excel(
-    "/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/published-variants-for-simulation_2021-01-18.xlsx",
+    "/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/published-variants-for-simulation_2021-01-22.xlsx",
     sheet_name="variants")
 variant_df = variant_excel.loc[variant_excel.Use == "yes"][
     ["Case_Number", "Variant_hg19_VCF", "Sex_Index", "GT_Index", "GT_Father", "GT_Mother", "Segregation_Siblings"]]

@@ -1,12 +1,15 @@
 import pickle
 import sys
 from pathlib import Path
+
+import tenacity
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 import time
 import re
 from statistics import mean
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, wait_random
 import click
 import pandas as pd
 import requests
@@ -256,24 +259,28 @@ class AutoCaSc:
                 print(f"VEP ERROR '{r.status_code}: {r.reason}' occured for {self.variant}. Retrying...")
                 raise IOError("There has been an issue with a variant.")
 
+    @retry(stop=stop_after_attempt(15),
+           wait=wait_random(0.1, 2))
+    def open_pickle_file(self):
+        self.vep_requests = {}
+        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}", "rb") as vep_requests_file:
+            self.vep_requests = pickle.load(vep_requests_file)
+
+
     # core function for annotation
     def get_vep_data(self):
         """This function requests the VEP API in order to annotate a given variant and selects relevant parameters.
         :return:
         """
         response_decoded = None
-
         try:
-            self.vep_requests = {}
-            with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
-                      "rb") as vep_requests_file:
-                self.vep_requests = pickle.load(vep_requests_file)
-
+            self.open_pickle_file()
             if self.vep_requests.get(self.variant):
                 response_decoded = self.vep_requests.get(self.variant)
-        except FileNotFoundError:
-            pass
-        if self.status_code != 200 or response_decoded == None:
+        except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
+            print("could not open vep pickle")
+
+        if self.status_code != 200 or response_decoded is None:
             self.create_url()
             try:
                 response_decoded, self.status_code = self.vep_api_request()

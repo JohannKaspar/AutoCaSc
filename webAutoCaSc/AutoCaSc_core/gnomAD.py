@@ -2,7 +2,7 @@ import requests
 import time
 
 import pickle
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, wait_random
 
 # GraphQL query code
 query_code = '''
@@ -146,21 +146,26 @@ class GnomADQuery:
             print(f"GNOMAD ERROR '{r.status_code}: {r.reason}' for {self.query_variables}. Retrying...")
             raise IOError("There has been an issue with a variant while requesting gnomAD.")
 
+    @retry(stop=stop_after_attempt(15),
+           wait=wait_random(0.1, 1))
+    def open_pickle_file(self):
+        self.gnomad_requests = {}
+        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gnomad_requests_{self.assembly}",
+                  "rb") as gnomad_requests_file:
+            self.gnomad_requests = pickle.load(gnomad_requests_file)
+
 
     # requests and returns gnomAD gene information
     def get_gnomad_info(self):
+        self.gnomad_requests = {}
         try:
-            self.gnomad_requests = {}
-            with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gnomad_requests_{self.assembly}",
-                      "rb") as gnomad_requests_file:
-                self.gnomad_requests = pickle.load(gnomad_requests_file)
-
+            self.open_pickle_file()
             if self.gnomad_requests.get(self.variant):
-                r, status_code = self.gnomad_requests.get(self.variant), 200
-                if r.ok:
-                    return r, status_code
-        except FileNotFoundError:
-            pass
+                r = self.gnomad_requests.get(self.variant)
+                if r is not None:
+                    return r, 200
+        except pickle.UnpicklingError:
+            print("could not open gnomad pickle")
 
         try:
             r = self.gnomad_sparql_request()
