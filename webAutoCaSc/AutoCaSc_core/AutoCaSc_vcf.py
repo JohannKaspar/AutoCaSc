@@ -1,3 +1,4 @@
+import copy
 import os
 import sys
 import random
@@ -39,32 +40,6 @@ def annotate_variant(variant_vcf, inheritance, assembly, transcript_num=None):
                          transcript_num=transcript_num)
  return instance
 
-
-def load_omim_morbid(path="/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv"):
-    # loading OMIM morbid dump
-    with open(path, "r") as raw_file:
-        filtered_file = ""
-        for line in raw_file:
-            if not line[0] in ["#", "[", "{"]:
-                filtered_file += line
-
-    omim_morbid = pd.read_csv(StringIO(filtered_file),
-                              sep="\t",
-                              header=None,
-                              usecols=range(3))
-    omim_morbid.columns = ["disease", "gene_symbol", "mim_number"]
-    omim_morbid.gene_symbol = omim_morbid.gene_symbol.apply(lambda x: x.split(",")[0] if "," in x else x)
-    return omim_morbid
-
-
-def get_mim_number(gene, omim_morbid=None):
-    if omim_morbid == None:
-        omim_morbid = load_omim_morbid()
-    omim_gene = omim_morbid.loc[omim_morbid.gene_symbol == gene]
-    if omim_gene.empty:
-        return ""
-    else:
-        return omim_gene.mim_number.to_list()
 
 def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     print("create bed currently not working")
@@ -226,18 +201,21 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=1):
         vcf_1 = ":".join(map(str, [chrom_1, pos_1, ref_1, alt_1]))
 
         info = comphets_df.loc[i,"INFO"]
-        slivar_substrings = re.findall(r'(?:[^\/\,]+\/){6}[CTGA\-*]+', info.split("slivar_comphet=")[1])
-        for substring in slivar_substrings:
-            j = len(comphet_cross_df)
-            chrom_2, pos_2, ref_2, alt_2 = substring.split("/")[-4:]
-            vcf_2 = ":".join([chrom_2, pos_2, ref_2, alt_2])
+        try:
+            slivar_substrings = re.findall(r'(?:[^\/\,]+\/){6}[CTGA\-*]+', info.split("slivar_comphet=")[1])
+            for substring in slivar_substrings:
+                j = len(comphet_cross_df)
+                chrom_2, pos_2, ref_2, alt_2 = substring.split("/")[-4:]
+                vcf_2 = ":".join([chrom_2, pos_2, ref_2, alt_2])
 
-            # todo change this back
-            #if "," in vcf_1 + vcf_2:
-            #    continue
+                # todo change this back
+                #if "," in vcf_1 + vcf_2:
+                #    continue
 
-            comphet_cross_df.loc[j, "var_1"] = vcf_1
-            comphet_cross_df.loc[j, "var_2"] = vcf_2
+                comphet_cross_df.loc[j, "var_1"] = vcf_1
+                comphet_cross_df.loc[j, "var_2"] = vcf_2
+        except IndexError:
+            continue
 
     all_variants = list(list(set(comphet_cross_df.var_1.to_list())) + list(set(comphet_cross_df.var_2.to_list())))
     variant_chunks = [all_variants[round(i * len(all_variants) / num_threads):round((i+1) * len(all_variants) / num_threads)] for i in range(num_threads)]
@@ -439,9 +417,6 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
     javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
 
-    if mim_flag:
-        omim_morbid = load_omim_morbid()
-
     if float(x_recessive_af_max) == 0.0:
         x_recessive_af_max = "0.000000001"
     if float(denovo_af_max) == 0.0:
@@ -510,7 +485,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         print("de_novos, x_linked & recessive scored!")
 
 
-        with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
+        """        with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
             pickle.dump(non_comphet_variant_instances, non_comphet_out)
         with open(cache + "/comphet_variant_instances_scored", "wb") as comphet_out:
             pickle.dump(comphet_variant_instances, comphet_out)
@@ -518,7 +493,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         with open(cache + "/non_comphet_variant_instances_scored", "rb") as non_comphet_out:
             non_comphet_variant_instances = pickle.load(non_comphet_out)
         with open(cache + "/comphet_variant_instances_scored", "rb") as comphet_out:
-            comphet_variant_instances = pickle.load(comphet_out)
+            comphet_variant_instances = pickle.load(comphet_out)"""
 
         merged_instances = pd.concat([non_comphet_variant_instances, comphet_variant_instances], ignore_index=True)
         merged_instances.fillna("", inplace=True)
@@ -554,9 +529,6 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                         result_df.loc[i, "factors"] = " ".join([str(tup) for tup in _instance.__dict__.get("factors")])
                     except TypeError:
                         print("stop")
-
-                if mim_flag:
-                    result_df.loc[i, "mim_number"] = get_mim_number(_instance.__dict__.get("gene_symbol"), omim_morbid)
 
         # comphet_columns = list(comphet_results.columns)
         # comphet_results.columns = ["variant"] + comphet_columns[1:]
@@ -598,7 +570,7 @@ if __name__ == "__main__":
                       "-p /home/johann/PEDs/ASH_a.ped "
                        "-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                        "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                      "-o /home/johann/trio_scoring_results/ASH_sim01.csv "
+                      "-o /home/johann/delete_me.csv "
                       "-a GRCh37 "
                       "-s /home/johann/tools/slivar/slivar "
                       "-ssli "
