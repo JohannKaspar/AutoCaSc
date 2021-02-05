@@ -5,6 +5,56 @@ import pandas as pd
 ROOT_DIR = "/AutoCaSc_maintenance/data/"
 # ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
+def get_seq_difference(ref, alt):
+    """if val == "+":
+        if ref in alt:
+            try:
+                x_1, x_2 = alt.split(ref)
+            except:
+                ValueError
+            if x_1 == "":
+                return val + x_2
+            else:
+                return val + x_1
+
+    if val == "-":
+        if alt in ref:
+            if alt == "-":
+                return val + ref
+            try:
+                x_1,  x_2 = ref.split(alt)
+            except ValueError:
+                return()
+            if x_1 == "":
+                return val + x_2
+            else:
+                return val + x_1"""
+
+    # if substitution of different length
+    #if val != "/":
+    n_same_start = 0
+    while ref[:n_same_start+1] == alt[:n_same_start+1]:
+        n_same_start += 1
+    ref_new = ref[n_same_start:]
+    alt_new = alt[n_same_start:]
+
+    n_same_end = 0
+    while ref_new[n_same_end-1:] == alt_new[n_same_end-1:]:
+        n_same_end -= 1
+
+    if n_same_end == 0:
+        ref_new = ref[n_same_start:]
+        alt_new = alt[n_same_start:]
+    else:
+        ref_new = ref_new[:n_same_end]
+        alt_new = alt_new[:n_same_end]
+
+    if alt_new == "":
+        alt_new = "-"
+    if ref_new == "":
+        ref_new = "-"
+
+    return f"{ref_new}>{alt_new}"
 
 def filterTheDict(dictObj, filter_value, key_to_pop=None):
     newDict = dict()

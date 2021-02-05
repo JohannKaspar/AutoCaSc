@@ -73,23 +73,23 @@ def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     # shutil.rmtree(cache)
 
 def thread_function_AutoCaSc_non_comp(param_tuple):
-    vcf_chunk, assembly = param_tuple
+    vcf_chunk, assembly, ped_file = param_tuple
     vcf_chunk.reset_index(drop=True, inplace=True)
     return_df = pd.DataFrame(columns=["variant", "instance", "transcript_num"])
 
     # iterrating through the rows of the chunk, variant by variant
-    for row_id in range(len(vcf_chunk)):
-        print(row_id)
+    for row_id, row in vcf_chunk.iterrows():
         try:
-            chrom = vcf_chunk.loc[row_id, "#CHROM"]
+            chrom = row["#CHROM"]
         except pd.core.indexing.IndexingError:
             print("error")
-        pos = vcf_chunk.loc[row_id, "POS"]
-        ref = vcf_chunk.loc[row_id, "REF"]
-        alt = vcf_chunk.loc[row_id, "ALT"]
+        pos = row["POS"]
+        ref = row["REF"]
+        alt = row["ALT"]
         alt = alt.replace("*", "-")
         variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
-
+        print(f"non_comph {row_id + 1} of {len(vcf_chunk)}: {variant_vcf}")
+        quality_parameters = extract_quality_parameters(row, ped_file)
 
         # todo change this back
         #if "," in variant_vcf:
@@ -117,6 +117,7 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
         i = len(return_df)
         return_df.loc[i, "variant"] = variant_vcf
         return_df.loc[i, "instance"] = autocasc_instance
+        return_df.loc[i, "quality_parameters"] = quality_parameters
         return_df.loc[i, "transcript_num"] = 0
 
 
@@ -128,8 +129,8 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
                                                 inheritance=inheritance,
                                                 assembly=assembly,
                                                 transcript_num=transcript_num)
-                if autocasc_instance.status_code == 200:
-                    autocasc_instance.calculate_candidate_score()
+                if alternative_instance.status_code == 200:
+                    alternative_instance.calculate_candidate_score()
 
                 ix = len(return_df)
                 return_df.loc[ix, "variant"] = variant_vcf
@@ -144,9 +145,8 @@ def thread_function_AutoCaSc_comp(param_tuple):
     return_dict = {}
 
     # iterrating through the variants
-    for variant_vcf in variants:
-
-        print(f"working {variant_vcf}")
+    for i, variant_vcf in enumerate(variants):
+        print(f"comphet {i + 1} of {len(variants)}: {variant_vcf}")
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance="comphet",
                                      assembly=assembly)
@@ -155,7 +155,7 @@ def thread_function_AutoCaSc_comp(param_tuple):
     return return_dict
 
 
-def score_non_comphets(filtered_vcf, cache, trio_name, assembly, num_threads=5):
+def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, num_threads=1):
     # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
     with open(filtered_vcf, "r") as inp, open(
             f"{cache}/temp_{trio_name}.tsv",
@@ -173,7 +173,9 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, num_threads=5):
     # this starts annotation of all variants that are comphet
     with ThreadPoolExecutor() as executor:
         df_iterator = executor.map(thread_function_AutoCaSc_non_comp,
-                                   zip(vcf_chunks, [assembly] * len(vcf_chunks)))
+                                   zip(vcf_chunks,
+                                       [assembly] * len(vcf_chunks),
+                                       [ped_file] * len(vcf_chunks)))
         variant_df = pd.DataFrame()
         for _df in df_iterator:
         # instances_iterator = executor.map(thread_function_AutoCaSc_classic, vcf_chunks)
@@ -181,7 +183,30 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, num_threads=5):
 
     return variant_df
 
-def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=5):
+
+def extract_quality_parameters(row, ped_file):
+    _, index_id, father_id, mother_id = interpret_pedigree(ped_file)
+    quality_parameters = []
+    if not re.findall(r"AC=[\w?]+(?=;)", row["INFO"]) == []:
+        quality_parameters.append(re.findall(r"AC=[\w?]+(?=;)", row["INFO"])[0])
+    quality_parameters.append(f'QUAL={row["QUAL"]}')
+    if "GQ" in row["FORMAT"]:
+        gq_position = row["FORMAT"].split("GQ")[0].count(":")
+        quality_parameters.append(f'GQ_index={row[index_id].split(":")[gq_position]}')
+    if "AD" in row["FORMAT"]:
+        ad_position = row["FORMAT"].split("AD")[0].count(":")
+        quality_parameters.append(f'AD_index={row[index_id].split(":")[ad_position]}'.replace(",",":"))
+        quality_parameters.append(f'AD_father={row[father_id].split(":")[ad_position]}'.replace(",",":"))
+        quality_parameters.append(f'AD_moth={row[mother_id].split(":")[ad_position]}'.replace(",",":"))
+    if "DP" in row["FORMAT"]:
+        dp_position = row["FORMAT"].split("DP")[0].count(":")
+        quality_parameters.append(f'DP_index={row[index_id].split(":")[dp_position]}')
+        quality_parameters.append(f'DP_father={row[father_id].split(":")[dp_position]}')
+        quality_parameters.append(f'DP_moth={row[mother_id].split(":")[dp_position]}')
+
+    return ";".join(quality_parameters)
+
+def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, num_threads=1):
     #this loads the vcf containing all compound heterozygous variants and converts it to a DataFrame
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
         for row in inp:
@@ -193,14 +218,15 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=5):
 
     # make comphet_cross_df
     comphet_cross_df = pd.DataFrame()
-    for i in range(len(comphets_df)):
-        chrom_1 = comphets_df.loc[i,"#CHROM"]
-        pos_1 = comphets_df.loc[i,"POS"]
-        ref_1 = comphets_df.loc[i,"REF"]
-        alt_1 = comphets_df.loc[i,"ALT"]
+    for i, row in comphets_df.iterrows():
+        chrom_1 = row["#CHROM"]
+        pos_1 = row["POS"]
+        ref_1 = row["REF"]
+        alt_1 = row["ALT"]
         vcf_1 = ":".join(map(str, [chrom_1, pos_1, ref_1, alt_1]))
 
-        info = comphets_df.loc[i,"INFO"]
+        quality_parameters = extract_quality_parameters(row, ped_file)
+        info = row["INFO"]
         try:
             slivar_substrings = re.findall(r'(?:[^\/\,]+\/){6}[CTGA\-*]+', info.split("slivar_comphet=")[1])
             for substring in slivar_substrings:
@@ -208,12 +234,10 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, num_threads=5):
                 chrom_2, pos_2, ref_2, alt_2 = substring.split("/")[-4:]
                 vcf_2 = ":".join([chrom_2, pos_2, ref_2, alt_2])
 
-                # todo change this back
-                #if "," in vcf_1 + vcf_2:
-                #    continue
-
                 comphet_cross_df.loc[j, "var_1"] = vcf_1
                 comphet_cross_df.loc[j, "var_2"] = vcf_2
+                comphet_cross_df.loc[j, "quality_parameters"] = quality_parameters
+
         except IndexError:
             continue
 
@@ -268,7 +292,7 @@ def edit_java_script_functions(js_file, dp_filter=20, gq_filter=10):
                     "return true\n"
                 "}\n"
                 "if(sample.alts == 1) {\n"
-                    "if(sample.AB < 0.2 || sample.AB > 0.8) { return false; }\n"
+                    "if(sample.AB < 0.25 || sample.AB > 0.75) { return false; }\n"
                     "return true\n"
                 "}\n"
                 "if(sample.alts == 2) {\n"
@@ -285,18 +309,28 @@ def clean_up_duplicates(df):
     df = df.drop_duplicates(subset=list(df.columns)[1:], keep="first")
     return df
 
-def parent_affected(ped_file):
+def interpret_pedigree(ped_file):
     pedigree = pd.read_csv(ped_file, sep="\t", header=None)
     # affected status = 2 means the individual is affected
     pedigree.columns = ["family_id", "individual_id", "paternal_id", "maternal_id", "sex", "affected_status"]
-    for i in range(len(pedigree)):
-        if pedigree.loc[i, "paternal_id"] not in pedigree.individual_id.to_list() \
-                and pedigree.loc[i, "maternal_id"] not in pedigree.individual_id.to_list():
-            if pedigree.loc[i, "affected_status"] == 2:
+
+    individuals = pedigree.individual_id.to_list()
+    parent_affected = False
+    for i, row in pedigree.iterrows():
+        if row["paternal_id"] in individuals and row["maternal_id"] in individuals:
+            index_id = row["individual_id"]
+        else:
+            if row["sex"] == 1:
+                father_id = row["individual_id"]
+            else:
+                mother_id = row["individual_id"]
+            if row["affected_status"] == 2:
                 print("parent affected")
-                return True
-    print("parent unaffected")
-    return False
+                parent_affected = True
+    return parent_affected, index_id, father_id, mother_id
+
+
+    
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
 @click.pass_context
@@ -390,7 +424,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
               denovo_af_max, x_recessive_af_max, compf_af_max, autosomal_af_max, nhomalt,
               quality, gq_filter, dp_filter, cache, slivar_dir, assembly, deactivate_bed_filter,
               skip_slivar, mim_flag):
-    trio_name = vcf_file.split("/")[-1]
+    trio_name = ped_file.split("/")[-1].split(".")[0]
     #ToDo noch mal genau mit regex überlegen, damit es nicht "family_XYZ.vcf.gz_filtered" heißt
     if not cache:
         cache = vcf_file.rstrip(trio_name) + "tmp"
@@ -415,7 +449,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         else:
             click.echo("There has been a problem filtering for protein coding variants only! Continuing with all variants.")
 
-    javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
+    #javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
 
     if float(x_recessive_af_max) == 0.0:
         x_recessive_af_max = "0.000000001"
@@ -432,7 +466,9 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         slivar_precomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} ' \
                                  f'-p {ped_file} --pass-only ' \
                                  f'-g {gnotate_file} -o {cache}/{trio_name}_comp_prefiltered ' \
-                                 f'--info "INFO.gnomad_popmax_af <= {compf_af_max} && variant.QUAL >= {quality}"'
+                                 f'--info "INFO.gnomad_popmax_af <= {compf_af_max} && variant.QUAL >= {quality}" ' \
+                                 f'--trio "comphet_side:comphet_side(kid, mom, dad) && INFO.gnomad_nhomalt < 10"'
+
         slivar_precomp_process = subprocess.run(shlex.split(slivar_precomp_command),
                                         stdout=subprocess.PIPE,
                                         universal_newlines=True)
@@ -442,17 +478,51 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                         stdout=subprocess.PIPE,
                                         universal_newlines=True)
 
-        if parent_affected(ped_file):
+        if interpret_pedigree(ped_file)[0]:
             slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                  f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
                                  f'--info "variant.QUAL >= {quality}" ' \
                                  f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
                                  f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                                 '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
+                                 '--trio "x_linked_recessive:variant.CHROM==\'X\' ' \
                                  f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
                                  f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
                                  f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                 '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
+                                 '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'X\' ' \
+                                 f'&& trio_x_linked_recessive(kid, dad, mom)))" ' \
+                                 f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
+                                 '&& trio_autosomal_dominant(kid, mom, dad)" '
+        else:
+            slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
+                                     f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
+                                     f'--info "variant.QUAL >= {quality}" ' \
+                                     f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
+                                     f'&& recessive(kid, mom, dad)" ' \
+                                     f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
+                                     f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
+                                     f'&& x_recessive(kid, mom, dad)" ' \
+                                     f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
+                                     '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
+                                     '|| variant.CHROM==\'chrX\') ' \
+                                     f'&& x_denovo(kid, mom, dad)))" '
+        slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
+                                                stdout=subprocess.PIPE,
+                                                universal_newlines=True)
+
+
+
+
+        """if interpret_pedigree(ped_file)[0]:
+            slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
+                                 f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
+                                 f'--info "variant.QUAL >= {quality}" ' \
+                                 f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
+                                 f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
+                                 '--trio "x_linked_recessive:variant.CHROM==\'X\' ' \
+                                 f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
+                                 f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
+                                 f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
+                                 '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'X\' ' \
                                  f'&& trio_x_linked_recessive(kid, dad, mom)))" ' \
                                  f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
                                  '&& trio_autosomal_dominant(kid, mom, dad)" '
@@ -462,16 +532,16 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                      f'--info "variant.QUAL >= {quality}" ' \
                                      f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
                                      f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                                     '--trio "x_linked_recessive:variant.CHROM==\'chrX\' ' \
+                                     '--trio "x_linked_recessive:variant.CHROM==\'X\' ' \
                                      f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
                                      f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
                                      f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                     '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'chrX\' ' \
+                                     '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'X\' ' \
                                      f'&& trio_x_linked_recessive(kid, dad, mom)))" '
 
         slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
                                         stdout=subprocess.PIPE,
-                                        universal_newlines=True)
+                                        universal_newlines=True)"""
 
 
 
@@ -479,9 +549,9 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
     else:
         print("Slivar subprocesses successfull, starting scoring!")
-        comphet_variant_instances = score_comphets(f"{cache}/{trio_name}_comphets", cache, trio_name, assembly)
+        comphet_variant_instances = score_comphets(f"{cache}/{trio_name}_comphets", cache, trio_name, assembly, ped_file)
         print("comphets scored!")
-        non_comphet_variant_instances = score_non_comphets(f"{cache}/{trio_name}_non_comphets", cache, trio_name, assembly)
+        non_comphet_variant_instances = score_non_comphets(f"{cache}/{trio_name}_non_comphets", cache, trio_name, assembly, ped_file)
         print("de_novos, x_linked & recessive scored!")
 
 
@@ -523,6 +593,12 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                 result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
                 result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
                 result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
+                try:
+                    quality_parameters = row["quality_parameters"].split(";")
+                    for parameter in quality_parameters:
+                        result_df.loc[i, parameter.split("=")[0]] = parameter.split("=")[1]
+                except IndexError:
+                    pass
 
                 if _instance.__dict__.get("factors"):
                     try:
@@ -538,10 +614,21 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         result_df.fillna("-", inplace=True)
         result_df = clean_up_duplicates(result_df)
         #result_df = result_df.sort_values("candidate_score", ascending=False)
-        result_df.to_csv(f"{output_path}", index=False)
+        result_df.to_csv(f"{output_path}",
+                         index=False,
+                         decimal=",",
+                         sep="\t")
 
+        """try:
+            os.mkdir(f"/home/johann/VCFs/slivar_filtered/{trio_name}")
+        except FileExistsError:
+            pass
+        shutil.copyfile(f"{cache}/{trio_name}_non_comphets",
+                        f"/home/johann/VCFs/slivar_filtered/{trio_name}/{trio_name}_non_comphets")
+        shutil.copyfile(f"{cache}/{trio_name}_comphets",
+                        f"/home/johann/VCFs/slivar_filtered/{trio_name}/{trio_name}_comphets")"""
         shutil.rmtree(cache)
-        os.remove(javascript_file)
+        #os.remove(javascript_file)
 
 
 if __name__ == "__main__":
@@ -556,14 +643,14 @@ if __name__ == "__main__":
                       "-dbed "
                       "-nc "
                       ))"""
-    """score_vcf(shlex.split("-v /mnt/raid/users/johann/VCFs/vcf_filtered_temp "
+    """score_vcf(shlex.split("-v /home/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered "
                       "-p /home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files/L16-0467.ped "
-                       "-g /home/johann/tools/slivar/gnotate/gnomad.hg38.v2.zip "
+                       "-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                        "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                      "-o /mnt/raid/users/johann/VCFs/scored/L16-0467.csv "
-                      "-a GRCh38 "
+                      "-o /home/johann/delete/asdf.csv "
+                      "-a GRCh37 "
                       "-s /home/johann/tools/slivar/slivar "
-                      #"-ssli "
+                      "-ssli "
                       "-dbed "
                       ))"""
     """score_vcf(shlex.split("-v /home/johann/VCFs/modified_VCFs/annotated/ASH_sim01.vcf.gz "

@@ -146,7 +146,7 @@ class GnomADQuery:
             print(f"GNOMAD ERROR '{r.status_code}: {r.reason}' for {self.query_variables}. Retrying...")
             raise IOError("There has been an issue with a variant while requesting gnomAD.")
 
-    @retry(stop=stop_after_attempt(15),
+    @retry(stop=stop_after_attempt(5),
            wait=wait_random(0.1, 1))
     def open_pickle_file(self):
         self.gnomad_requests = {}

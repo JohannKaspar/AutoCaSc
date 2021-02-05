@@ -15,7 +15,7 @@ import pandas as pd
 import requests
 from numpy import isnan, poly1d, product
 from gnomAD import GnomADQuery
-from tools import safe_get, filterTheDict
+from tools import safe_get, filterTheDict, get_seq_difference
 
 # from gnomAD import GnomADQuery
 # from tools import safe_get, filterTheDict
@@ -263,7 +263,8 @@ class AutoCaSc:
            wait=wait_random(0.1, 2))
     def open_pickle_file(self):
         self.vep_requests = {}
-        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}", "rb") as vep_requests_file:
+        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
+                  "rb") as vep_requests_file:
             self.vep_requests = pickle.load(vep_requests_file)
 
 
@@ -322,6 +323,7 @@ class AutoCaSc:
             self.id = re.sub(r"[^a-zA-Z^0-9-]", ":", variant_anno_data.get("id"))
             # extracts reference sequence from variant id in vcf format
             self.ref_seq_vep = safe_get(self.id.split(":"), 2)
+            self.alt_seq_vep = safe_get(self.id.split(":"), 3)
         else:
             self.id = variant_anno_data.get("id")
         if self.ref_seq is None:
@@ -395,10 +397,13 @@ class AutoCaSc:
                 self.maxentscan_consequence = "splicing not affected"
 
         # checks if reference sequences match and returns result dictionary and status code accordingly
-        if self.ref_seq is not None:
-            if self.ref_seq_vep is not None:
-                if self.ref_seq_vep != self.ref_seq:
-                    self.status_code = 201
+        if any([x == None for x in [self.ref_seq, self.ref_seq_vep, self.alt_seq, self.alt_seq_vep]]):
+            pass
+        else:
+            if not get_seq_difference(self.ref_seq, self.alt_seq) == get_seq_difference(self.ref_seq_vep,
+                                                                                            self.alt_seq_vep):
+                self.status_code = 201
+
 
     # gets variant frequency in gnomAD exomes and minor allele frequency
     def get_frequencies(self, colocated_variants):
@@ -691,6 +696,9 @@ class AutoCaSc:
         return loeuf_score
 
     def get_Z_factor(self):
+        if self.mis_z is None:
+            self.z_score = 0
+            return 0
         if self.mis_z <= 0.:
             z_score = 0.
         elif self.mis_z >= 3.09:
