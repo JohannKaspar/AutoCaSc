@@ -19,7 +19,6 @@ from tools import safe_get, filterTheDict
 
 # from gnomAD import GnomADQuery
 # from tools import safe_get, filterTheDict
-
 AUTOCASC_VERSION = 0.96
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
@@ -43,7 +42,8 @@ class AutoCaSc:
                  assembly="GRCh37",
                  transcript_num=None,
                  version="current",
-                 family_history=False):
+                 family_history=False,
+                 mode="default"):
         """This function assigns basic parameters and initializes the scoring process.
 
         :param variant: the variant including position and alternative sequence
@@ -70,6 +70,8 @@ class AutoCaSc:
         self.family_history = family_history
         self.multiple_transcripts = False
         self.transcript_num = transcript_num
+        self.mode = mode
+        self.data_retrieved = False
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
@@ -129,34 +131,31 @@ class AutoCaSc:
             self.version = version
 
         self.check_variant_format()  # this function is called to check if the entered variant is valid
-        if not self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
-            self.retrieve_data()
-        else:
+        if self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
             self.status_code = 401
+        elif not self.mode == "web":
+            self.retrieve_data()
+
 
     def retrieve_data(self):
+        print("getting VEP")
         self.get_vep_data()  # this method call initiates the annotation of the given variant
         if self.status_code == 200:
-            try:
-                # 498 = no matching transcript index has been found (e.g. variant is intergenic)
-                self.get_gnomad_constraint()
-                self.get_gnomad_counts()  # gets allele counts in gnomad
-                if self.other_variant:
-                    self.other_autocasc_obj = AutoCaSc(variant=self.other_variant,
-                                                       inheritance=self.inheritance,
-                                                       parent_affected=self.parent_affected,
-                                                       has_sibling=self.has_sibling,
-                                                       cosegregating=self.cosegregating,
-                                                       sex=self.sex,
-                                                       assembly=self.assembly,
-                                                       transcript_num=self.transcript_num
-                                                       )
-
-            except (AttributeError, TypeError) as e:
-                raise e
-                # print(f"variant: {self.variant}\n"
-                #       f"status_code: {self.status_code}\n"
-                #       f"{e}\n")
+            # 498 = no matching transcript index has been found (e.g. variant is intergenic)
+            self.get_gnomad_constraint()
+            print("getting gnomad")
+            self.get_gnomad_counts()  # gets allele counts in gnomad
+            self.data_retrieved = True
+            if self.other_variant:
+                self.other_autocasc_obj = AutoCaSc(variant=self.other_variant,
+                                                   inheritance=self.inheritance,
+                                                   parent_affected=self.parent_affected,
+                                                   has_sibling=self.has_sibling,
+                                                   cosegregating=self.cosegregating,
+                                                   sex=self.sex,
+                                                   assembly=self.assembly,
+                                                   transcript_num=self.transcript_num
+                                                   )
 
     def create_url(self):
         if self.variant_format == "vcf":
@@ -273,12 +272,14 @@ class AutoCaSc:
         :return:
         """
         response_decoded = None
-        try:
-            self.open_pickle_file()
-            if self.vep_requests.get(self.variant):
-                response_decoded = self.vep_requests.get(self.variant)
-        except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
-            print("could not open vep pickle")
+
+        # if self.mode != "web":
+        #     try:
+        #         self.open_pickle_file()
+        #         if self.vep_requests.get(self.variant):
+        #             response_decoded = self.vep_requests.get(self.variant)
+        #     except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
+        #         print("could not open vep pickle")
 
         if self.status_code != 200 or response_decoded is None:
             self.create_url()
@@ -1127,8 +1128,8 @@ def single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    single(["--variant", "X:70338558:A:T",
-                 "-ih", "de_novo",
+    single(["--variant", "16:774051:AGTGG:-",
+                 "-ih", "homo",
                  "-f", "yes"])
     # batch(["--input_file",
     #        "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/AutoCaSc_core/data/CLI_batch_test_variants.txt"])

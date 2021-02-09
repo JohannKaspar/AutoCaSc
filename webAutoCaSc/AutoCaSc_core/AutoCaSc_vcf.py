@@ -345,11 +345,11 @@ def main(ctx, verbose):
 @click.option("--x_recessive_af_max", "-raf",
               default="0.0001",
               help="Popmax AF in gnomad for x-linked recessive variants.")
-@click.option("--compf_af_max", "-raf",
+@click.option("--compf_af_max", "-caf",
               default="0.0001",
               help="Popmax AF in gnomad for compound heterozygous variants.")
 @click.option("--autosomal_af_max", "-aaf",
-              default="0.0000001",
+              default="0.000001",
               help="Popmax AF in gnomad for autosomal dominant variants.")
 @click.option("--nhomalt", "-nh",
               default="0",
@@ -361,7 +361,7 @@ def main(ctx, verbose):
               default="10",
               help="Minimum GQ (quality) for variants.")
 @click.option("--dp_filter", "-dp",
-              default="20",
+              default="10",
               help="Minimum DP (reads) for variants.")
 @click.option("--cache", "-c",
               type=click.Path(exists=True),
