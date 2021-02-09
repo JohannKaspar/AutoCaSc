@@ -156,7 +156,7 @@ class GnomADQuery:
 
 
     # requests and returns gnomAD gene information
-    def get_gnomad_info(self):
+    def get_gnomad_info(self): #todo add webmode
         self.gnomad_requests = {}
         # try:
         #     self.open_pickle_file()

@@ -19,6 +19,7 @@ from tools import safe_get, filterTheDict
 
 # from gnomAD import GnomADQuery
 # from tools import safe_get, filterTheDict
+
 AUTOCASC_VERSION = 0.96
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
@@ -273,13 +274,13 @@ class AutoCaSc:
         """
         response_decoded = None
 
-        # if self.mode != "web":
-        #     try:
-        #         self.open_pickle_file()
-        #         if self.vep_requests.get(self.variant):
-        #             response_decoded = self.vep_requests.get(self.variant)
-        #     except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
-        #         print("could not open vep pickle")
+        if self.mode != "web":
+            try:
+                self.open_pickle_file()
+                if self.vep_requests.get(self.variant):
+                    response_decoded = self.vep_requests.get(self.variant)
+            except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
+                print("could not open vep pickle")
 
         if self.status_code != 200 or response_decoded is None:
             self.create_url()
