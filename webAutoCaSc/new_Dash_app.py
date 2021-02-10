@@ -119,7 +119,7 @@ variant_input_card = dbc.FormGroup(
             type="text",
             id="variant_input",
             placeholder="e.g. X:12345:T:C",
-            value="1:7725246:G:A",  #todo delete this
+            # value="1:7725246:G:A",  #todo delete this
             autoFocus=True
         ),
         dbc.FormText("Although HGVS works as well, we recommend using VCF format."),
@@ -155,10 +155,7 @@ misc_input_card = dbc.FormGroup(
 search_page = html.Div([
     navbar,
     dbc.Container([
-        dbc.Spinner()
-        # html.P(
-        #     ""
-        # )
+        dbc.Spinner(fullscreen=True)
     ])
 ])
 
@@ -504,17 +501,15 @@ def score_variants(instances, inheritance):
 
 @app.callback(
     Output("results_memory", "data"),
-    [Input("variant_memory", "data"),
-     Input('url', 'pathname')],
+    [Input("variant_memory", "data")],
     [State("query_memory", "data")]
 )
-def get_results(variant_memory, pathname, query_memory):
-    if "/search/" in pathname:
-        if variant_memory is not None and query_memory is not None:
-            inheritance = query_memory.get("inheritance")
-            instances = dict_to_instances(variant_memory)
-            instances = score_variants(instances, inheritance)
-            return store_instances(instances)
+def get_results(variant_memory, query_memory):
+    if variant_memory is not None and query_memory is not None:
+        inheritance = query_memory.get("inheritance")
+        instances = dict_to_instances(variant_memory)
+        instances = score_variants(instances, inheritance)
+        return store_instances(instances)
     raise PreventUpdate
 
 
@@ -537,12 +532,14 @@ def get_results(variant_memory, pathname, query_memory):
 def display_page(pathname, results_memory):
     #todo add possibility to directly enter variants in url
     ctx = dash.callback_context
-    if "pathname" in ctx.triggered[0]['prop_id'] and "search" not in pathname:
+    if "pathname" in ctx.triggered[0]['prop_id']:
         if pathname == "/about":
             return about_page
         if pathname == "/results":
-            # return get_results_page(None)  #return empty site just in case
-            return get_results_page(None)  #return empty site just in case
+            if results_memory is not None: #return empty site just in case
+                raise PreventUpdate
+        if "/search" in pathname:
+            return search_page
         else:
             return landing_page
     else:
@@ -607,8 +604,7 @@ def store_instances(instance_list, code_key="variant"):
 
 
 @app.callback(
-    [Output("variant_memory", "data"),
-     Output("loading_output", "children")],
+    Output("variant_memory", "data"),
     [Input("variant_queue", "data")],
     [State("variant_memory", "data")]
 )
@@ -616,10 +612,13 @@ def retrieve_variant_data(variant_queue, variant_memory):
     if variant_queue:
         if variant_memory is not None:
             if variant_queue.get("instances").keys() == variant_memory.get("instances").keys():
-                raise PreventUpdate
+                return store_instances(dict_to_instances(variant_memory))
         instances = dict_to_instances(variant_queue)
-        [_instance.retrieve_data() for _instance in instances if not _instance.data_retrieved]
-        return store_instances(instances), ""
+        for _instance in instances:
+            if not _instance.data_retrieved:
+                _instance.retrieve_data()
+        # [_instance.retrieve_data() for _instance in instances if not _instance.data_retrieved]
+        return store_instances(instances)
     else:
         raise PreventUpdate
 
@@ -627,9 +626,7 @@ def retrieve_variant_data(variant_queue, variant_memory):
 @app.callback(
     [Output("url", "pathname"),
      Output("check_for_data_interval", "disabled"),
-     Output("query_memory", "data"),
-     Output("spinner_card", "children")
-     ],
+     Output("query_memory", "data")],
     [Input("search_button", "n_clicks")],
     [State("variant_queue", "data"),
      State("inheritance_input", "value")]
@@ -649,11 +646,11 @@ def search_button_click(n_clicks, variant_queue, inheritance):
                                 }
                             )
 
-        return url_suffix, False, query_data, spinner
+        return url_suffix, False, query_data
     else:
         raise PreventUpdate
 
 
 if __name__ == '__main__':
     app.run_server(debug=False,
-                   dev_tools_hot_reload=True)
+                   dev_tools_hot_reload=False)

@@ -1,7 +1,7 @@
 import pickle
 import sys
 from pathlib import Path
-
+import random
 import tenacity
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -139,13 +139,17 @@ class AutoCaSc:
 
 
     def retrieve_data(self):
-        print("getting VEP")
+        start = time.time()
         self.get_vep_data()  # this method call initiates the annotation of the given variant
+        end = time.time()
+        print(f"VEP execution time {end - start}")
         if self.status_code == 200:
             # 498 = no matching transcript index has been found (e.g. variant is intergenic)
             self.get_gnomad_constraint()
-            print("getting gnomad")
+            start = time.time()
             self.get_gnomad_counts()  # gets allele counts in gnomad
+            end = time.time()
+            print(f"gnomad execution time {end - start}")
             self.data_retrieved = True
             if self.other_variant:
                 self.other_autocasc_obj = AutoCaSc(variant=self.other_variant,
@@ -1129,12 +1133,12 @@ def single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    single(["--variant", "16:774051:AGTGG:-",
-                 "-ih", "homo",
-                 "-f", "yes"])
+    # single(["--variant", "16:774051:AGTGG:-",
+    #              "-ih", "homo",
+    #              "-f", "yes"])
     # batch(["--input_file",
     #        "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
-    # main(obj={})
+    main(obj={})
 
 # print(AutoCaSc_core("2:46803383:G:A", "de_novo").candidate_score)  # benign
 # print(AutoCaSc_core("1:1737948:A:G", "de_novo").candidate_score)  # pathogenic
