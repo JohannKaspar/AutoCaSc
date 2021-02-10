@@ -70,11 +70,11 @@ def score_modified_vcfs():
 
 def score_original_trios():
     for entry in os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files"):
-        if entry.is_file():
+        if entry.is_file() and entry.name in ["L19-2373.ped", "L10-0580.ped", "L19-0961.ped"]:
             print(f"working on family {entry.name}")
             subprocess.run(shlex.split(
                 "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
-                f"score_vcf -v /home/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered "
+                f"score_vcf -v /home/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered.AC_filtered.recode.vcf "
                 f"-p {entry.path} "
                 f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                 f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
@@ -84,6 +84,22 @@ def score_original_trios():
                 f"-dbed "
                 #f"-ssli"
                ))
+    """for entry in os.scandir("/home/johann/trio_scoring_results/varvis_trios/rescore_2/"):
+        if entry.is_file():
+            family_id = entry.name.split(".")[0]
+            print(f"working on family {entry.name}")
+            subprocess.run(shlex.split(
+                "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
+                f"score_vcf -v /home/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered "
+                f"-p /home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files/{family_id}.ped "
+                f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
+                f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
+                f"-o /home/johann/trio_scoring_results/varvis_trios/{entry.name} "
+                f"-a GRCh37 "
+                f"-s /home/johann/tools/slivar/slivar "
+                f"-dbed "
+                #f"-ssli"
+               ))"""
 
 
 def get_ids(family_id, ped_directory="/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files/"):

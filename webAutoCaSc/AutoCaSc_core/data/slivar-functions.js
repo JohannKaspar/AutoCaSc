@@ -1,4 +1,4 @@
-var config = {min_GQ: 20, min_AB: 0.20, min_DP: 0}
+var config = {min_GQ: 20, min_AB: 0.20, min_DP: 10}
 // hi quality variants
 function hq(kid, mom, dad) {
   return hq1(kid) && hq1(mom) && hq1(dad)
@@ -63,6 +63,12 @@ function comphet_side(kid, mom, dad) {
 // assume that mom and kid are affected.
 function fake_auto_dom(kid, mom, dad) {
   return kid.het && mom.het && dad.hom_ref && hq(mom, dad, kid)
+}
+
+function trio_autosomal_dominant(kid, dad, mom) {
+  // affected samples must be het.
+  if(!(kid.affected == (kid.alts == 1) && mom.affected == (mom.alts == 1) && dad.affected == (dad.alts == 1))) { return false; }
+  return kid.affected && hiqual(kid, dad, mom)
 }
 
 

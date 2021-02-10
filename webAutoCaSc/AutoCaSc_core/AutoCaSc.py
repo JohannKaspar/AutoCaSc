@@ -1,3 +1,4 @@
+import os
 import pickle
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ import requests
 from numpy import isnan, poly1d, product
 from gnomAD import GnomADQuery
 from tools import safe_get, filterTheDict, get_seq_difference
+import random
 
 # from gnomAD import GnomADQuery
 # from tools import safe_get, filterTheDict
@@ -125,6 +127,7 @@ class AutoCaSc:
         self.mgi_score = None
         self.virlof_ar_enrichment = None
         self.ref_seq = None
+        self.filter_pass = True
 
         if version == "current":
             self.version = "v3"
@@ -295,15 +298,33 @@ class AutoCaSc:
                 response_decoded = None
                 self.status_code = 400
 
+            if self.status_code == 200:
+                try:
+                    if not os.path.isdir(
+                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep"):
+                        if not os.path.isdir(
+                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
+                            os.mkdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
+                        os.mkdir(
+                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep")
+                except FileExistsError:
+                    pass
+                num_entries = len(list(os.scandir(
+                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep")))
+                with open(
+                        f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep/{num_entries}.pickle",
+                        "wb") as pickle_file:
+                    pickle.dump(self.vep_requests, pickle_file)
+
         if self.status_code == 200:
-            try:
+            """try:
                 with open(
                         f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
                         "wb") as vep_requests_file:
                     self.vep_requests[self.variant] = response_decoded
                     pickle.dump(self.vep_requests, vep_requests_file)
             except (FileNotFoundError, UnboundLocalError):
-                pass
+                pass"""
 
             transcript_index = self.get_transcript_index(response_decoded)
             # get the index of the transcript to consider for further annotations
@@ -980,8 +1001,8 @@ class AutoCaSc:
                 self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD  -->    2"
             else:
                 self.frequency_score = 0
-                self.explanation_dict["frequency"] = "X linked and at least one hemizygote in gnomad"
-
+                self.explanation_dict["frequency"] = "X linked and at least once hemizygous in gnomad"
+                self.filter_pass = False
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command

@@ -1,3 +1,6 @@
+import os
+import random
+
 import requests
 import time
 
@@ -218,14 +221,25 @@ class GnomADQuery:
                                 return not_in_gnomad_dict, status_code
                         except (AttributeError, TypeError, IndexError):
                             print("Could not retrieve Error Code from gnomAD Server response!")
-
             try:
+                if not os.path.isdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad"):
+                    if not os.path.isdir(
+                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
+                        os.mkdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
+                    os.mkdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")
+            except FileExistsError:
+                pass
+            num_entries = len(list(os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")))
+            with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad/{num_entries}.pickle", "wb") as pickle_file:
+                pickle.dump(self.gnomad_requests, pickle_file)
+
+            """try:
                 with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gnomad_requests_{self.assembly}",
                           "wb") as gnomad_requests_file:
                     self.gnomad_requests[self.variant] = result_dict
                     pickle.dump(self.gnomad_requests, gnomad_requests_file)
             except FileNotFoundError:
-                pass
+                pass"""
 
             return result_dict, status_code
 
