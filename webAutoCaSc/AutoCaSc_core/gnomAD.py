@@ -156,16 +156,16 @@ class GnomADQuery:
 
 
     # requests and returns gnomAD gene information
-    def get_gnomad_info(self):
+    def get_gnomad_info(self): #todo add webmode
         self.gnomad_requests = {}
-        try:
-            self.open_pickle_file()
-            if self.gnomad_requests.get(self.variant):
-                r = self.gnomad_requests.get(self.variant)
-                if r is not None:
-                    return r, 200
-        except pickle.UnpicklingError:
-            print("could not open gnomad pickle")
+        # try:
+        #     self.open_pickle_file()
+        #     if self.gnomad_requests.get(self.variant):
+        #         r = self.gnomad_requests.get(self.variant)
+        #         if r is not None:
+        #             return r, 200
+        # except pickle.UnpicklingError:
+        #     print("could not open gnomad pickle")
 
         try:
             r = self.gnomad_sparql_request()
