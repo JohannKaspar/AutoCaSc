@@ -1,4 +1,5 @@
 import copy
+import re
 import time
 
 import dash
@@ -317,12 +318,17 @@ def get_tab_card(active_tab, results_memory):
         variants = list(results_memory.get("instances").keys())
         candidate_scores = [results_memory.get("instances").get(_variant).get("candidate_score_v1")
                             for _variant in variants]
+        hgvs_strings = [f"{results_memory.get('instances').get(_variant).get('gene_symbol')}:" \
+                        f"{results_memory.get('instances').get(_variant).get('hgvsc_change')} " \
+                        f"{results_memory.get('instances').get(_variant).get('hgvsp_change') or ''}"
+                            for _variant in variants]
         tab_card_content = [
             html.H3("Overview on variants"),
             dbc.Table.from_dataframe(pd.DataFrame(
                 {
                     "Variant": variants,
-                    "Candidate Score": candidate_scores
+                    "Candidate Score": candidate_scores,
+                    "HGVS": hgvs_strings,
                 }),
                 striped=True,
                 bordered=True,
@@ -335,20 +341,22 @@ def get_tab_card(active_tab, results_memory):
         _variant = list(results_memory.get("instances").keys())[tab_num]
         _instance_attributes = results_memory.get("instances").get(_variant)
 
-        parameters = {
-            "cadd_phred": "CADD phred",
-            "oe_lof_interval": "o/e LoF",
-            "oe_mis_interval": "o/e mis",
-            "ac_hom": "gnomAD homozygous count",  # todo show gnomad hemi only when X
-            "n_hemi": "gnomAD hemizygous count",
-            "gerp_rs_rankscore": "GERP++ RS"
-        }
         scoring_results = {
             "inheritance_score": "Inheritance",
             "gene_attribute_score": "Gene Attributes",
             "variant_score": "Variant Attributes",
             "literature_score": "Literature Plausibility",
             #"candidate_score_v1": "Sum"
+        }
+
+        parameters = {
+            "impact": "Impact",
+            "cadd_phred": "CADD phred",
+            "oe_lof_interval": "o/e LoF",
+            "oe_mis_interval": "o/e mis",
+            "ac_hom": "gnomAD homozygous count",  # todo show gnomad hemi only when X
+            "n_hemi": "gnomAD hemizygous count",
+            "gerp_rs_rankscore": "GERP++ RS"
         }
 
         cell_style = {
@@ -422,8 +430,15 @@ def get_tab_card(active_tab, results_memory):
             html.Br(),
             dbc.Row(
                 [
-                    dbc.Col(dcc.Markdown(f"**Gene symbol:** {_instance_attributes.get('gene_symbol')}\n")),
+                    dbc.Col(dcc.Markdown(f"**Gene symbol:** {_instance_attributes.get('gene_symbol')}")),
                     dbc.Col(dcc.Markdown(f"**Transcript:** {_instance_attributes.get('transcript')}"))
+                ],
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(dcc.Markdown(f"**HGVS:** {_instance_attributes.get('hgvsc_change')} "
+                                         f"{_instance_attributes.get('hgvsp_change') or ''}")),
+                    dbc.Col(dcc.Markdown(f"**VCF:** {_instance_attributes.get('vcf_string')}"))
                 ],
             ),
             # html.Br(),
@@ -463,26 +478,28 @@ def score_variants(instances, inheritance):
     if not inheritance == "comphet":
         for _instance in instances:
             _instance.inheritance = inheritance
-            _instance.calculate_candidate_score()
+            if _instance.__dict__.get("status_code") == 200:
+                _instance.calculate_candidate_score()
     else:
         variant_gene_df = pd.DataFrame()
         for i, _instance in enumerate(instances):
             _instance.inheritance = inheritance
-            variant_gene_df.loc[i, "variant"] = _instance.__dict__.get("variant")
-            variant_gene_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
-            variant_gene_df.loc[i, "instance"] = _instance
+            if _instance.__dict__.get("status_code") == 200:
+                variant_gene_df.loc[i, "variant"] = _instance.__dict__.get("variant")
+                variant_gene_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
+                variant_gene_df.loc[i, "instance"] = _instance
 
         instances = []
         for _gene in variant_gene_df.gene_symbol.unique():
             df_chunk = variant_gene_df.loc[variant_gene_df.gene_symbol == _gene].reset_index(drop=True)
             if len(df_chunk) != 2:
                 raise IOError(f"combination of comphet variants unclear for {_gene}")
+                #todo error output when corresponding comphet variant not found
             for i in range(2):
                 _instance = copy.deepcopy(df_chunk.loc[abs(1-i), "instance"])
                 _instance.other_autocasc_obj = df_chunk.loc[abs(0-i), "instance"]
                 _instance.calculate_candidate_score()
                 instances.append(_instance)
-
     return instances
 
 # @app.callback(
@@ -499,18 +516,7 @@ def score_variants(instances, inheritance):
 #         instances = score_variants(instances)
 #         return {"result": "nice"}
 
-@app.callback(
-    Output("results_memory", "data"),
-    [Input("variant_memory", "data")],
-    [State("query_memory", "data")]
-)
-def get_results(variant_memory, query_memory):
-    if variant_memory is not None and query_memory is not None:
-        inheritance = query_memory.get("inheritance")
-        instances = dict_to_instances(variant_memory)
-        instances = score_variants(instances, inheritance)
-        return store_instances(instances)
-    raise PreventUpdate
+
 
 
 # "#spinner
@@ -532,18 +538,50 @@ def get_results(variant_memory, query_memory):
 def display_page(pathname, results_memory):
     #todo add possibility to directly enter variants in url
     ctx = dash.callback_context
-    if "pathname" in ctx.triggered[0]['prop_id']:
+
+    if "pathname" in ctx.triggered[0]['prop_id'] and results_memory is None:
         if pathname == "/about":
             return about_page
         if pathname == "/results":
             if results_memory is not None: #return empty site just in case
                 raise PreventUpdate
         if "/search" in pathname:
+            print("search page")
             return search_page
         else:
             return landing_page
     else:
+        print("results page")
         return get_results_page(results_memory)
+
+@app.callback(
+    Output("query_memory", "data"),
+    Input("url", "pathname")
+)
+def interpret_url(pathname):
+    if "search" in pathname:
+        inheritance = unquote(pathname).split("inheritance=")[-1].split("/")[0]
+        query_data = {}
+        query_data["inheritance"] = inheritance
+        return query_data
+    raise PreventUpdate
+
+@app.callback(
+    Output("results_memory", "data"),
+    Input("variant_memory", "data"),
+    Input("query_memory", "data")
+)
+def get_results(variant_memory, query_memory):
+    ctx = dash.callback_context
+    inheritance = query_memory.get("inheritance")
+
+    if variant_memory is not None and inheritance is not None:
+        instances = dict_to_instances(variant_memory)
+        instances = score_variants(instances, inheritance)
+        # time.sleep(2.)
+        print("variants scored")
+        return store_instances(instances)
+    raise PreventUpdate
 
 
 @app.callback(
@@ -625,8 +663,7 @@ def retrieve_variant_data(variant_queue, variant_memory):
 
 @app.callback(
     [Output("url", "pathname"),
-     Output("check_for_data_interval", "disabled"),
-     Output("query_memory", "data")],
+     Output("check_for_data_interval", "disabled")],
     [Input("search_button", "n_clicks")],
     [State("variant_queue", "data"),
      State("inheritance_input", "value")]
@@ -635,22 +672,11 @@ def search_button_click(n_clicks, variant_queue, inheritance):
     if not n_clicks is None and not variant_queue is None and not inheritance is None:
         variants = [variant_queue.get("instances").get(_key).get("variant") for _key in variant_queue.get("instances").keys()]
         url_suffix = quote(f"/search/inheritance={inheritance}/variants={'%'.join(variants)}")
-
-        query_data = {}
-        query_data["inheritance"] = inheritance
-        spinner = dbc.Spinner(
-                                html.Div(id="loading_output"),
-                                fullscreen=True,
-                                spinner_style={
-                                    "visibility": "hidden"
-                                }
-                            )
-
-        return url_suffix, False, query_data
+        return url_suffix, False
     else:
         raise PreventUpdate
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False,
+    app.run_server(debug=True,
                    dev_tools_hot_reload=False)

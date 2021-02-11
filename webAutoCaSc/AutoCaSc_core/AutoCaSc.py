@@ -139,6 +139,7 @@ class AutoCaSc:
 
 
     def retrieve_data(self):
+        self.data_retrieved = True
         start = time.time()
         self.get_vep_data()  # this method call initiates the annotation of the given variant
         end = time.time()
@@ -150,7 +151,6 @@ class AutoCaSc:
             self.get_gnomad_counts()  # gets allele counts in gnomad
             end = time.time()
             print(f"gnomad execution time {end - start}")
-            self.data_retrieved = True
             if self.other_variant:
                 self.other_autocasc_obj = AutoCaSc(variant=self.other_variant,
                                                    inheritance=self.inheritance,
@@ -295,14 +295,15 @@ class AutoCaSc:
                 self.status_code = 400
 
         if self.status_code == 200:
-            try:
-                with open(
-                        f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
-                        "wb") as vep_requests_file:
-                    self.vep_requests[self.variant] = response_decoded
-                    pickle.dump(self.vep_requests, vep_requests_file)
-            except (FileNotFoundError, UnboundLocalError):
-                pass
+            if self.mode != "web":
+                try:
+                    with open(
+                            f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
+                            "wb") as vep_requests_file:
+                        self.vep_requests[self.variant] = response_decoded
+                        pickle.dump(self.vep_requests, vep_requests_file)
+                except (FileNotFoundError, UnboundLocalError):
+                    pass
 
             transcript_index = self.get_transcript_index(response_decoded)
             # get the index of the transcript to consider for further annotations
@@ -589,12 +590,15 @@ class AutoCaSc:
 
     def score_dominant(self):
         if self.inheritance == "de_novo":
-            if self.allele_count == 0:
-                self.factors.append((1, "denovo and not in gnomad"))
-            elif self.allele_count == 1:
-                self.factors.append((0.9, "denovo and once in gnomad"))
-            else:
-                self.factors.append((0, "denovo and multiple times in gnomad"))
+            try:
+                if self.allele_count == 0:
+                    self.factors.append((1, "denovo and not in gnomad"))
+                elif self.allele_count == 1:
+                    self.factors.append((0.9, "denovo and once in gnomad"))
+                else:
+                    self.factors.append((0, "denovo and multiple times in gnomad"))
+            except AttributeError:
+                pass
         elif self.inheritance == "unknown":
             if self.allele_count == 0:
                 self.factors.append((0.9, "inheritance unknown and not in gnomad"))
@@ -1155,3 +1159,5 @@ if __name__ == "__main__":
 
 
 # homo: NM_001199266.1:c.132_134del
+
+# 2:46803383:G:A, 1:3732936:T:C
