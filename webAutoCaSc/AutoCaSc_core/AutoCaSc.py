@@ -15,7 +15,8 @@ import pandas as pd
 import requests
 from numpy import isnan, poly1d, product
 from gnomAD import GnomADQuery
-from tools import safe_get, filterTheDict
+from tools import safe_get, filterTheDict, get_seq_difference
+import random
 
 # from gnomAD import GnomADQuery
 # from tools import safe_get, filterTheDict
@@ -125,6 +126,7 @@ class AutoCaSc:
         self.mgi_score = None
         self.virlof_ar_enrichment = None
         self.ref_seq = None
+        self.filter_pass = True
 
         if version == "current":
             self.version = "v3"
@@ -267,7 +269,8 @@ class AutoCaSc:
            wait=wait_random(0.1, 2))
     def open_pickle_file(self):
         self.vep_requests = {}
-        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}", "rb") as vep_requests_file:
+        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
+                  "rb") as vep_requests_file:
             self.vep_requests = pickle.load(vep_requests_file)
 
 
@@ -294,17 +297,26 @@ class AutoCaSc:
                 response_decoded = None
                 self.status_code = 400
 
-        if self.status_code == 200:
-            if self.mode != "web":
-                try:
+            if self.status_code == 200:
+                if self.mode != "web":
+                    try:
+                        if not os.path.isdir(
+                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep"):
+                            if not os.path.isdir(
+                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
+                                os.mkdir(
+                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
+                            os.mkdir(
+                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep")
+                    except FileExistsError:
+                        pass
+                    num_entries = len(list(os.scandir(
+                        "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep")))
                     with open(
-                            f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
-                            "wb") as vep_requests_file:
-                        self.vep_requests[self.variant] = response_decoded
-                        pickle.dump(self.vep_requests, vep_requests_file)
-                except (FileNotFoundError, UnboundLocalError):
-                    pass
-
+                            f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep/{num_entries}.pickle",
+                            "wb") as pickle_file:
+                        pickle.dump(self.vep_requests, pickle_file)
+        if self.status_code == 200:
             transcript_index = self.get_transcript_index(response_decoded)
             # get the index of the transcript to consider for further annotations
             if self.status_code == 200:
@@ -329,6 +341,7 @@ class AutoCaSc:
             self.id = re.sub(r"[^a-zA-Z^0-9-]", ":", variant_anno_data.get("id"))
             # extracts reference sequence from variant id in vcf format
             self.ref_seq_vep = safe_get(self.id.split(":"), 2)
+            self.alt_seq_vep = safe_get(self.id.split(":"), 3)
         else:
             self.id = variant_anno_data.get("id")
         if self.ref_seq is None:
@@ -402,10 +415,12 @@ class AutoCaSc:
                 self.maxentscan_consequence = "splicing not affected"
 
         # checks if reference sequences match and returns result dictionary and status code accordingly
-        if self.ref_seq is not None:
-            if self.ref_seq_vep is not None:
-                if self.ref_seq_vep != self.ref_seq:
-                    self.status_code = 201
+        if any([x == None for x in [self.ref_seq, self.ref_seq_vep, self.alt_seq, self.alt_seq_vep]]):
+            pass
+        else:
+            if not get_seq_difference(self.ref_seq, self.alt_seq) == get_seq_difference(self.ref_seq_vep,
+                                                                                            self.alt_seq_vep):
+                self.status_code = 201
 
     # gets variant frequency in gnomAD exomes and minor allele frequency
     def get_frequencies(self, colocated_variants):
@@ -590,15 +605,12 @@ class AutoCaSc:
 
     def score_dominant(self):
         if self.inheritance == "de_novo":
-            try:
-                if self.allele_count == 0:
-                    self.factors.append((1, "denovo and not in gnomad"))
-                elif self.allele_count == 1:
-                    self.factors.append((0.9, "denovo and once in gnomad"))
-                else:
-                    self.factors.append((0, "denovo and multiple times in gnomad"))
-            except AttributeError:
-                pass
+            if self.allele_count == 0:
+                self.factors.append((1, "denovo and not in gnomad"))
+            elif self.allele_count == 1:
+                self.factors.append((0.9, "denovo and once in gnomad"))
+            else:
+                self.factors.append((0, "denovo and multiple times in gnomad"))
         elif self.inheritance == "unknown":
             if self.allele_count == 0:
                 self.factors.append((0.9, "inheritance unknown and not in gnomad"))
@@ -701,6 +713,9 @@ class AutoCaSc:
         return loeuf_score
 
     def get_Z_factor(self):
+        if self.mis_z is None:
+            self.z_score = 0
+            return 0
         if self.mis_z <= 0.:
             z_score = 0.
         elif self.mis_z >= 3.09:
@@ -976,8 +991,8 @@ class AutoCaSc:
                 self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD  -->    2"
             else:
                 self.frequency_score = 0
-                self.explanation_dict["frequency"] = "X linked and at least one hemizygote in gnomad"
-
+                self.explanation_dict["frequency"] = "X linked and at least once hemizygous in gnomad"
+                self.filter_pass = False
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
