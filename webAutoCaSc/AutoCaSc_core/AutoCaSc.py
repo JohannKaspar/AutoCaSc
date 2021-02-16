@@ -1,3 +1,4 @@
+import os
 import pickle
 import sys
 from pathlib import Path
@@ -16,10 +17,7 @@ import requests
 from numpy import isnan, poly1d, product
 from gnomAD import GnomADQuery
 from tools import safe_get, filterTheDict, get_seq_difference
-import random
 
-# from gnomAD import GnomADQuery
-# from tools import safe_get, filterTheDict
 
 AUTOCASC_VERSION = 0.96
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
@@ -240,8 +238,8 @@ class AutoCaSc:
             self.status_code = 401
 
     @retry(reraise=True,
-           stop=stop_after_attempt(25),
-           wait=wait_exponential(multiplier=1.3, min=0.1, max=3))
+           stop=stop_after_attempt(10),
+           wait=wait_exponential(multiplier=1.3, min=0.1, max=2))
     def vep_api_request(self):
         """General function for handling API communication.
         Return obtained data as a dict.
@@ -280,7 +278,6 @@ class AutoCaSc:
         :return:
         """
         response_decoded = None
-
         if self.mode != "web":
             try:
                 self.open_pickle_file()
@@ -336,83 +333,17 @@ class AutoCaSc:
 
         if variant_anno_data.get("vcf_string") is not None:
             self.vcf_string = re.sub(r"-", ":", variant_anno_data.get("vcf_string"))
+            # extracts reference sequence from variant id in vcf format
+            self.ref_seq_vep = safe_get(self.vcf_string.split(":"), 2)
+            self.alt_seq_vep = safe_get(self.vcf_string.split(":"), 3)
         if self.variant_format == "vcf":
             # formats given variant into VCF format
             self.id = re.sub(r"[^a-zA-Z^0-9-]", ":", variant_anno_data.get("id"))
-            # extracts reference sequence from variant id in vcf format
-            self.ref_seq_vep = safe_get(self.id.split(":"), 2)
-            self.alt_seq_vep = safe_get(self.id.split(":"), 3)
         else:
             self.id = variant_anno_data.get("id")
         if self.ref_seq is None:
             self.ref_seq = variant_anno_data.get("vcf_string").split("-")[2]
             self.alt_seq = variant_anno_data.get("vcf_string").split("-")[3]
-
-        # gets varint gnomad exome frequency and MAF
-        self.gnomad_frequency, self.maf = self.get_frequencies(variant_anno_data.get("colocated_variants"))
-
-        # This list of parameters is assigned to corresponding class attributes.
-        key_list = ["gene_symbol",
-                    "amino_acids",
-                    "gene_id",
-                    "cadd_phred",
-                    "sift_converted_rankscore",
-                    "mutationtaster_converted_rankscore",
-                    "mutationassessor_rankscore",
-                    "ada_score",
-                    "rf_score",
-                    "maxentscan_ref",
-                    "maxentscan_alt"]
-
-        for key in key_list:
-            if selected_transcript_consequences.get(key) is not None:
-                value = selected_transcript_consequences.get(key)
-                if isinstance(value, float):
-                    self.__dict__[key] = round(selected_transcript_consequences.get(key), 2)
-                else:
-                    self.__dict__[key] = selected_transcript_consequences.get(key)
-
-        if selected_transcript_consequences.get("impact") is not None:
-            self.impact = selected_transcript_consequences.get("impact").lower()
-
-        if selected_transcript_consequences.get("gerp++_rs_rankscore") is not None:
-            self.gerp_rs_rankscore = round(selected_transcript_consequences.get("gerp++_rs_rankscore"), 2)
-
-        if selected_transcript_consequences.get("consequence_terms") is not None:
-            self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
-        if selected_transcript_consequences.get("hgvsc") is not None:
-            self.transcript = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 0) or \
-                              selected_transcript_consequences.get("transcript_id")
-            self.hgvsc_change = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 1)
-        if selected_transcript_consequences.get("consequence_terms") is not None:
-            self.consequence = re.sub(r"_", " ", safe_get(selected_transcript_consequences.get("consequence_terms"), 0))
-
-        if selected_transcript_consequences.get("hgvsp") is not None:
-            self.protein = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 0)
-            self.hgvsp_change = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 1)
-
-        if selected_transcript_consequences.get("polyphen_prediction") is not None:
-            self.polyphen_prediction = re.sub(r"_", " ", selected_transcript_consequences.get("polyphen_prediction"))
-
-        # cutoffs correspond to Leipzig guidelines (Alamut)
-        if self.ada_score is not None:
-            if self.ada_score >= 0.6:
-                self.ada_consequence = "splicing affected"
-            else:
-                self.ada_consequence = "splicing not affected"
-
-        if self.rf_score is not None:
-            if self.rf_score >= 0.6:
-                self.rf_consequence = "splicing affected"
-            else:
-                self.rf_consequence = "splicing not affected"
-
-        if self.maxentscan_ref is not None and self.maxentscan_alt is not None:
-            self.maxentscan_decrease = (self.maxentscan_alt - self.maxentscan_ref) / self.maxentscan_ref
-            if self.maxentscan_decrease <= -0.15:
-                self.maxentscan_consequence = "splicing affected"
-            else:
-                self.maxentscan_consequence = "splicing not affected"
 
         # checks if reference sequences match and returns result dictionary and status code accordingly
         if any([x == None for x in [self.ref_seq, self.ref_seq_vep, self.alt_seq, self.alt_seq_vep]]):
@@ -421,6 +352,73 @@ class AutoCaSc:
             if not get_seq_difference(self.ref_seq, self.alt_seq) == get_seq_difference(self.ref_seq_vep,
                                                                                             self.alt_seq_vep):
                 self.status_code = 201
+            else:
+                # gets varint gnomad exome frequency and MAF
+                self.gnomad_frequency, self.maf = self.get_frequencies(variant_anno_data.get("colocated_variants"))
+
+                # This list of parameters is assigned to corresponding class attributes.
+                key_list = ["gene_symbol",
+                            "amino_acids",
+                            "gene_id",
+                            "cadd_phred",
+                            "sift_converted_rankscore",
+                            "mutationtaster_converted_rankscore",
+                            "mutationassessor_rankscore",
+                            "ada_score",
+                            "rf_score",
+                            "maxentscan_ref",
+                            "maxentscan_alt"]
+
+                for key in key_list:
+                    if selected_transcript_consequences.get(key) is not None:
+                        value = selected_transcript_consequences.get(key)
+                        if isinstance(value, float):
+                            self.__dict__[key] = round(selected_transcript_consequences.get(key), 2)
+                        else:
+                            self.__dict__[key] = selected_transcript_consequences.get(key)
+
+                if selected_transcript_consequences.get("impact") is not None:
+                    self.impact = selected_transcript_consequences.get("impact").lower()
+
+                if selected_transcript_consequences.get("gerp++_rs_rankscore") is not None:
+                    self.gerp_rs_rankscore = round(selected_transcript_consequences.get("gerp++_rs_rankscore"), 2)
+
+                if selected_transcript_consequences.get("consequence_terms") is not None:
+                    self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
+                if selected_transcript_consequences.get("hgvsc") is not None:
+                    self.transcript = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 0) or \
+                                      selected_transcript_consequences.get("transcript_id")
+                    self.hgvsc_change = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 1)
+                if selected_transcript_consequences.get("consequence_terms") is not None:
+                    self.consequence = re.sub(r"_", " ", safe_get(selected_transcript_consequences.get("consequence_terms"), 0))
+
+                if selected_transcript_consequences.get("hgvsp") is not None:
+                    self.protein = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 0)
+                    self.hgvsp_change = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 1)
+
+                if selected_transcript_consequences.get("polyphen_prediction") is not None:
+                    self.polyphen_prediction = re.sub(r"_", " ", selected_transcript_consequences.get("polyphen_prediction"))
+
+                # cutoffs correspond to Leipzig guidelines (Alamut)
+                if self.ada_score is not None:
+                    if self.ada_score >= 0.6:
+                        self.ada_consequence = "splicing affected"
+                    else:
+                        self.ada_consequence = "splicing not affected"
+
+                if self.rf_score is not None:
+                    if self.rf_score >= 0.6:
+                        self.rf_consequence = "splicing affected"
+                    else:
+                        self.rf_consequence = "splicing not affected"
+
+                if self.maxentscan_ref is not None and self.maxentscan_alt is not None:
+                    self.maxentscan_decrease = (self.maxentscan_alt - self.maxentscan_ref) / self.maxentscan_ref
+                    if self.maxentscan_decrease <= -0.15:
+                        self.maxentscan_consequence = "splicing affected"
+                    else:
+                        self.maxentscan_consequence = "splicing not affected"
+
 
     # gets variant frequency in gnomAD exomes and minor allele frequency
     def get_frequencies(self, colocated_variants):
