@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ef0747431ff293477228adb5bdeaef62697411dd833ed38b52b2e2de2d56920b"
+            "sha256": "a2bc0ff001361e21bdc5988fd514abcdb83b18ee9d88de70fb5092cd1d0aba2f"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -16,13 +16,6 @@
         ]
     },
     "default": {
-        "bgzip": {
-            "hashes": [
-                "sha256:00cdb175f6c2e379a04898c89858492b5db3df4f9d6a285e7068e882c8128ef8"
-            ],
-            "index": "pypi",
-            "version": "==0.3.5"
-        },
         "brotli": {
             "hashes": [
                 "sha256:160c78292e98d21e73a4cc7f76a234390e516afcd982fa17e1422f7c6a9ce9c8",
@@ -89,6 +82,14 @@
             ],
             "index": "pypi",
             "version": "==1.18.1"
+        },
+        "dash-bootstrap-components": {
+            "hashes": [
+                "sha256:3279208eb41503fbe3dc0c42cf92b2abd65c515223069fb6d4061cd205bba765",
+                "sha256:db7e7d5b1031073d088785295a56efdd515af14a9f485504b804af66a8098072"
+            ],
+            "index": "pypi",
+            "version": "==0.11.3"
         },
         "dash-core-components": {
             "hashes": [
@@ -437,6 +438,13 @@
         }
     },
     "develop": {
+        "bgzip": {
+            "hashes": [
+                "sha256:00cdb175f6c2e379a04898c89858492b5db3df4f9d6a285e7068e882c8128ef8"
+            ],
+            "index": "pypi",
+            "version": "==0.3.5"
+        },
         "cycler": {
             "hashes": [
                 "sha256:1d8a5ae1ff6c5cf9b93e8811e581232ad8920aeec647c37316ceac982b08cb2d",

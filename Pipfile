@@ -9,6 +9,7 @@ matplotlib = "*"
 psutil = "*"
 ptitprince = "*"
 xlrd = "==1.2.0"
+bgzip = "*"
 
 [packages]
 click = "*"
@@ -27,7 +28,7 @@ tenacity = "*"
 urllib3 = "*"
 uwsgi = "*"
 flask = "*"
-bgzip = "*"
+dash-bootstrap-components = "*"
 
 [requires]
 python_version = "3.8"
