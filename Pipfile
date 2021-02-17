@@ -29,6 +29,7 @@ urllib3 = "*"
 uwsgi = "*"
 flask = "*"
 dash-bootstrap-components = "*"
+dash-extensions = "*"
 
 [requires]
 python_version = "3.8"

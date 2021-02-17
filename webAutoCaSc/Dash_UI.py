@@ -1,5 +1,7 @@
 import copy
+import io
 import os
+import tempfile
 
 from flask import Flask, send_file
 
@@ -12,6 +14,8 @@ from dash.exceptions import PreventUpdate
 from urllib.parse import unquote, quote
 import pandas as pd
 from AutoCaSc_core.AutoCaSc import AutoCaSc, AUTOCASC_VERSION
+from dash_extensions import Download
+from dash_extensions.snippets import send_data_frame
 
 server = Flask(__name__)
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -24,6 +28,7 @@ url_bar_and_content_div = html.Div([
     dcc.Store(id="variant_queue"),
     dcc.Store(id="variant_memory"),
     dcc.Store(id="results_memory"),
+    Download(id="download"),
     html.Div(id='page-content',
              style={"width":"100%",
                     "color": "#000000"})
@@ -62,7 +67,7 @@ navbar = dbc.Navbar(
                     [
                         dbc.Col(dbc.NavLink("About", href='/about'),
                                 width="auto"),
-                        dbc.Col(dbc.NavLink("another link", href='/about'),
+                        dbc.Col(dbc.NavLink("Home", href='/'),
                                 width="auto"),
                         # dbc.Col(
                         #     dbc.Input(type="search", placeholder="Search variant")
@@ -84,7 +89,6 @@ navbar = dbc.Navbar(
                 navbar=True,
             )
         ],
-    fluid=True
     ),
     color="dark",
     dark=True,
@@ -193,10 +197,11 @@ about_page = html.Div([
     navbar,
     dbc.Container(
         [
+            html.Br(),
             html.H2("About"),
             html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
             html.Br(),
-            html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de in case you have further questions.")
+            html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
         ]
     )
     ])
@@ -251,7 +256,7 @@ app.validation_layout = html.Div([
     landing_page,
     search_page,
     results_page_clear,
-    #results_page
+    dbc.Button(id="download_button"),
     html.Div([
             navbar,
             dbc.Container([
@@ -306,15 +311,32 @@ def get_results_page(results_memory): #todo add error handling
 
         results_page = html.Div([
             navbar,
+            html.Br(),
             dbc.Container([
                 dbc.Card([
                     dbc.CardHeader(
-                        dbc.Tabs(
-                            tab_list,
-                            id="card_tabs",
-                            card=True,
-                            active_tab=initial_tab
-                        )
+                        dbc.Row(
+                            [
+                                dbc.Tabs(
+                                    tab_list,
+                                    id="card_tabs",
+                                    card=True,
+                                    active_tab=initial_tab,
+                                    # style={
+                                    #     "margin-bottom": "0px !important"
+                                    # }
+                                ),
+
+                            ],
+                            className="align-items-baseline",
+                            style={
+                                "padding-bottom": "0 !important",
+                                "margin-bottom": "0 !important",
+                                "padding-left": "10px",
+                                "padding-right": "10px",
+                            },
+                            justify="between",
+                        ),
                     ),
                     dbc.CardBody(
                         html.P(id="card_content", className="card_text")
@@ -425,9 +447,10 @@ def interpret_url(pathname):
 @app.callback(
     Output("card_content", "children"),
     [Input("card_tabs", "active_tab")],
-    [State("results_memory", "data")]
+    [State("results_memory", "data")],
+    State("card_content", "children")
 )
-def get_tab_card(active_tab, results_memory):
+def get_tab_card(active_tab, results_memory, old_card):
     cell_style = {
         "padding": "5px",
         "padding-left": "12px"
@@ -443,7 +466,8 @@ def get_tab_card(active_tab, results_memory):
             )
         )
         overview_table_rows = []
-        for _variant in results_memory.get("instances").keys():
+        tooltips = []
+        for i, _variant in enumerate(results_memory.get("instances").keys()):
             _instance_attributes = results_memory.get('instances').get(_variant)
             if _instance_attributes.get("gene_symbol"):
                 _hgvs = _instance_attributes.get("gene_symbol")
@@ -464,11 +488,14 @@ def get_tab_card(active_tab, results_memory):
                                 style=cell_style),
                         html.Th(_instance_attributes.get("candidate_score_v1"),
                                 style=cell_style),
-                        html.Th(_hgvs,
+                        html.Th(html.P(_hgvs,
+                                       id=f"tooltip_target_{i}"),
                                 style=cell_style)
-                    ],
+                    ]
                 )
             )
+            tooltips.append(dbc.Tooltip(f"Transcript: {_instance_attributes.get('transcript')}",
+                            target=f"tooltip_target_{i}"))
         overview_table = dbc.Table(
             [
                 overview_table_header,
@@ -481,15 +508,22 @@ def get_tab_card(active_tab, results_memory):
             striped=True,
         )
         tab_card_content = [
+            html.Div(tooltips),
             dbc.Row(
                 [
                     dbc.Col(html.H3("Overview on variants")),
-                    dbc.Col(html.A("Download", href="/download/overview_table", download="")) # todo add name
-                    # dbc.Button("Download",
-                    #                    id="overview_download_button"))
-                ]
-            )
-            ,
+                    dbc.Col(dbc.Button("Download",
+                                       id="download_button",
+                                       style={
+                                           "margin-bottom": "10px",
+                                           "margin-top": "0"
+                                       }),
+                            width="auto"
+                            )
+                ],
+                justify="between",
+            ),
+            html.Br(),
             overview_table
         ]
         return tab_card_content
@@ -498,13 +532,44 @@ def get_tab_card(active_tab, results_memory):
         _variant = list(results_memory.get("instances").keys())[tab_num]
         _instance_attributes = results_memory.get("instances").get(_variant)
         status_code = _instance_attributes.get("status_code")
+
+        if len(results_memory.get("instances")) == 1:
+            card_header = dbc.Row(
+                    [
+                        dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
+                                className="col-12 col-md-6"),
+                        dbc.Col(
+                            dbc.Row(
+                                [
+                                    dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score_v1')}")),
+                                    dbc.Col(dbc.Button("Download",
+                                                       id="download_button",
+                                                       style={
+                                                           "margin-bottom": "10px",
+                                                           "margin-top": "0"
+                                                       }),
+                                            width="auto"),
+                                ],
+                            ),
+                            className="col-12 col-md-6"
+                        )
+                    ]
+                )
+        else:
+            card_header = dbc.Row(
+                [
+                    dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
+                            className="col-12 col-md-6"),
+                    dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score_v1')}"),
+                            className="col-12 col-md-6")
+                ]
+            )
         if status_code == 200:
             scoring_results = {
                 "inheritance_score": "Inheritance",
                 "gene_attribute_score": "Gene Attributes",
                 "variant_score": "Variant Attributes",
                 "literature_score": "Literature Plausibility",
-                #"candidate_score_v1": "Sum"
             }
 
             parameters = {
@@ -531,13 +596,39 @@ def get_tab_card(active_tab, results_memory):
                     html.Tr(
                         [
                             html.Th(scoring_results.get(_subscore),
+                                    id=f"{_subscore}_description",
                                     scope="row",
                                     style=cell_style),
                             html.Td(_instance_attributes.get(_subscore),
+                                    id=f"{_subscore}_explanation",
                                     style=cell_style)
                         ],
                     )
                 )
+
+            explanation_tooltips = [
+                dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('pli_z')}",
+                            target="gene_attribute_score_explanation"),
+                dbc.Tooltip(f"impact: {_instance_attributes.get('explanation_dict').get('impact')}, "
+                            f"insilico: {_instance_attributes.get('explanation_dict').get('in_silico')}, "
+                            f"conservation: {_instance_attributes.get('explanation_dict').get('conservation')}, "
+                            f"frequency: {_instance_attributes.get('explanation_dict').get('frequency')}",
+                            target="variant_score_explanation"),
+                dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('inheritance')}",
+                            target="inheritance_score_explanation")
+                # Todo literature score explanation
+            ]
+            description_tooltips = [
+                dbc.Tooltip("Points attributed for inheritance & segregation",
+                            target="inheritance_score_description"),
+                dbc.Tooltip("Points attributed for gene constraint parameters.",
+                            target="gene_attribute_score_description"),
+                dbc.Tooltip("Points attributed for insilico predictions, conservation and allele frequency",
+                            target="variant_score_description"),
+                dbc.Tooltip("Points b for data in literature databases, animal models, expression pattern, "
+                            "interaction networks",
+                            target="literature_score_description")
+            ]
 
             parameter_table_header = html.Thead(
                 html.Tr(
@@ -562,14 +653,8 @@ def get_tab_card(active_tab, results_memory):
                 )
 
             tab_card_content = [
-                dbc.Row(
-                    [
-                        dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
-                                className="col-12 col-md-6"),
-                        dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score_v1')}"),
-                                className="col-12 col-md-6")
-                    ]
-                ),
+                html.Div(description_tooltips + explanation_tooltips),
+                card_header,
                 html.Hr(),
                 dbc.Row(
                     [
@@ -735,59 +820,38 @@ def calculate_results(variant_memory, query_memory):
     raise PreventUpdate
 
 
-@server.route("/download/overview_table")
-def download():
-    test_df = pd.DataFrame()
-    test_df.loc[0, "col_1"] = "foo"
-    test_df.loc[1, "col_2"] = "bar"
-    download_temp_folder = os.path.abspath(__file__) + "/download_tmp/"
-    try:
-        os.mkdir(download_temp_folder)
-    except FileExistsError:
-        pass
-    test_df.to_csv(download_temp_folder + "test.csv")
-    return send_file(download_temp_folder + "test.csv")
-#
-# app.clientside_callback(
-#     """
-#     function placeholder(n_clicks, excel_output) {
-#         const copyToClipboard = str => {
-#             const el = document.createElement('textarea');
-#             el.value = str;
-#             el.setAttribute('readonly', '');
-#             el.style.position = 'absolute';
-#             el.style.left = '-9999px';
-#             document.body.appendChild(el);
-#             const selected =
-#             document.getSelection().rangeCount > 0 ? document.getSelection().getRangeAt(0) : false;
-#             el.select();
-#             document.execCommand('copy');
-#             document.body.removeChild(el);
-#             if (selected) {
-#             document.getSelection().removeAllRanges();
-#             document.getSelection().addRange(selected);
-#             }
-#         };
-#
-#         var userLang = navigator.language || navigator.userLanguage;
-#         var output_text = excel_output.data;
-#
-#         if (userLang.includes("de")) {
-#             output_text = output_text.replace(/\./g, ",")
-#         }
-#
-#         copyToClipboard(output_text);
-#
-#         }
-#     """,
-#     [Output("copy_button", "children")],
-#     [Input("copy_button", "n_clicks")],
-#     [State("excel_output", "data")]
-# )
+@app.callback(
+    Output("download", "data"),
+    Input("download_button", "n_clicks"),
+    State("results_memory", "data")
+)
+def download_button_click(n_cklicks, results_memory):
+    if not n_cklicks:
+        raise PreventUpdate
+    df = pd.DataFrame()
+    for i, _variant in enumerate(results_memory.get("instances").keys()):
+        _instance = results_memory.get("instances").get(_variant)
+        df.loc[i, "variant"] = _instance.get("variant")
+        df.loc[i, "gene_symbol"] = _instance.get("gene_symbol")
+        df.loc[i, "transcript"] = _instance.get("transcript")
+        df.loc[i, "hgvsc"] = _instance.get("hgvsc_change")
+        df.loc[i, "hgvsp"] = _instance.get("hgvsp_change")
+        df.loc[i, "impact"] = _instance.get("impact")
+        df.loc[i, "inheritance"] = _instance.get("inheritance")
+        df.loc[i, "candidate_score"] = _instance.get("candidate_score_v1")
+        df.loc[i, "literature_plausibility"] = _instance.get("literature_score")
+        df.loc[i, "inheritance_score"] = _instance.get("inheritance_score")
+        df.loc[i, "variant_attribute_score"] = _instance.get("variant_score")
+        df.loc[i, "gene_attribute_score"] = _instance.get("gene_attribute_score")
+
+    data = io.StringIO()
+    df.to_csv(data, sep="\t", decimal=",")
+    data.seek(0)
+    return dict(content=data.getvalue(), filename="AutoCaSc_results.tsv")
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False,
-                   dev_tools_hot_reload=False,
+    app.run_server(debug=True,
+                   dev_tools_hot_reload=True,
                    host='0.0.0.0',
                    port=5000)
