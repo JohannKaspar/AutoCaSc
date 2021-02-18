@@ -126,6 +126,8 @@ class AutoCaSc:
         self.ref_seq = None
         self.filter_pass = True
 
+        self.check_for_other_variant()
+
         if version == "current":
             self.version = "v3"
         else:
@@ -136,6 +138,11 @@ class AutoCaSc:
             self.status_code = 401
         elif not self.mode == "web":
             self.retrieve_data()
+
+
+    def check_for_other_variant(self):
+        if self.other_autocasc_obj and self.other_variant is None:
+            self.other_variant = self.other_autocasc_obj.variant
 
 
     def retrieve_data(self):
@@ -151,7 +158,7 @@ class AutoCaSc:
             self.get_gnomad_counts()  # gets allele counts in gnomad
             end = time.time()
             print(f"gnomad execution time {end - start}")
-            if self.other_variant:
+            if self.other_variant and self.other_autocasc_obj is None:
                 self.other_autocasc_obj = AutoCaSc(variant=self.other_variant,
                                                    inheritance=self.inheritance,
                                                    parent_affected=self.parent_affected,
@@ -502,6 +509,8 @@ class AutoCaSc:
             return None
 
     def calculate_candidate_score(self):
+        self.check_for_other_variant()
+
         # in order to compare the performance of all versions, all versions are calculated
         self.calculate_candidate_score_v2()
 

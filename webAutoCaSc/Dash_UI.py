@@ -20,12 +20,13 @@ from dash_extensions.snippets import send_data_frame
 server = Flask(__name__)
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
                 server=server)
-app.title = "AutoCaSc"
+app.title = "webAutoCaSc"
 
 url_bar_and_content_div = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id="query_memory"),
-    dcc.Store(id="variant_queue"),
+    dcc.Store(id="variant_queue_input"),
+    dcc.Store(id="variant_queue_url"),
     dcc.Store(id="variant_memory"),
     dcc.Store(id="results_memory"),
     Download(id="download"),
@@ -51,7 +52,7 @@ navbar = dbc.Navbar(
     dbc.Container(
         [
             html.A(
-                dbc.NavbarBrand("AutoCaSc",
+                dbc.NavbarBrand("webAutoCaSc",
                                 style={
                                     "font-size": "1.8em"
                                 }),
@@ -279,11 +280,8 @@ app.validation_layout = html.Div([
 
 ########## FRONTEND ##########
 # basic string_formatting and initiating AutoCaSc intsances in order to check if input is ok
-def parse_input_to_instances(input):
-    variants = [input.split(",")[i].strip() for i in range(len(input.split(",")))]
-    instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
-    return instances
-
+def parse_input(input):
+    return [input.split(",")[i].strip() for i in range(len(input.split(",")))]
 
 def get_display_variant(_variant, n_chars=25):
     if len(_variant) < (n_chars + 5):
@@ -354,14 +352,30 @@ def input_ok(instances):
     return True
 
 
-def get_badge(status_code):
+def get_error(error_code):
+    error_dict = {
+        201: ("Error: The reference sequence does not match GRCh37!", "warning"),
+        301: ("Error: Could not identify the corresponding compound heterozygous variant!", "danger"),
+        400: ("Error: Could not process variant. Please try VCF annotation or HGVS annotation using HGNC gene symbol!",
+              "danger"),
+        496: ("Error: The alternative sequence matches the GRCh37 reference sequence!", "danger"),
+        498: ("Error: You have entered an intergenic variant.", "danger")
+    }
+    return error_dict.get(error_code) or (f"Some error occured. Code {error_code}", "warning")
+
+
+def get_badge(status_code, i=None):
     if status_code == 200:
         return None
-    if status_code in [498, 496, 498]:
-        return dbc.Badge(status_code, color="danger", className="mr-1")
     else:
-        return dbc.Badge(status_code, color="warning", className="mr-1")
-
+        error_message, error_color = get_error(status_code)
+        return_badge = html.Div(
+            [
+                dbc.Badge(status_code, color=error_color, className="mx-2", id=f"return_badge_{i}"),
+                dbc.Tooltip(error_message, target=f"return_badge_{i}")
+            ]
+        )
+    return return_badge
 
 
 @app.callback(
@@ -400,13 +414,14 @@ def display_page(pathname, results_memory):
 @app.callback(
     Output("variant_input", "valid"),
     Output("variant_input", "invalid"),
-    Output("variant_queue", "data"),
+    Output("variant_queue_input", "data"),
     [Input("variant_input", "n_blur")],
     [State("variant_input", "value")]
 )
 def check_user_input(_, user_input):
     if not user_input == None:
-        variant_instances = parse_input_to_instances(user_input)
+        variants = parse_input(user_input)
+        variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
         if input_ok(variant_instances):
             variant_queue = {}
             variant_queue["instances"] = {_instance.__dict__.get("variant"): _instance.__dict__ for _instance in variant_instances}
@@ -418,11 +433,13 @@ def check_user_input(_, user_input):
 
 @app.callback(
     Output("url", "pathname"),
-    [Input("search_button", "n_clicks")],
-    [State("variant_queue", "data"),
-     State("inheritance_input", "value")]
+    Input("search_button", "n_clicks"),
+    State("variant_queue_input", "data"),
+    State("variant_queue_url", "data"),
+    State("inheritance_input", "value")
 )
-def search_button_click(n_clicks, variant_queue, inheritance):
+def search_button_click(n_clicks, variant_queue_input, variant_queue_url, inheritance):
+    variant_queue = variant_queue_input or variant_queue_url
     if not n_clicks is None and not variant_queue is None and not inheritance is None:
         variants = [variant_queue.get("instances").get(_key).get("variant") for _key in variant_queue.get("instances").keys()]
         url_suffix = quote(f"/search/inheritance={inheritance}/variants={'%'.join(variants)}")
@@ -435,13 +452,36 @@ def search_button_click(n_clicks, variant_queue, inheritance):
     Output("query_memory", "data"),
     Input("url", "pathname")
 )
-def interpret_url(pathname):
+def interpret_url_inheritance(pathname):
     if "search" in pathname:
         inheritance = unquote(pathname).split("inheritance=")[-1].split("/")[0]
         query_data = {}
         query_data["inheritance"] = inheritance
         return query_data
     raise PreventUpdate
+
+
+@app.callback(
+    Output("variant_queue_url", "data"),
+    Input("url", "pathname")
+)
+def interpret_url_variants(pathname):
+    if "search" in pathname:
+        variants = unquote(pathname).split("variants=")[-1].split("%")
+        variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
+        variant_queue = {}
+        variant_queue["instances"] = {_instance.__dict__.get("variant"): _instance.__dict__ for _instance in
+                                      variant_instances}
+        return variant_queue
+    raise PreventUpdate
+
+
+def show_other_variant_column(results_memory):
+    if any([results_memory.get("instances").get(_variant).get("inheritance") == "comphet"
+            for _variant in results_memory.get("instances").keys()]):
+        return True
+    else:
+        return False
 
 
 @app.callback(
@@ -456,17 +496,24 @@ def get_tab_card(active_tab, results_memory, old_card):
         "padding-left": "12px"
     }
     if active_tab == "overview_tab":
+        if show_other_variant_column(results_memory):
+            other_variant_column_header = html.Th("Corresponding Variant")
+        else:
+            other_variant_column_header = None
+
         overview_table_header = html.Thead(
             html.Tr(
                 [
                     html.Th("Variant"),
                     html.Th("Candidate Score"),
-                    html.Th("HGVS")
+                    html.Th("HGVS"),
+                    other_variant_column_header
                 ],
             )
         )
         overview_table_rows = []
         tooltips = []
+
         for i, _variant in enumerate(results_memory.get("instances").keys()):
             _instance_attributes = results_memory.get('instances').get(_variant)
             if _instance_attributes.get("gene_symbol"):
@@ -480,22 +527,38 @@ def get_tab_card(active_tab, results_memory, old_card):
             else:
                 _hgvs = None
 
+            if show_other_variant_column(results_memory):
+                other_variant_column = html.Th(
+                    html.P(_instance_attributes.get("other_variant"),
+                           id=f"other_variant_target_{i}"),
+                           style=cell_style)
+            else:
+                other_variant_column = None
+                tooltips.append(dbc.Tooltip(f"The corresponding compound heterozygous variant.",
+                                            target=f"other_variant_target_{i}"))
+
             overview_table_rows.append(
                 html.Tr(
                     [
-                        html.Th([_variant, " ",
-                                 get_badge(_instance_attributes.get("status_code"))],
+                        html.Th(dbc.Row([dbc.Col(_variant,
+                                                 width="auto"),
+                                         dbc.Col(get_badge(_instance_attributes.get("status_code"), i),
+                                                 width="auto")],
+                                        justify="start",
+                                        no_gutters=True),
                                 style=cell_style),
                         html.Th(_instance_attributes.get("candidate_score_v1"),
                                 style=cell_style),
                         html.Th(html.P(_hgvs,
-                                       id=f"tooltip_target_{i}"),
-                                style=cell_style)
+                                       id=f"hgvs_target_{i}"),
+                                style=cell_style),
+                        other_variant_column
                     ]
                 )
             )
             tooltips.append(dbc.Tooltip(f"Transcript: {_instance_attributes.get('transcript')}",
-                            target=f"tooltip_target_{i}"))
+                            target=f"hgvs_target_{i}"))
+
         overview_table = dbc.Table(
             [
                 overview_table_header,
@@ -609,7 +672,7 @@ def get_tab_card(active_tab, results_memory, old_card):
             explanation_tooltips = [
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('pli_z')}",
                             target="gene_attribute_score_explanation"),
-                dbc.Tooltip(f"impact: {_instance_attributes.get('explanation_dict').get('impact')}, "
+                dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('impact')}, "
                             f"insilico: {_instance_attributes.get('explanation_dict').get('in_silico')}, "
                             f"conservation: {_instance_attributes.get('explanation_dict').get('conservation')}, "
                             f"frequency: {_instance_attributes.get('explanation_dict').get('frequency')}",
@@ -708,30 +771,15 @@ def get_tab_card(active_tab, results_memory, old_card):
                 )
             ]
             return tab_card_content
-        elif status_code == 201:
-            return dbc.Alert("Error: The reference sequence does not match GRCh37!", color="warning")
-        elif status_code == 201:
-            return dbc.Alert("Error: The reference sequence does not match GRCh37!", color="warning")
-        elif status_code == 400:
-            return dbc.Alert("Error: Could not process variant. Please try VCF annotation or "
-                             "HGVS annotation using HGNC gene symbol!",
-                             color="danger")
-        elif status_code == 496:
-            return dbc.Alert("Error: The alternative sequence matches the GRCh37 reference sequence!", color="danger")
-        elif status_code == 498:
-            return dbc.Alert("Error: You have entered an intergenic variant.", color="danger")
         else:
-            return dbc.Alert(f"Some error occured. Code {status_code}", color="warning")
+            error_message, error_color = get_error(status_code)
+            return dbc.Alert(error_message, color=error_color)
 
 
 ########## BACKEND ##########
 def score_variants(instances, inheritance):
-    if not inheritance == "comphet":
-        for _instance in instances:
-            _instance.inheritance = inheritance
-            if _instance.__dict__.get("status_code") == 200:
-                _instance.calculate_candidate_score()
-    else:
+    instances_processed = []
+    if inheritance == "comphet":
         variant_gene_df = pd.DataFrame()
         for i, _instance in enumerate(instances):
             _instance.inheritance = inheritance
@@ -739,19 +787,29 @@ def score_variants(instances, inheritance):
                 variant_gene_df.loc[i, "variant"] = _instance.__dict__.get("variant")
                 variant_gene_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
                 variant_gene_df.loc[i, "instance"] = _instance
-
-        instances = []
+            else:
+                instances_processed.append(_instance)
         for _gene in variant_gene_df.gene_symbol.unique():
             df_chunk = variant_gene_df.loc[variant_gene_df.gene_symbol == _gene].reset_index(drop=True)
-            if len(df_chunk) != 2:
-                raise IOError(f"combination of comphet variants unclear for {_gene}")
-                #todo error output when corresponding comphet variant not found
-            for i in range(2):
-                _instance = copy.deepcopy(df_chunk.loc[abs(1-i), "instance"])
-                _instance.other_autocasc_obj = df_chunk.loc[abs(0-i), "instance"]
+            if len(df_chunk) == 2:
+                for i in range(2):
+                    _instance = copy.deepcopy(df_chunk.loc[abs(1-i), "instance"])
+                    _instance.other_autocasc_obj = df_chunk.loc[abs(0-i), "instance"]
+                    _instance.calculate_candidate_score()
+                    instances_processed.append(_instance)
+            else:
+                for i in range(len(df_chunk)):
+                    lonely_instance = df_chunk.loc[i, "instance"]
+                    lonely_instance.__dict__["status_code"] = 301
+                    instances_processed.append(lonely_instance)
+                    # raise IOError(f"combination of comphet variants unclear for {_gene}")
+    else:
+        for _instance in instances:
+            _instance.inheritance = inheritance
+            if _instance.__dict__.get("status_code") == 200:
                 _instance.calculate_candidate_score()
-                instances.append(_instance)
-    return instances
+            instances_processed.append(_instance)
+    return instances_processed
 
 
 def dict_to_instances(dict):
@@ -786,10 +844,12 @@ def store_instances(instance_list, code_key="variant"):
 
 @app.callback(
     Output("variant_memory", "data"),
-    [Input("variant_queue", "data")],
+    Input("variant_queue_input", "data"),
+    Input("variant_queue_url", "data"),
     [State("variant_memory", "data")]
 )
-def retrieve_variant_data(variant_queue, variant_memory):
+def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory):
+    variant_queue = variant_queue_input or variant_queue_url
     if variant_queue:
         if variant_memory is not None:
             if variant_queue.get("instances").keys() == variant_memory.get("instances").keys():
@@ -807,7 +867,7 @@ def retrieve_variant_data(variant_queue, variant_memory):
 @app.callback(
     Output("results_memory", "data"),
     Input("variant_memory", "data"),
-    Input("query_memory", "data")
+    Input("query_memory", "data"),
 )
 def calculate_results(variant_memory, query_memory):
     inheritance = None
@@ -826,6 +886,7 @@ def calculate_results(variant_memory, query_memory):
     State("results_memory", "data")
 )
 def download_button_click(n_cklicks, results_memory):
+    # todo check comphet behavior
     if not n_cklicks:
         raise PreventUpdate
     df = pd.DataFrame()
