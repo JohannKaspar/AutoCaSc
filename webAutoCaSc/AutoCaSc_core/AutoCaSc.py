@@ -142,16 +142,19 @@ class AutoCaSc:
 
     def check_for_other_variant(self):
         if self.other_autocasc_obj and self.other_variant is None:
-            self.other_variant = self.other_autocasc_obj.variant
+            if self.other_autocasc_obj.vcf_string:
+                self.other_variant = self.other_autocasc_obj.vcf_string
+            else:
+                self.other_variant = self.other_autocasc_obj.variant
 
 
-    def retrieve_data(self):
+    def retrieve_data(self, gnomad=True):
         self.data_retrieved = True
         start = time.time()
         self.get_vep_data()  # this method call initiates the annotation of the given variant
         end = time.time()
         print(f"VEP execution time {end - start}")
-        if self.status_code == 200:
+        if self.status_code == 200 and gnomad is True:
             # 498 = no matching transcript index has been found (e.g. variant is intergenic)
             self.get_gnomad_constraint()
             start = time.time()
@@ -168,6 +171,24 @@ class AutoCaSc:
                                                    assembly=self.assembly,
                                                    transcript_num=self.transcript_num
                                                    )
+        if self.status_code == 201 and self.variant_format == "hgvs":
+            self.hgvs_strand_shift(gnomad=gnomad)
+
+
+    def hgvs_strand_shift(self, gnomad=True):
+        test_instance = AutoCaSc(self.vcf_string,
+                                 inheritance=self.inheritance,
+                                 parent_affected=self.parent_affected,
+                                 has_sibling=self.has_sibling,
+                                 cosegregating=self.cosegregating,
+                                 sex=self.sex,
+                                 assembly=self.assembly,
+                                 )
+        test_instance.retrieve_data(gnomad=gnomad)
+        if test_instance.status_code == 200:
+            self.__dict__ = test_instance.__dict__
+
+
 
     def create_url(self):
         if self.variant_format == "vcf":
@@ -245,7 +266,7 @@ class AutoCaSc:
             self.status_code = 401
 
     @retry(reraise=True,
-           stop=stop_after_attempt(10),
+           stop=stop_after_attempt(3),
            wait=wait_exponential(multiplier=1.3, min=0.1, max=2))
     def vep_api_request(self):
         """General function for handling API communication.
@@ -270,7 +291,7 @@ class AutoCaSc:
                 print(f"VEP ERROR '{r.status_code}: {r.reason}' occured for {self.variant}. Retrying...")
                 raise IOError("There has been an issue with a variant.")
 
-    @retry(stop=stop_after_attempt(15),
+    @retry(stop=stop_after_attempt(5),
            wait=wait_random(0.1, 2))
     def open_pickle_file(self):
         self.vep_requests = {}
@@ -285,7 +306,7 @@ class AutoCaSc:
         :return:
         """
         response_decoded = None
-        if self.mode != "web":
+        if self.mode == "vcf_hase":
             try:
                 self.open_pickle_file()
                 if self.vep_requests.get(self.variant):
@@ -302,7 +323,7 @@ class AutoCaSc:
                 self.status_code = 400
 
             if self.status_code == 200:
-                if self.mode != "web":
+                if self.mode == "vcf_hase":
                     try:
                         if not os.path.isdir(
                                 "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep"):
@@ -1159,8 +1180,8 @@ def single(variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    # single(["--variant", "16:774051:AGTGG:-",
-    #              "-ih", "homo",
+    # single(["--variant", "X:52674562:G:T",
+    #              "-ih", "x_linked",
     #              "-f", "yes"])
     # batch(["--input_file",
     #        "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/AutoCaSc_core/data/CLI_batch_test_variants.txt"])

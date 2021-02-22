@@ -2,6 +2,7 @@ import copy
 import io
 import os
 import tempfile
+from statistics import mean
 
 from flask import Flask, send_file
 
@@ -68,7 +69,7 @@ navbar = dbc.Navbar(
                     [
                         dbc.Col(dbc.NavLink("About", href='/about'),
                                 width="auto"),
-                        dbc.Col(dbc.NavLink("Home", href='/'),
+                        dbc.Col(dbc.NavLink("Impressum", href='/impressum'),
                                 width="auto"),
                         # dbc.Col(
                         #     dbc.Input(type="search", placeholder="Search variant")
@@ -131,6 +132,12 @@ variant_input_card = dbc.FormGroup(
             autoFocus=True
         ),
         dbc.FormText("Although HGVS works as well, we recommend using VCF format."),
+        dcc.Markdown('''
+                     Examples: [11:94730916:A:C](/search/inheritance%3Dde_novo/variants%3D11%3A94730916%3AA%3AC), 
+                     [X:101409056:A:C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC), 
+                     [ENST00000378402.5:c.4966G>A](/search/inheritance%3Dhomo/variants%3DENST00000378402.5%3Ac.4966G%3EA)
+                     ''',
+                     style={"font-size": "12px"})
     ]
 )
 
@@ -202,11 +209,50 @@ about_page = html.Div([
             html.H2("About"),
             html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
             html.Br(),
-            html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
+            html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
         ]
     )
     ])
 
+impressum_page = html.Div(
+    [
+        navbar,
+        html.Br(),
+        dbc.Container(
+            dcc.Markdown("""
+                        Gemäß § 28 BDSG widersprechen wir jeder kommerziellen Verwendung und Weitergabe der Daten.\n
+                        __Verantwortunsbereich__:\n
+                        Das Impressum gilt nur für die Internetpräsenz unter der Adresse: https://autocasc.uni-leipzig.de\n
+                        __Abgrenzung__:\n
+                        Die Web-Präsenz ist Teil des WWW und dementsprechend mit fremden, sich jederzeit wandeln könnenden Web-Sites verknüpft, die folglich auch nicht diesem Verantwortungsbereich unterliegen und für die nachfolgende Informationen nicht gelten. Dass die Links weder gegen Sitten noch Gesetze verstoßen, wurde genau ein Mal geprüft (bevor sie hier aufgenommen wurden).\n
+                        __Diensteanbieter__:\n
+                        Johann Lieberwirth und Rami Abou Jamra\n
+                        __Ansprechpartner für die Webseite__:\n
+                        Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
+                        __Verantwortlicher__:\n
+                        Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
+                        __Anschrift__:\n
+                        Sekretariat\n
+                        Philipp-Rosenthal-Str. 55\n
+                        04103 Leipzig\n
+                        Telefon: 0341 - 97 23800\n
+                        __Urheberschutz und Nutzung__:\n
+                        Der Urheber räumt Ihnen ganz konkret das Nutzungsrecht ein, sich eine private Kopie für persönliche Zwecke anzufertigen. Nicht berechtigt sind Sie dagegen, die Materialien zu verändern und /oder weiter zu geben oder gar selbst zu veröffentlichen.
+                        Wenn nicht ausdrücklich anders vermerkt, liegen die Urheberrechte bei Johann Lieberwirth
+                        Datenschutz Personenbezogene Daten werden nur mit Ihrem Wissen und Ihrer Einwilligung erhoben. Auf Antrag erhalten Sie unentgeltlich Auskunft zu den über Sie gespeicherten personenbezogenen Daten. Wenden Sie sich dazu bitte an den Administrator.\n
+                        __Keine Haftung__:\n
+                        Die Inhalte dieses Webprojektes wurden sorgfältig geprüft und nach bestem Wissen erstellt. Aber für die hier dargebotenen Informationen wird kein Anspruch auf Vollständigkeit, Aktualität, Qualität und Richtigkeit erhoben. Es kann keine Verantwortung für Schäden übernommen werden, die durch das Vertrauen auf die Inhalte dieser Website oder deren Gebrauch entstehen.\n
+                        __Schutzrechtsverletzung__:\n
+                        Falls Sie vermuten, dass von dieser Website aus eines Ihrer Schutzrechte verletzt wird, teilen Sie das bitte umgehend per elektronischer Post mit, damit zügig Abhilfe geschafft werden kann. Bitte nehmen Sie zur Kenntnis: Die zeitaufwändigere Einschaltung eines Anwaltes zur für den Diensteanbieter kostenpflichtigen Abmahnung entspricht nicht dessen wirklichen oder mutmaßlichen Willen.\n
+                        \n
+                        lt. Urteil vom 12. Mai 1998 - 312 O 85/98 - "Haftung für Links" hat das Landgericht Hamburg entschieden, dass man durch die Anbringung eines Links, die Inhalte der gelinkten Seite ggf. mit zu verantworten hat. Dies kann nur dadurch verhindert werden, dass man sich ausdrücklich von diesen Inhalten distanziert.
+                        'Hiermit distanzieren wir uns ausdrücklich von allen Inhalten aller gelinkten Seiten auf unserer Website und machen uns diese Inhalte nicht zu eigen. Diese Erklärung gilt für alle auf unsere Website angebrachten Links.'
+                        \n
+                        © Copyright 2021
+""")
+        )
+    ]
+)
 
 landing_page = html.Div([
     navbar,
@@ -398,6 +444,8 @@ def display_page(pathname, results_memory):
     if "pathname" in ctx.triggered[0]['prop_id']:
         if pathname == "/about":
             return about_page
+        if pathname == "/impressum":
+            return impressum_page
         if pathname == "/results":
             if results_memory is not None: #return empty site just in case
                 raise PreventUpdate
@@ -892,17 +940,36 @@ def download_button_click(n_cklicks, results_memory):
     df = pd.DataFrame()
     for i, _variant in enumerate(results_memory.get("instances").keys()):
         _instance = results_memory.get("instances").get(_variant)
-        df.loc[i, "variant"] = _instance.get("variant")
-        df.loc[i, "gene_symbol"] = _instance.get("gene_symbol")
+        try:
+            if _instance.get("vcf_string") in df["vcf_format_2"].to_list():
+                continue
+        except KeyError:
+            pass
+        if _instance.get("inheritance") == "comphet":
+            comphet = True
+            _other_instance = _instance.get("other_autocasc_obj")
+        else:
+            comphet = False
+            _other_instance = {}
+        df.loc[i, "hgnc_symbol"] = _instance.get("gene_symbol")
         df.loc[i, "transcript"] = _instance.get("transcript")
-        df.loc[i, "hgvsc"] = _instance.get("hgvsc_change")
-        df.loc[i, "hgvsp"] = _instance.get("hgvsp_change")
-        df.loc[i, "impact"] = _instance.get("impact")
+        df.loc[i, "vcf_format_1"] = _instance.get("vcf_string")
+        df.loc[i, "vcf_format_2"] = _other_instance.get("vcf_string")
+        df.loc[i, "cDNA_1"] = _instance.get("hgvsc_change")
+        df.loc[i, "cDNA_2"] = _other_instance.get("hgvsc_change")
+        df.loc[i, "amino_acid_1"] = _instance.get("hgvsp_change")
+        df.loc[i, "amino_acid_2"] = _other_instance.get("hgvsp_change")
+        df.loc[i, "var_1_full_name"] = f"{_instance.get('transcript')}:{_instance.get('hgvsc_change')} {_instance.get('hgvsp_change')}"
+        df.loc[i, "var_2_full_name"] = f"{_other_instance.get('transcript')}:{_other_instance.get('hgvsc_change')} {_other_instance.get('hgvsp_change')}"
         df.loc[i, "inheritance"] = _instance.get("inheritance")
         df.loc[i, "candidate_score"] = _instance.get("candidate_score_v1")
         df.loc[i, "literature_plausibility"] = _instance.get("literature_score")
         df.loc[i, "inheritance_score"] = _instance.get("inheritance_score")
-        df.loc[i, "variant_attribute_score"] = _instance.get("variant_score")
+        if comphet:
+            df.loc[i, "variant_attribute_score"] = round(mean([_instance.get("variant_score"),
+                                                               _other_instance.get("variant_score")]), 2)
+        else:
+            df.loc[i, "variant_attribute_score"] = _instance.get("variant_score")
         df.loc[i, "gene_attribute_score"] = _instance.get("gene_attribute_score")
 
     data = io.StringIO()
