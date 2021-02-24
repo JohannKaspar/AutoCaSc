@@ -206,11 +206,23 @@ about_page = html.Div([
     dbc.Container(
         [
             html.Br(),
-            html.H2("About"),
-            html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
+            dbc.Row([
+                html.H2("About"),
+                dbc.Button("DE", id="about_language_button")
+            ],
+            justify="between",
+            style={
+                "padding-left": "18px",
+                "padding-right": "18px",
+            }),
             html.Br(),
-            html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
-        ]
+            html.Div([
+                html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
+                html.Br(),
+                html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
+            ],
+            id="about_text")
+        ],
     )
     ])
 
@@ -320,7 +332,9 @@ app.validation_layout = html.Div([
                 ])
             ])
         ]),
-    html.Div(id="loading_output")
+    html.Div(id="loading_output"),
+    impressum_page,
+    about_page
 ])
 
 
@@ -498,10 +512,11 @@ def search_button_click(n_clicks, variant_queue_input, variant_queue_url, inheri
 
 @app.callback(
     Output("query_memory", "data"),
-    Input("url", "pathname")
+    Input("url", "pathname"),
+    State("query_memory", "data")
 )
-def interpret_url_inheritance(pathname):
-    if "search" in pathname:
+def interpret_url_inheritance(pathname, query_memory):
+    if "search" in pathname and query_memory is None:
         inheritance = unquote(pathname).split("inheritance=")[-1].split("/")[0]
         query_data = {}
         query_data["inheritance"] = inheritance
@@ -511,16 +526,25 @@ def interpret_url_inheritance(pathname):
 
 @app.callback(
     Output("variant_queue_url", "data"),
-    Input("url", "pathname")
+    Input("url", "pathname"),
+    State("variant_memory", "data")
 )
-def interpret_url_variants(pathname):
-    if "search" in pathname:
+def interpret_url_variants(pathname, variant_memory):
+    if "search" in pathname and variant_memory is None:
         variants = unquote(pathname).split("variants=")[-1].split("%")
         variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
         variant_queue = {}
         variant_queue["instances"] = {_instance.__dict__.get("variant"): _instance.__dict__ for _instance in
                                       variant_instances}
         return variant_queue
+    elif "search" in pathname:
+        variants = unquote(pathname).split("variants=")[-1].split("%")
+        if any([_variant not in variant_memory.get("instances").keys() for _variant in variants]):
+            variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
+            variant_queue = {}
+            variant_queue["instances"] = {_instance.__dict__.get("variant"): _instance.__dict__ for _instance in
+                                          variant_instances}
+            return variant_queue
     raise PreventUpdate
 
 
@@ -571,6 +595,8 @@ def get_tab_card(active_tab, results_memory, old_card):
                 if _instance_attributes.get("hgvsp_change") is not None:
                     if ":" not in _hgvs:
                         _hgvs += ":"
+                    else:
+                        _hgvs += " "
                     _hgvs += _instance_attributes.get("hgvsp_change")
             else:
                 _hgvs = None
@@ -824,6 +850,51 @@ def get_tab_card(active_tab, results_memory, old_card):
             return dbc.Alert(error_message, color=error_color)
 
 
+@app.callback(
+    Output("about_text", "children"),
+    Output("about_language_button", "children"),
+    Input("about_language_button", "n_clicks"),
+    State("about_language_button", "children")
+)
+def get_about_text(n_clicks, language):
+    if not n_clicks:
+        raise PreventUpdate
+    if language == "DE":
+        return [
+            html.P("AutoCaSc ist ein Skript zum automatisierten Bewerten von Kandidatenvarianten in Fällen neuronaler Entwicklungsverzögerung. Es ist ausschließlich für Forschungszwecke zu benutzen. Zur Berechnung der Kandidatenpunktzahl (Candidate score, CaSc) werden 12 verschiedene Parameter einbezogen. Dies sind die Art der Vererbung (z.B. de novo), Genattribute wie pLI & Z-Score (gnomAD), Expressionsmuster (GTEx), in silico Analysen, Literaturdatenbanken (Pubtator Central), Tierdatenbanken (MGI), Proteininteratkionsdatnebanken (StringDB) sowie weitere (DisGeNET, PsymuKB). Die maximal erreichbare Punktzahl sind 15 Punkte. Je höher der erreichte Punktwert, desto plausibler scheint die aus den zugrundeliegenden Daten errechnete Pathogenität der Variante mit Blick auf neuronale Entwicklungsverzögerung."),
+            html.Br(),
+            html.P("Bei Fragen und Anmerkungen kontaktieren Sie bitte johann.lieberwirth@medizin.uni-leipzig.de oder rami.aboujamra@medizin.uni-leipzig.de.")
+               ], "EN"
+    else:
+        return [
+                html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
+                html.Br(),
+                html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
+            ], "DE"
+
+
+# @app.callback(
+#     Output("impressum_text", "children"),
+#     Output("impressum_language_button", "children"),
+#     Input("impressum_language_button", "n_clicks"),
+#     State("impressum_language_button", "children")
+# )
+# def get_about_text(n_clicks, language):
+#     if not n_clicks:
+#         raise PreventUpdate
+#     if language == "DE":
+#         return [
+#             html.P("AutoCaSc ist ein Skript zum automatisierten Bewerten von Kandidatenvarianten in Fällen neuronaler Entwicklungsverzögerung. Es ist ausschließlich für Forschungszwecke zu benutzen. Zur Berechnung der Kandidatenpunktzahl (Candidate score, CaSc) werden 12 verschiedene Parameter einbezogen. Dies sind die Art der Vererbung (z.B. de novo), Genattribute wie pLI & Z-Score (gnomAD), Expressionsmuster (GTEx), in silico Analysen, Literaturdatenbanken (Pubtator Central), Tierdatenbanken (MGI), Proteininteratkionsdatnebanken (StringDB) sowie weitere (DisGeNET, PsymuKB). Die maximal erreichbare Punktzahl sind 15 Punkte. Je höher der erreichte Punktwert, desto plausibler scheint die aus den zugrundeliegenden Daten errechnete Pathogenität der Variante mit Blick auf neuronale Entwicklungsverzögerung."),
+#             html.Br(),
+#             html.P("Bei Fragen und Anmerkungen kontaktieren Sie bitte johann.lieberwirth@medizin.uni-leipzig.de oder rami.aboujamra@medizin.uni-leipzig.de.")
+#                ], "EN"
+#     else:
+#         return [
+#                 html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
+#                 html.Br(),
+#                 html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
+#             ], "DE"
+
 ########## BACKEND ##########
 def score_variants(instances, inheritance):
     instances_processed = []
@@ -960,7 +1031,10 @@ def download_button_click(n_cklicks, results_memory):
         df.loc[i, "amino_acid_1"] = _instance.get("hgvsp_change")
         df.loc[i, "amino_acid_2"] = _other_instance.get("hgvsp_change")
         df.loc[i, "var_1_full_name"] = f"{_instance.get('transcript')}:{_instance.get('hgvsc_change')} {_instance.get('hgvsp_change')}"
-        df.loc[i, "var_2_full_name"] = f"{_other_instance.get('transcript')}:{_other_instance.get('hgvsc_change')} {_other_instance.get('hgvsp_change')}"
+        if comphet:
+            df.loc[i, "var_2_full_name"] = f"{_other_instance.get('transcript')}:{_other_instance.get('hgvsc_change')} {_other_instance.get('hgvsp_change')}"
+        else:
+            df.loc[i, "var_2_full_name"] = ""
         df.loc[i, "inheritance"] = _instance.get("inheritance")
         df.loc[i, "candidate_score"] = _instance.get("candidate_score_v1")
         df.loc[i, "literature_plausibility"] = _instance.get("literature_score")

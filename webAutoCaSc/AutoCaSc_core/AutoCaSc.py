@@ -72,6 +72,7 @@ class AutoCaSc:
         self.transcript_num = transcript_num
         self.mode = mode
         self.data_retrieved = False
+        self.variant_pre_standshift = None
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
@@ -185,9 +186,10 @@ class AutoCaSc:
                                  assembly=self.assembly,
                                  )
         test_instance.retrieve_data(gnomad=gnomad)
+        variant_pre_standshift = self.variant
         if test_instance.status_code == 200:
             self.__dict__ = test_instance.__dict__
-
+            self.variant = variant_pre_standshift
 
 
     def create_url(self):
