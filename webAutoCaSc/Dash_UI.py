@@ -3,9 +3,9 @@ import io
 import os
 import tempfile
 from statistics import mean
+import time
 
 from flask import Flask, send_file
-
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -36,64 +36,58 @@ url_bar_and_content_div = html.Div([
                     "color": "#000000"})
 ])
 
-
-# navbar = dbc.NavbarSimple(
-#     children=[
-#         dbc.NavItem(dbc.NavLink("Page 1", href="/")),
-#         dbc.NavItem(dbc.NavLink("About", href='/about')),
-#         dbc.NavItem(dbc.NavLink("another link", href='/about')),
-#     ],
-#     brand="AutoCaSc",
-#     brand_href="#",
-#     color="dark",
-#     dark=True,
-# )
-
-navbar = dbc.Navbar(
-    dbc.Container(
-        [
-            html.A(
-                dbc.NavbarBrand("webAutoCaSc",
-                                style={
-                                    "font-size": "1.8em"
-                                }),
-                href="/",
+navbar = html.Div(
+    [
+        dbc.Navbar(
+            dbc.Container(
+                [
+                    html.A(
+                        dbc.NavbarBrand("webAutoCaSc",
+                                        style={
+                                            "font-size": "1.8em"
+                                        }),
+                        href="/",
+                    ),
+                    # dbc.Col(dbc.NavLink("About", href='/about'),
+                    #                 width="auto"),
+                    # dbc.Col(dbc.NavLink("another link", href='/about'),
+                    #         width="auto"),
+                    dbc.NavbarToggler(id="navbar-toggler"),
+                    dbc.Collapse(
+                        dbc.Row(
+                            [
+                                dbc.Col(dbc.NavLink("About", href='/about'),
+                                        width="auto"),
+                                dbc.Col(dbc.NavLink("Impressum", href='/impressum'),
+                                        width="auto"),
+                                # dbc.Col(
+                                #     dbc.Input(type="search", placeholder="Search variant")
+                                # ),
+                                # dbc.Col(
+                                #     dbc.Button(
+                                #         "Search", color="primary", className="ml-2"
+                                #     ),
+                                #     # set width of button column to auto to allow
+                                #     # search box to take up remaining space.
+                                #     width="auto",
+                                # ),
+                            ],
+                            no_gutters=True,
+                            className="ml-auto flex-nowrap mt-3 mt-md-0",
+                            align="center",
+                        ),
+                        id="navbar-collapse",
+                        navbar=True,
+                    )
+                ],
             ),
-            # dbc.Col(dbc.NavLink("About", href='/about'),
-            #                 width="auto"),
-            # dbc.Col(dbc.NavLink("another link", href='/about'),
-            #         width="auto"),
-            dbc.NavbarToggler(id="navbar-toggler"),
-            dbc.Collapse(
-                dbc.Row(
-                    [
-                        dbc.Col(dbc.NavLink("About", href='/about'),
-                                width="auto"),
-                        dbc.Col(dbc.NavLink("Impressum", href='/impressum'),
-                                width="auto"),
-                        # dbc.Col(
-                        #     dbc.Input(type="search", placeholder="Search variant")
-                        # ),
-                        # dbc.Col(
-                        #     dbc.Button(
-                        #         "Search", color="primary", className="ml-2"
-                        #     ),
-                        #     # set width of button column to auto to allow
-                        #     # search box to take up remaining space.
-                        #     width="auto",
-                        # ),
-                    ],
-                    no_gutters=True,
-                    className="ml-auto flex-nowrap mt-3 mt-md-0",
-                    align="center",
-                ),
-                id="navbar-collapse",
-                navbar=True,
-            )
-        ],
-    ),
-    color="dark",
-    dark=True,
+            color="dark",
+            dark=True,
+            fixed="top",
+            sticky="fixed"
+        ),
+html.Div(style={"height": "10vh"})
+    ]
 )
 
 # navbar = dbc.Navbar(
@@ -123,21 +117,20 @@ navbar = dbc.Navbar(
 
 variant_input_card = dbc.FormGroup(
     [
-        dbc.Label("Enter a variant here"),
         dbc.Input(
             type="text",
             id="variant_input",
             placeholder="e.g. X:12345:T:C",
-            # value="1:7725246:G:A",  #todo delete this
             autoFocus=True
         ),
-        dbc.FormText("Although HGVS works as well, we recommend using VCF format."),
-        dcc.Markdown('''
+        #dbc.FormText(""),
+        dcc.Markdown('''Although HGVS works as well, we recommend using VCF format.\t
                      Examples: [11:94730916:A:C](/search/inheritance%3Dde_novo/variants%3D11%3A94730916%3AA%3AC), 
                      [X:101409056:A:C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC), 
                      [ENST00000378402.5:c.4966G>A](/search/inheritance%3Dhomo/variants%3DENST00000378402.5%3Ac.4966G%3EA)
                      ''',
-                     style={"font-size": "12px"})
+                     style={"font-size": "12px",
+                            "margin-top": "10px"})
     ]
 )
 
@@ -201,6 +194,19 @@ results_page_clear = html.Div([
 
 )
 
+citations = dcc.Markdown("""
+---
+1. [__VEP__](https://grch37.ensembl.org/info/docs/tools/vep/index.html): McLaren, W. et al. The Ensembl Variant Effect Predictor. Genome Biol 17, 122 (2016).\n
+2. [__gnomAD__](https://gnomad.broadinstitute.org): Karczewski, K. J. et al. The mutational constraint spectrum quantified from variation in 141,456 humans. Nature 581, 434–443 (2020).\n
+3. [__GTEx__](http://www.gtexportal.org/home/index.html): Consortium, T. Gte. The GTEx Consortium atlas of genetic regulatory effects across human tissues. Science 369, 1318–1330 (2020).\n
+4. [__STRING__](https://string-db.org): Szklarczyk, D. et al. STRING v11: protein-protein association networks with increased coverage, supporting functional discovery in genome-wide experimental datasets. Nucleic Acids Res 47, D607–D613 (2019).\n
+5. [__MGI__](http://www.informatics.jax.org): Bult, C. J. et al. Mouse Genome Database (MGD) 2019. Nucleic Acids Res 47, D801–D806 (2019).\n
+6. [__PubTator__](https://www.ncbi.nlm.nih.gov/research/pubtator/): Wei, C.-H., Allot, A., Leaman, R. & Lu, Z. PubTator central: automated concept annotation for biomedical full text articles. Nucleic Acids Res 47, W587–W593 (2019).\n
+7. [__PsyMuKB__](http://www.psymukb.net): Lin, G. N. et al. PsyMuKB: An Integrative De Novo Variant Knowledge Base for Developmental Disorders. Genomics Proteomics Bioinformatics 17, 453–464 (2019).\n
+8. [__DisGeNET__](https://www.disgenet.org): : Piñero, J. et al. DisGeNET: a comprehensive platform integrating information on human disease-associated genes and variants. Nucleic Acids Res 45, D833–D839 (2017).\n
+---
+""")
+
 about_page = html.Div([
     navbar,
     dbc.Container(
@@ -217,11 +223,15 @@ about_page = html.Div([
             }),
             html.Br(),
             html.Div([
-                html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
+                html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl VEP REST API (1) to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (gnomAD (2), GTEx (3), STRING (4), MGI (5), PubTator (6), PsyMuKB (7), DisGeNET (8)) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database (9) and a list of genes not involved in NDD.",
+                       style={"text-align": "justify"}),
                 html.Br(),
-                html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
+                html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.",
+                       style={"text-align": "justify"})
             ],
-            id="about_text")
+            id="about_text"),
+            html.Br(),
+            citations
         ],
     )
     ])
@@ -229,53 +239,68 @@ about_page = html.Div([
 impressum_page = html.Div(
     [
         navbar,
-        html.Br(),
-        dbc.Container(
-            dcc.Markdown("""
-                        Gemäß § 28 BDSG widersprechen wir jeder kommerziellen Verwendung und Weitergabe der Daten.\n
-                        __Verantwortunsbereich__:\n
-                        Das Impressum gilt nur für die Internetpräsenz unter der Adresse: https://autocasc.uni-leipzig.de\n
-                        __Abgrenzung__:\n
-                        Die Web-Präsenz ist Teil des WWW und dementsprechend mit fremden, sich jederzeit wandeln könnenden Web-Sites verknüpft, die folglich auch nicht diesem Verantwortungsbereich unterliegen und für die nachfolgende Informationen nicht gelten. Dass die Links weder gegen Sitten noch Gesetze verstoßen, wurde genau ein Mal geprüft (bevor sie hier aufgenommen wurden).\n
-                        __Diensteanbieter__:\n
-                        Johann Lieberwirth und Rami Abou Jamra\n
-                        __Ansprechpartner für die Webseite__:\n
-                        Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
-                        __Verantwortlicher__:\n
-                        Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
-                        __Anschrift__:\n
-                        Sekretariat\n
-                        Philipp-Rosenthal-Str. 55\n
-                        04103 Leipzig\n
-                        Telefon: 0341 - 97 23800\n
-                        __Urheberschutz und Nutzung__:\n
-                        Der Urheber räumt Ihnen ganz konkret das Nutzungsrecht ein, sich eine private Kopie für persönliche Zwecke anzufertigen. Nicht berechtigt sind Sie dagegen, die Materialien zu verändern und /oder weiter zu geben oder gar selbst zu veröffentlichen.
-                        Wenn nicht ausdrücklich anders vermerkt, liegen die Urheberrechte bei Johann Lieberwirth
-                        Datenschutz Personenbezogene Daten werden nur mit Ihrem Wissen und Ihrer Einwilligung erhoben. Auf Antrag erhalten Sie unentgeltlich Auskunft zu den über Sie gespeicherten personenbezogenen Daten. Wenden Sie sich dazu bitte an den Administrator.\n
-                        __Keine Haftung__:\n
-                        Die Inhalte dieses Webprojektes wurden sorgfältig geprüft und nach bestem Wissen erstellt. Aber für die hier dargebotenen Informationen wird kein Anspruch auf Vollständigkeit, Aktualität, Qualität und Richtigkeit erhoben. Es kann keine Verantwortung für Schäden übernommen werden, die durch das Vertrauen auf die Inhalte dieser Website oder deren Gebrauch entstehen.\n
-                        __Schutzrechtsverletzung__:\n
-                        Falls Sie vermuten, dass von dieser Website aus eines Ihrer Schutzrechte verletzt wird, teilen Sie das bitte umgehend per elektronischer Post mit, damit zügig Abhilfe geschafft werden kann. Bitte nehmen Sie zur Kenntnis: Die zeitaufwändigere Einschaltung eines Anwaltes zur für den Diensteanbieter kostenpflichtigen Abmahnung entspricht nicht dessen wirklichen oder mutmaßlichen Willen.\n
-                        \n
-                        lt. Urteil vom 12. Mai 1998 - 312 O 85/98 - "Haftung für Links" hat das Landgericht Hamburg entschieden, dass man durch die Anbringung eines Links, die Inhalte der gelinkten Seite ggf. mit zu verantworten hat. Dies kann nur dadurch verhindert werden, dass man sich ausdrücklich von diesen Inhalten distanziert.
-                        'Hiermit distanzieren wir uns ausdrücklich von allen Inhalten aller gelinkten Seiten auf unserer Website und machen uns diese Inhalte nicht zu eigen. Diese Erklärung gilt für alle auf unsere Website angebrachten Links.'
-                        \n
-                        © Copyright 2021
-""")
-        )
+        dbc.Container([
+            html.Br(),
+            dbc.Row([
+                html.H2("Impressum"),
+                dbc.Button("EN", id="impressum_language_button")
+            ],
+            justify="between",
+            style={
+                "padding-left": "18px",
+                "padding-right": "18px",
+            }),
+            html.Br(),
+            html.Div([
+                dcc.Markdown("""
+                            Gemäß § 28 BDSG widersprechen wir jeder kommerziellen Verwendung und Weitergabe der Daten.\n
+                            __Verantwortunsbereich__:\n
+                            Das Impressum gilt nur für die Internetpräsenz unter der Adresse: https://autocasc.uni-leipzig.de\n
+                            __Abgrenzung__:\n
+                            Die Web-Präsenz ist Teil des WWW und dementsprechend mit fremden, sich jederzeit wandeln könnenden Web-Sites verknüpft, die folglich auch nicht diesem Verantwortungsbereich unterliegen und für die nachfolgende Informationen nicht gelten. Dass die Links weder gegen Sitten noch Gesetze verstoßen, wurde genau ein Mal geprüft (bevor sie hier aufgenommen wurden).\n
+                            __Diensteanbieter__:\n
+                            Johann Lieberwirth und Rami Abou Jamra\n
+                            __Ansprechpartner für die Webseite__:\n
+                            Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
+                            __Verantwortlicher__:\n
+                            Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
+                            __Anschrift__:\n
+                            Sekretariat\n
+                            Philipp-Rosenthal-Str. 55\n
+                            04103 Leipzig\n
+                            Telefon: 0341 - 97 23800\n
+                            __Urheberschutz und Nutzung__:\n
+                            Der Urheber räumt Ihnen ganz konkret das Nutzungsrecht ein, sich eine private Kopie für persönliche Zwecke anzufertigen. Nicht berechtigt sind Sie dagegen, die Materialien zu verändern und /oder weiter zu geben oder gar selbst zu veröffentlichen.
+                            Wenn nicht ausdrücklich anders vermerkt, liegen die Urheberrechte bei Johann Lieberwirth
+                            Datenschutz Personenbezogene Daten werden nur mit Ihrem Wissen und Ihrer Einwilligung erhoben. Auf Antrag erhalten Sie unentgeltlich Auskunft zu den über Sie gespeicherten personenbezogenen Daten. Wenden Sie sich dazu bitte an den Administrator.\n
+                            __Keine Haftung__:\n
+                            Die Inhalte dieses Webprojektes wurden sorgfältig geprüft und nach bestem Wissen erstellt. Aber für die hier dargebotenen Informationen wird kein Anspruch auf Vollständigkeit, Aktualität, Qualität und Richtigkeit erhoben. Es kann keine Verantwortung für Schäden übernommen werden, die durch das Vertrauen auf die Inhalte dieser Website oder deren Gebrauch entstehen.\n
+                            __Schutzrechtsverletzung__:\n
+                            Falls Sie vermuten, dass von dieser Website aus eines Ihrer Schutzrechte verletzt wird, teilen Sie das bitte umgehend per elektronischer Post mit, damit zügig Abhilfe geschafft werden kann. Bitte nehmen Sie zur Kenntnis: Die zeitaufwändigere Einschaltung eines Anwaltes zur für den Diensteanbieter kostenpflichtigen Abmahnung entspricht nicht dessen wirklichen oder mutmaßlichen Willen.\n
+                            \n
+                            lt. Urteil vom 12. Mai 1998 - 312 O 85/98 - "Haftung für Links" hat das Landgericht Hamburg entschieden, dass man durch die Anbringung eines Links, die Inhalte der gelinkten Seite ggf. mit zu verantworten hat. Dies kann nur dadurch verhindert werden, dass man sich ausdrücklich von diesen Inhalten distanziert.
+                            'Hiermit distanzieren wir uns ausdrücklich von allen Inhalten aller gelinkten Seiten auf unserer Website und machen uns diese Inhalte nicht zu eigen. Diese Erklärung gilt für alle auf unsere Website angebrachten Links.'
+                            \n
+                            © Copyright 2021
+                """)
+            ],
+            id="impressum_text")
+        ])
     ]
 )
 
 landing_page = html.Div([
     navbar,
-    html.Div(style={"height": "15vh"}),
-
+    html.Div(style={"height": "10vh"}),
     dbc.Container(
             [
                 dbc.Row(
                     dbc.Col(
                         [
-                            html.H2('Enter your variant below'),
+                            dcc.Markdown("""# Welcome to **webAutoCaSc**,\n
+#### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
+                            html.Hr(),
+                            dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
                             variant_input_card,
                             misc_input_card
                         ]
@@ -350,7 +375,7 @@ def get_display_variant(_variant, n_chars=25):
         return _variant[:n_chars] + "..."
 
 
-def get_results_page(results_memory): #todo add error handling
+def get_results_page(results_memory):
     if not results_memory:
         return results_page_clear
     else:
@@ -380,9 +405,6 @@ def get_results_page(results_memory): #todo add error handling
                                     id="card_tabs",
                                     card=True,
                                     active_tab=initial_tab,
-                                    # style={
-                                    #     "margin-bottom": "0px !important"
-                                    # }
                                 ),
 
                             ],
@@ -397,7 +419,8 @@ def get_results_page(results_memory): #todo add error handling
                         ),
                     ),
                     dbc.CardBody(
-                        html.P(id="card_content", className="card_text")
+                        html.P(id="card_content"),
+                        style={"padding-bottom": "0"}
                     )
                 ])
             ])
@@ -452,7 +475,6 @@ def toggle_navbar_collapse(n, is_open):
               [Input('url', 'pathname'),
                Input("results_memory", "data")])
 def display_page(pathname, results_memory):
-    #todo add possibility to directly enter variants in url
     ctx = dash.callback_context
 
     if "pathname" in ctx.triggered[0]['prop_id']:
@@ -460,12 +482,16 @@ def display_page(pathname, results_memory):
             return about_page
         if pathname == "/impressum":
             return impressum_page
-        if pathname == "/results":
-            if results_memory is not None: #return empty site just in case
-                raise PreventUpdate
-        if "/search" in pathname and results_memory is None:
-            print("search page")
-            return search_page
+        # if pathname == "/results":
+        #     if results_memory is not None: #return empty site just in case
+        #         raise PreventUpdate
+        if "/search" in pathname:
+            if results_memory is None:
+                print("search page")
+                return search_page
+            else:
+                print("results page")
+                return get_results_page(results_memory)
         else:
             return landing_page
     else:
@@ -558,11 +584,10 @@ def show_other_variant_column(results_memory):
 
 @app.callback(
     Output("card_content", "children"),
-    [Input("card_tabs", "active_tab")],
-    [State("results_memory", "data")],
-    State("card_content", "children")
+    Input("card_tabs", "active_tab"),
+    State("results_memory", "data"),
 )
-def get_tab_card(active_tab, results_memory, old_card):
+def get_tab_card(active_tab, results_memory):
     cell_style = {
         "padding": "5px",
         "padding-left": "12px"
@@ -606,10 +631,10 @@ def get_tab_card(active_tab, results_memory, old_card):
                     html.P(_instance_attributes.get("other_variant"),
                            id=f"other_variant_target_{i}"),
                            style=cell_style)
-            else:
-                other_variant_column = None
                 tooltips.append(dbc.Tooltip(f"The corresponding compound heterozygous variant.",
                                             target=f"other_variant_target_{i}"))
+            else:
+                other_variant_column = None
 
             overview_table_rows.append(
                 html.Tr(
@@ -660,7 +685,6 @@ def get_tab_card(active_tab, results_memory, old_card):
                 ],
                 justify="between",
             ),
-            html.Br(),
             overview_table
         ]
         return tab_card_content
@@ -687,10 +711,14 @@ def get_tab_card(active_tab, results_memory, old_card):
                                                        }),
                                             width="auto"),
                                 ],
+                                style={"margin-bottom": "0",
+                                       "padding-bottom": "0"}
                             ),
                             className="col-12 col-md-6"
                         )
-                    ]
+                    ],
+                style={"margin-bottom": "0",
+                       "padding-bottom": "0"}
                 )
         else:
             card_header = dbc.Row(
@@ -762,7 +790,7 @@ def get_tab_card(active_tab, results_memory, old_card):
                             target="gene_attribute_score_description"),
                 dbc.Tooltip("Points attributed for insilico predictions, conservation and allele frequency",
                             target="variant_score_description"),
-                dbc.Tooltip("Points b for data in literature databases, animal models, expression pattern, "
+                dbc.Tooltip("Points attributed for data in literature databases, animal models, expression pattern, "
                             "interaction networks",
                             target="literature_score_description")
             ]
@@ -810,7 +838,7 @@ def get_tab_card(active_tab, results_memory, old_card):
                                 className="col-12 col-md-6")
                     ],
                 ),
-                html.Br(),
+                # html.Br(),
                 dbc.Row(
                     [
                         dbc.Col(
@@ -861,39 +889,79 @@ def get_about_text(n_clicks, language):
         raise PreventUpdate
     if language == "DE":
         return [
-            html.P("AutoCaSc ist ein Skript zum automatisierten Bewerten von Kandidatenvarianten in Fällen neuronaler Entwicklungsverzögerung. Es ist ausschließlich für Forschungszwecke zu benutzen. Zur Berechnung der Kandidatenpunktzahl (Candidate score, CaSc) werden 12 verschiedene Parameter einbezogen. Dies sind die Art der Vererbung (z.B. de novo), Genattribute wie pLI & Z-Score (gnomAD), Expressionsmuster (GTEx), in silico Analysen, Literaturdatenbanken (Pubtator Central), Tierdatenbanken (MGI), Proteininteratkionsdatnebanken (StringDB) sowie weitere (DisGeNET, PsymuKB). Die maximal erreichbare Punktzahl sind 15 Punkte. Je höher der erreichte Punktwert, desto plausibler scheint die aus den zugrundeliegenden Daten errechnete Pathogenität der Variante mit Blick auf neuronale Entwicklungsverzögerung."),
+            html.P("AutoCaSc ist ein Skript zum automatisierten Bewerten von Kandidatenvarianten in Fällen neuronaler Entwicklungsverzögerung. Es ist ausschließlich für Forschungszwecke zu benutzen. Die Annotation der Varianten erfolgt mit der REST API von VEP (ensembl, (1)). Zur Berechnung der Kandidatenpunktzahl (Candidate score, CaSc) werden 12 verschiedene Parameter einbezogen. Dies sind die Art der Vererbung (z.B. de novo), Genattribute wie pLI & Z-Score (gnomAD (2)), Expressionsmuster (GTEx (3)), in silico Analysen, Proteininteratkionsdatnebanken (StringDB (4)), Tierdatenbanken (MGI (5)), Literaturdatenbanken (Pubtator Central (6)),  sowie weitere (PsymuKB (7), DisGeNET (8)). Die maximal erreichbare Punktzahl sind 15 Punkte. Je höher der erreichte Punktwert, desto plausibler scheint die aus den zugrundeliegenden Daten errechnete Pathogenität der Variante mit Blick auf neuronale Entwicklungsverzögerung.",
+                   style={"text-align": "justify"}),
             html.Br(),
-            html.P("Bei Fragen und Anmerkungen kontaktieren Sie bitte johann.lieberwirth@medizin.uni-leipzig.de oder rami.aboujamra@medizin.uni-leipzig.de.")
+            html.P("Bei Fragen und Anmerkungen kontaktieren Sie bitte johann.lieberwirth@medizin.uni-leipzig.de oder rami.aboujamra@medizin.uni-leipzig.de.",
+                   style={"text-align": "justify"})
                ], "EN"
     else:
         return [
-                html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
+                html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl VEP REST API (1) to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (gnomAD (2), GTEx (3), STRING (4), MGI (5), PubTator (6), PsyMuKB (7), DisGeNET (8)) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database (9) and a list of genes not involved in NDD.",
+                       style={"text-align": "justify"}),
                 html.Br(),
-                html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
+                html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.",
+                       style={"text-align": "justify"})
             ], "DE"
 
 
-# @app.callback(
-#     Output("impressum_text", "children"),
-#     Output("impressum_language_button", "children"),
-#     Input("impressum_language_button", "n_clicks"),
-#     State("impressum_language_button", "children")
-# )
-# def get_about_text(n_clicks, language):
-#     if not n_clicks:
-#         raise PreventUpdate
-#     if language == "DE":
-#         return [
-#             html.P("AutoCaSc ist ein Skript zum automatisierten Bewerten von Kandidatenvarianten in Fällen neuronaler Entwicklungsverzögerung. Es ist ausschließlich für Forschungszwecke zu benutzen. Zur Berechnung der Kandidatenpunktzahl (Candidate score, CaSc) werden 12 verschiedene Parameter einbezogen. Dies sind die Art der Vererbung (z.B. de novo), Genattribute wie pLI & Z-Score (gnomAD), Expressionsmuster (GTEx), in silico Analysen, Literaturdatenbanken (Pubtator Central), Tierdatenbanken (MGI), Proteininteratkionsdatnebanken (StringDB) sowie weitere (DisGeNET, PsymuKB). Die maximal erreichbare Punktzahl sind 15 Punkte. Je höher der erreichte Punktwert, desto plausibler scheint die aus den zugrundeliegenden Daten errechnete Pathogenität der Variante mit Blick auf neuronale Entwicklungsverzögerung."),
-#             html.Br(),
-#             html.P("Bei Fragen und Anmerkungen kontaktieren Sie bitte johann.lieberwirth@medizin.uni-leipzig.de oder rami.aboujamra@medizin.uni-leipzig.de.")
-#                ], "EN"
-#     else:
-#         return [
-#                 html.P("AutoCaSc is a tool for quantifying the plausibility of candidate variants for Neurodevelopmental Disorders (NDD). AutoCaSc is intended to be used on impactful rare variants in a research setting. In its current version, 12 parameters are counted in, achieving a maximum of 15 points. User inputs are the identified variant in a standard HGVS/VCF format together with segregation aspects (de novo, recessive, dominant and X-chromosomal). We use the Ensembl REST API to annotate variant attributes (e.g. variant consequence, allele frequency from gnomAD, in silico predictions) and gene based scores dependent on inheritance mode (e.g. high Z-score is of relevant for de novo missense) from dbNSFP. Other attributes were previously labor intensive and predisposed to variability. These included important categories like expression in the nervous system, neuronal functions, co-expression and protein interactions, search for relevant literature, model organisms and observations in screening studies. As an objective approach we now searched a defined set of databases (GTEx, STRING, MGI, PubTator, PsyMuKB, DisGeNET) and generated empirical cut-offs for each category by comparing the respective readout between a manually curated list of known NDD genes from the SysID database and a list of genes not involved in NDDs."),
-#                 html.Br(),
-#                 html.P("Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found a bug.")
-#             ], "DE"
+@app.callback(
+    Output("impressum_text", "children"),
+    Output("impressum_language_button", "children"),
+    Input("impressum_language_button", "n_clicks"),
+    State("impressum_language_button", "children")
+)
+def get_impressum_text(n_clicks, language):
+    if not n_clicks:
+        raise PreventUpdate
+    if language == "DE":
+        return dcc.Markdown("""
+                            Gemäß § 28 BDSG widersprechen wir jeder kommerziellen Verwendung und Weitergabe der Daten.\n
+                            __Verantwortunsbereich__:\n
+                            Das Impressum gilt nur für die Internetpräsenz unter der Adresse: https://autocasc.uni-leipzig.de\n
+                            __Abgrenzung__:\n
+                            Die Web-Präsenz ist Teil des WWW und dementsprechend mit fremden, sich jederzeit wandeln könnenden Web-Sites verknüpft, die folglich auch nicht diesem Verantwortungsbereich unterliegen und für die nachfolgende Informationen nicht gelten. Dass die Links weder gegen Sitten noch Gesetze verstoßen, wurde genau ein Mal geprüft (bevor sie hier aufgenommen wurden).\n
+                            __Diensteanbieter__:\n
+                            Johann Lieberwirth und Rami Abou Jamra\n
+                            __Ansprechpartner für die Webseite__:\n
+                            Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
+                            __Verantwortlicher__:\n
+                            Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
+                            __Anschrift__:\n
+                            Sekretariat\n
+                            Philipp-Rosenthal-Str. 55\n
+                            04103 Leipzig\n
+                            Telefon: 0341 - 97 23800\n
+                            __Urheberschutz und Nutzung__:\n
+                            Der Urheber räumt Ihnen ganz konkret das Nutzungsrecht ein, sich eine private Kopie für persönliche Zwecke anzufertigen. Nicht berechtigt sind Sie dagegen, die Materialien zu verändern und /oder weiter zu geben oder gar selbst zu veröffentlichen.
+                            Wenn nicht ausdrücklich anders vermerkt, liegen die Urheberrechte bei Johann Lieberwirth
+                            Datenschutz Personenbezogene Daten werden nur mit Ihrem Wissen und Ihrer Einwilligung erhoben. Auf Antrag erhalten Sie unentgeltlich Auskunft zu den über Sie gespeicherten personenbezogenen Daten. Wenden Sie sich dazu bitte an den Administrator.\n
+                            __Keine Haftung__:\n
+                            Die Inhalte dieses Webprojektes wurden sorgfältig geprüft und nach bestem Wissen erstellt. Aber für die hier dargebotenen Informationen wird kein Anspruch auf Vollständigkeit, Aktualität, Qualität und Richtigkeit erhoben. Es kann keine Verantwortung für Schäden übernommen werden, die durch das Vertrauen auf die Inhalte dieser Website oder deren Gebrauch entstehen.\n
+                            __Schutzrechtsverletzung__:\n
+                            Falls Sie vermuten, dass von dieser Website aus eines Ihrer Schutzrechte verletzt wird, teilen Sie das bitte umgehend per elektronischer Post mit, damit zügig Abhilfe geschafft werden kann. Bitte nehmen Sie zur Kenntnis: Die zeitaufwändigere Einschaltung eines Anwaltes zur für den Diensteanbieter kostenpflichtigen Abmahnung entspricht nicht dessen wirklichen oder mutmaßlichen Willen.\n
+                            \n
+                            lt. Urteil vom 12. Mai 1998 - 312 O 85/98 - "Haftung für Links" hat das Landgericht Hamburg entschieden, dass man durch die Anbringung eines Links, die Inhalte der gelinkten Seite ggf. mit zu verantworten hat. Dies kann nur dadurch verhindert werden, dass man sich ausdrücklich von diesen Inhalten distanziert.
+                            'Hiermit distanzieren wir uns ausdrücklich von allen Inhalten aller gelinkten Seiten auf unserer Website und machen uns diese Inhalte nicht zu eigen. Diese Erklärung gilt für alle auf unsere Website angebrachten Links.'
+                            \n
+                            © Copyright 2021
+                """), "EN"
+    else:
+        return [
+                html.P("The Institute for Human Genetics (University Medical Center Leipzig) makes no representation about the suitability or accuracy of this software or data for any purpose, and makes no warranties, including fitness for a particular purpose or that the use of this software will not infringe any third party patents, copyrights, trademarks or other rights."),
+                html.Br(),
+                dcc.Markdown("""
+                __Responsible for this website__:\n
+                Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
+                __Responsible for this project__:\n
+                Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
+                __Address__:\n
+                Sekretariat\n
+                Philipp-Rosenthal-Str. 55\n
+                04103 Leipzig\n
+                GERMANY\n
+                Telefon: 0341 - 97 23800\n""")
+            ], "DE"
 
 ########## BACKEND ##########
 def score_variants(instances, inheritance):
@@ -1054,6 +1122,6 @@ def download_button_click(n_cklicks, results_memory):
 
 if __name__ == '__main__':
     app.run_server(debug=True,
-                   dev_tools_hot_reload=True,
+                   dev_tools_hot_reload=False,
                    host='0.0.0.0',
                    port=5000)
