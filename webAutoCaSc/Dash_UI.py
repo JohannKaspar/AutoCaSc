@@ -203,7 +203,7 @@ citations = dcc.Markdown("""
 5. [__MGI__](http://www.informatics.jax.org): Bult, C. J. et al. Mouse Genome Database (MGD) 2019. Nucleic Acids Res 47, D801–D806 (2019).\n
 6. [__PubTator__](https://www.ncbi.nlm.nih.gov/research/pubtator/): Wei, C.-H., Allot, A., Leaman, R. & Lu, Z. PubTator central: automated concept annotation for biomedical full text articles. Nucleic Acids Res 47, W587–W593 (2019).\n
 7. [__PsyMuKB__](http://www.psymukb.net): Lin, G. N. et al. PsyMuKB: An Integrative De Novo Variant Knowledge Base for Developmental Disorders. Genomics Proteomics Bioinformatics 17, 453–464 (2019).\n
-8. [__DisGeNET__](https://www.disgenet.org): : Piñero, J. et al. DisGeNET: a comprehensive platform integrating information on human disease-associated genes and variants. Nucleic Acids Res 45, D833–D839 (2017).\n
+8. [__DisGeNET__](https://www.disgenet.org): Piñero, J. et al. DisGeNET: a comprehensive platform integrating information on human disease-associated genes and variants. Nucleic Acids Res 45, D833–D839 (2017).\n
 ---
 """)
 

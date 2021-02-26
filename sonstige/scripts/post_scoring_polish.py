@@ -119,7 +119,6 @@ def in_sysid(df):
                                 "sonstige/data/sysid_primary_20210203.csv")["Gene symbol"].to_list()
     sysid_candidates = pd.read_csv("/home/johann/PycharmProjects/AutoCaSc_project_folder/"
                                    "sonstige/data/sysid_candidates_20210203.csv")["Gene symbol"].to_list()
-
     for i, row in df.iterrows():
         gene_symbol = row["gene_symbol"]
         if gene_symbol in sysid_primary:
@@ -128,7 +127,6 @@ def in_sysid(df):
             df.loc[i, "sysid"] = "candidates"
         else:
             df.loc[i, "sysid"] = ""
-
     return df
 
 def load_blacklist(path="/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt"):

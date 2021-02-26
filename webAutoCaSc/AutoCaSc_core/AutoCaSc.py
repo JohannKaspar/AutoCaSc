@@ -43,7 +43,8 @@ class AutoCaSc:
                  transcript_num=None,
                  version="current",
                  family_history=False,
-                 mode="default"):
+                 mode="default",
+                 path_to_request_cache_dir=None):
         """This function assigns basic parameters and initializes the scoring process.
 
         :param variant: the variant including position and alternative sequence
@@ -72,7 +73,7 @@ class AutoCaSc:
         self.transcript_num = transcript_num
         self.mode = mode
         self.data_retrieved = False
-        #self.variant_pre_standshift = None
+        self.path_to_request_cache_dir = path_to_request_cache_dir
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
@@ -234,7 +235,9 @@ class AutoCaSc:
             self.oe_lof_interval = f"{self.oe_lof}  [{self.oe_lof_lower} - {self.oe_lof_upper}]"
 
     def get_gnomad_counts(self):
-        gnomad_variant_result, self.status_code = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
+        gnomad_variant_result, self.status_code = GnomADQuery(self.vcf_string,
+                                                              "variant",
+                                                              path_to_request_cache_dir=self.path_to_request_cache_dir).get_gnomad_info()
         if self.status_code == 200:
             self.ac_hom = gnomad_variant_result.get("ac_hom")
             self.allele_count = gnomad_variant_result.get("ac")
@@ -297,8 +300,7 @@ class AutoCaSc:
            wait=wait_random(0.1, 2))
     def open_pickle_file(self):
         self.vep_requests = {}
-        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/vep_requests_{self.assembly}",
-                  "rb") as vep_requests_file:
+        with open(f"{self.path_to_request_cache_dir}vep_requests_{self.assembly}", "rb") as vep_requests_file:
             self.vep_requests = pickle.load(vep_requests_file)
 
 
@@ -325,24 +327,18 @@ class AutoCaSc:
                 self.status_code = 400
 
             if self.status_code == 200:
-                if self.mode == "vcf_hase":
+                if self.path_to_request_cache_dir is not None:
                     new_vep_request = {}
                     new_vep_request[self.variant] = response_decoded
                     try:
-                        if not os.path.isdir(
-                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep"):
-                            if not os.path.isdir(
-                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
-                                os.mkdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
-                            os.mkdir(
-                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep")
+                        if not os.path.isdir(f"{self.path_to_request_cache_dir}tmp/vep"):
+                            if not os.path.isdir(f"{self.path_to_request_cache_dir}tmp"):
+                                os.mkdir(f"{self.path_to_request_cache_dir}tmp")
+                            os.mkdir(f"{self.path_to_request_cache_dir}tmp/vep")
                     except FileExistsError:
                         pass
-                    num_entries = len(list(os.scandir(
-                        "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep")))
-                    with open(
-                            f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep/{num_entries}.pickle",
-                            "wb") as pickle_file:
+                    num_entries = len(list(os.scandir(f"{self.path_to_request_cache_dir}tmp/vep")))
+                    with open(f"{self.path_to_request_cache_dir}tmp/vep/{num_entries}.pickle", "wb") as pickle_file:
                         pickle.dump(new_vep_request, pickle_file)
 
         if self.status_code == 200:
@@ -1025,9 +1021,6 @@ class AutoCaSc:
                     "autosomal recessive & MAF < 0.0005    -->    0.5"
 
         if self.inheritance == "x_linked":
-            #gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info(mode=self.mode)
-            #self.male_count = gnomad_variant_result.get("male_count") or 0
-            #self.female_count = gnomad_variant_result.get("female_count") or 0
             if self.n_hemi <= 1 and self.female_count >= 5:
                 self.frequency_score, self.explanation_dict["frequency"] = 2,\
                     "X linked and discrepancy of MAF in gnomAD between males and females (max.1/min.5)    -->    2"

@@ -63,7 +63,7 @@ query Gene($geneId: String, $geneSymbol: String, $referenceGenome: ReferenceGeno
 REQS_PER_SEC = 15
 
 class GnomADQuery:
-    def __init__(self, identifier, category="gene", assembly="GRCh37"):
+    def __init__(self, identifier, category="gene", assembly="GRCh37", path_to_request_cache_dir=None):
         self.category = category
         if self.category == "gene":
             self.query = '''
@@ -129,6 +129,7 @@ class GnomADQuery:
         self.assembly = assembly
         self.variant = identifier
         self.result_dict = {}
+        self.path_to_request_cache_dir = path_to_request_cache_dir
 
 
     @retry(reraise=True,
@@ -140,7 +141,6 @@ class GnomADQuery:
         r = requests.post(url="https://gnomad.broadinstitute.org/api?",
                           json={'query': self.query, 'variables': self.query_variables},
                           headers={'Accept': 'application/vnd.cap-collectif.preview+json'})
-
         # if status code == 200
         if r.ok:
             return r
@@ -154,14 +154,12 @@ class GnomADQuery:
            wait=wait_random(0.1, 1))
     def open_pickle_file(self):
         self.gnomad_requests = {}
-        with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gnomad_requests_{self.assembly}",
-                  "rb") as gnomad_requests_file:
+        with open(f"{self.path_to_request_cache_dir}gnomad_requests_{self.assembly}", "rb") as gnomad_requests_file:
             self.gnomad_requests = pickle.load(gnomad_requests_file)
 
 
     # requests and returns gnomAD gene information
     def get_gnomad_info(self, mode="default"):
-
         r = None
         if mode != "web":
             self.gnomad_requests = {}
@@ -187,26 +185,22 @@ class GnomADQuery:
             except IOError:
                 print("Some problem with gnomAD API request!")
                 status_code = 400
-            if r.status_code == 200 and mode != "web":
+            if r.status_code == 200 and self.path_to_request_cache_dir is not None:
                 if self.gnomad_requests != {}:
-                    new_gnomad_requests = {}
-                    new_gnomad_requests[self.variant] = r
+                    new_gnomad_requests = {self.variant: r}
                     try:
                         if not os.path.isdir(
-                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad"):
+                                f"{self.path_to_request_cache_dir}tmp/gnomad"):
                             if not os.path.isdir(
-                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
+                                    f"{self.path_to_request_cache_dir}tmp"):
                                 os.mkdir(
-                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
+                                    f"{self.path_to_request_cache_dir}tmp")
                             os.mkdir(
-                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")
+                                f"{self.path_to_request_cache_dir}tmp/gnomad")
                     except FileExistsError:
                         pass
-                    num_entries = len(list(os.scandir(
-                        "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")))
-                    with open(
-                            f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad/{num_entries}.pickle",
-                            "wb") as pickle_file:
+                    num_entries = len(list(os.scandir(f"{self.path_to_request_cache_dir}tmp/gnomad")))
+                    with open(f"{self.path_to_request_cache_dir}tmp/gnomad/{num_entries}.pickle", "wb") as pickle_file:
                         pickle.dump(new_gnomad_requests, pickle_file)
         if r is not None:
             status_code = r.status_code
