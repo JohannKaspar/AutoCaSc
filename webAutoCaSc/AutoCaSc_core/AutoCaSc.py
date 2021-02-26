@@ -72,7 +72,7 @@ class AutoCaSc:
         self.transcript_num = transcript_num
         self.mode = mode
         self.data_retrieved = False
-        self.variant_pre_standshift = None
+        #self.variant_pre_standshift = None
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
@@ -154,14 +154,14 @@ class AutoCaSc:
         start = time.time()
         self.get_vep_data()  # this method call initiates the annotation of the given variant
         end = time.time()
-        print(f"VEP execution time {end - start}")
+        print(f"VEP execution time {round(end - start, 2)}")
         if self.status_code == 200 and gnomad is True:
             # 498 = no matching transcript index has been found (e.g. variant is intergenic)
             self.get_gnomad_constraint()
             start = time.time()
             self.get_gnomad_counts()  # gets allele counts in gnomad
             end = time.time()
-            print(f"gnomad execution time {end - start}")
+            print(f"gnomad execution time {round(end - start, 2)}")
             if self.other_variant and self.other_autocasc_obj is None:
                 self.other_autocasc_obj = AutoCaSc(variant=self.other_variant,
                                                    inheritance=self.inheritance,
@@ -268,8 +268,8 @@ class AutoCaSc:
             self.status_code = 401
 
     @retry(reraise=True,
-           stop=stop_after_attempt(3),
-           wait=wait_exponential(multiplier=1.3, min=0.1, max=2))
+           stop=stop_after_attempt(5),
+           wait=wait_exponential(multiplier=1.3, min=0.1, max=3))
     def vep_api_request(self):
         """General function for handling API communication.
         Return obtained data as a dict.
@@ -326,13 +326,14 @@ class AutoCaSc:
 
             if self.status_code == 200:
                 if self.mode == "vcf_hase":
+                    new_vep_request = {}
+                    new_vep_request[self.variant] = response_decoded
                     try:
                         if not os.path.isdir(
                                 "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep"):
                             if not os.path.isdir(
-                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
-                                os.mkdir(
-                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
+                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
+                                os.mkdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
                             os.mkdir(
                                 "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep")
                     except FileExistsError:
@@ -342,7 +343,8 @@ class AutoCaSc:
                     with open(
                             f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/vep/{num_entries}.pickle",
                             "wb") as pickle_file:
-                        pickle.dump(self.vep_requests, pickle_file)
+                        pickle.dump(new_vep_request, pickle_file)
+
         if self.status_code == 200:
             transcript_index = self.get_transcript_index(response_decoded)
             # get the index of the transcript to consider for further annotations
@@ -822,15 +824,23 @@ class AutoCaSc:
             self.literature_score]]
         self.candidate_score_v1 = round(sum(candidate_score_list), 2)
 
+        if not self.filter_pass:
+            self.candidate_score_v1 = 0
 
         if self.inheritance == "comphet":
             if self.other_autocasc_obj and recursively:
                 self.other_autocasc_obj.calculate_candidate_score_v1(recursively=False)
 
-                self.candidate_score_v1 = round(mean([self.candidate_score_v1,
-                                                   self.other_autocasc_obj.__dict__.get("candidate_score_v1")]), 2)
-                if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
-                    self.candidate_score_v1 += 1
+                if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
+                    self.candidte_score_v1 = 0
+                    if self.filter_pass:
+                        self.filter_fail_explanation = f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
+
+                else:
+                    self.candidate_score_v1 = round(mean([self.candidate_score_v1,
+                                                       self.other_autocasc_obj.__dict__.get("candidate_score_v1")]), 2)
+                    if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
+                        self.candidate_score_v1 += 1
 
 
     def rate_inheritance(self):
@@ -908,7 +918,6 @@ class AutoCaSc:
     def rate_impact(self):
         """This function scores the variants predicted impact.
         """
-
         if self.other_autocasc_obj:
             self.other_impact = self.other_autocasc_obj.__dict__.get("impact")
 
@@ -916,13 +925,14 @@ class AutoCaSc:
 
         if self.impact == "moderate":
             self.impact_score, self.explanation_dict["impact"] = 0, "impact moderate    -->    0"
-        if self.impact == "high":
+        elif self.impact == "high":
             self.impact_score, self.explanation_dict["impact"] = 2, "impact high, heterozygous    -->    2"
             if self.inheritance == "homo":
                 self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic    -->    3"
-            # if self.other_impact == "high":
-            #     self.impact_score, self.explanation_dict["impact"] = 3, "compound heterozygous, both impacts high    -->    3"
-            # for the above see new lines added in self.calculate_candidate_score at the end
+        else:
+            self.filter_pass = False
+            self.filter_fail_explanation = "low impact"
+
 
     def rate_in_silico(self):
         """This function scores in silico predictions.
@@ -991,6 +1001,9 @@ class AutoCaSc:
         self.frequency_score, self.explanation_dict["frequency"] = 0, "other    -->    0"
 
         if self.inheritance in ["de_novo", "ad_inherited"]:
+            if self.allele_count != 0:
+                self.filter_pass = False
+                self.filter_fail_explanation = f"{self.allele_count}x in gnomad"
             if self.maf < 0.000005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
                     f"{self.inheritance} & MAF < 0.000005    -->    1"
@@ -1001,6 +1014,9 @@ class AutoCaSc:
                 self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002    -->    0"
 
         if self.inheritance in ["homo", "comphet"]:
+            if self.ac_hom != 0:
+                self.filter_pass = False
+                self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
             if self.maf < 0.00005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
                     "autosomal recessive & MAF < 0.00005    -->    1"
@@ -1009,20 +1025,26 @@ class AutoCaSc:
                     "autosomal recessive & MAF < 0.0005    -->    0.5"
 
         if self.inheritance == "x_linked":
-            gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
-            self.male_count = gnomad_variant_result.get("male_count") or 0
-            self.female_count = gnomad_variant_result.get("female_count") or 0
-            if self.male_count <= 1 and self.female_count >= 5:
+            #gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info(mode=self.mode)
+            #self.male_count = gnomad_variant_result.get("male_count") or 0
+            #self.female_count = gnomad_variant_result.get("female_count") or 0
+            if self.n_hemi <= 1 and self.female_count >= 5:
                 self.frequency_score, self.explanation_dict["frequency"] = 2,\
                     "X linked and discrepancy of MAF in gnomAD between males and females (max.1/min.5)    -->    2"
                 #TODO DAS HIER DRUNTER WURDE ADAPTIERT, MUSS MIT RAMI BESPROCHEN WERDEN
-            elif self.male_count == 0:
+            elif self.n_hemi == 0:
                 self.frequency_score = 1
-                self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD  -->    2"
+                self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD  -->    1"
             else:
                 self.frequency_score = 0
-                self.explanation_dict["frequency"] = "X linked and at least once hemizygous in gnomad"
+                self.explanation_dict["frequency"] = f"X linked and {self.n_hemi}x hemizygous in gnomad!"
                 self.filter_pass = False
+                self.filter_fail_explanation = f"{self.n_hemi}x hemizygous in gnomad"
+            if self.ac_hom != 0:
+                self.filter_pass = False
+                self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
+
+
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command

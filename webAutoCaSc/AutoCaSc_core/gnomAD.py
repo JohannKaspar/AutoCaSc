@@ -59,7 +59,7 @@ query Gene($geneId: String, $geneSymbol: String, $referenceGenome: ReferenceGeno
 # }
 '''
 
-result_dict = {}
+# result_dict = {}
 REQS_PER_SEC = 15
 
 class GnomADQuery:
@@ -128,6 +128,7 @@ class GnomADQuery:
         self.last_req = 0
         self.assembly = assembly
         self.variant = identifier
+        self.result_dict = {}
 
 
     @retry(reraise=True,
@@ -159,85 +160,88 @@ class GnomADQuery:
 
 
     # requests and returns gnomAD gene information
-    def get_gnomad_info(self): #todo add webmode
-        self.gnomad_requests = {}
-        # try:
-        #     self.open_pickle_file()
-        #     if self.gnomad_requests.get(self.variant):
-        #         r = self.gnomad_requests.get(self.variant)
-        #         if r is not None:
-        #             return r, 200
-        # except pickle.UnpicklingError:
-        #     print("could not open gnomad pickle")
+    def get_gnomad_info(self, mode="default"):
 
-        try:
-            r = self.gnomad_sparql_request()
+        r = None
+        if mode != "web":
+            self.gnomad_requests = {}
+            # trying to load stored gnomad requests
+            try:
+                self.open_pickle_file()
+                if self.gnomad_requests.get(self.variant):
+                    r = self.gnomad_requests.get(self.variant)
+            except pickle.UnpicklingError:
+                print("could not open gnomad pickle")
+
+            try:
+                if r.status_code == 200:
+                    pass
+                else:
+                    r = None
+            except AttributeError:
+                r = None
+
+        if r is None:
+            try:
+                r = self.gnomad_sparql_request()
+            except IOError:
+                print("Some problem with gnomAD API request!")
+                status_code = 400
+            if r.status_code == 200 and mode != "web":
+                if self.gnomad_requests != {}:
+                    new_gnomad_requests = {}
+                    new_gnomad_requests[self.variant] = r
+                    try:
+                        if not os.path.isdir(
+                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad"):
+                            if not os.path.isdir(
+                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
+                                os.mkdir(
+                                    "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
+                            os.mkdir(
+                                "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")
+                    except FileExistsError:
+                        pass
+                    num_entries = len(list(os.scandir(
+                        "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")))
+                    with open(
+                            f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad/{num_entries}.pickle",
+                            "wb") as pickle_file:
+                        pickle.dump(new_gnomad_requests, pickle_file)
+        if r is not None:
             status_code = r.status_code
-        except IOError:
-            print("Some problem with gnomAD API request!")
-            status_code = 400
 
         if status_code == 200:
             decoded = r.json()
-            result_dict = self.recursion(decoded)
+            self.recursion(decoded)
             if self.category == "gene":
-                if result_dict is not None:
-                    if result_dict.get("oe_mis") and result_dict.get("oe_mis_lower") and result_dict.get("oe_mis_upper"):
-                        result_dict["oe_mis_interval"] = "{value}  [{lower} - {upper}]".format(
-                            value=round(result_dict.get("oe_mis"), 2),
-                            lower=round(result_dict.get("oe_mis_lower"), 2),
-                            upper=round(result_dict.get("oe_mis_upper"), 2))
-                    if result_dict.get("oe_lof") and result_dict.get("oe_lof_lower") and result_dict.get("oe_lof_upper"):
-                        result_dict["oe_lof_interval"] = "{value}  [{lower} - {upper}]".format(
-                            value=round(result_dict.get("oe_lof"), 2),
-                            lower=round(result_dict.get(
+                if self.result_dict is not None:
+                    if self.result_dict.get("oe_mis") and self.result_dict.get("oe_mis_lower") and self.result_dict.get("oe_mis_upper"):
+                        self.result_dict["oe_mis_interval"] = "{value}  [{lower} - {upper}]".format(
+                            value=round(self.result_dict.get("oe_mis"), 2),
+                            lower=round(self.result_dict.get("oe_mis_lower"), 2),
+                            upper=round(self.result_dict.get("oe_mis_upper"), 2))
+                    if self.result_dict.get("oe_lof") and self.result_dict.get("oe_lof_lower") and self.result_dict.get("oe_lof_upper"):
+                        self.result_dict["oe_lof_interval"] = "{value}  [{lower} - {upper}]".format(
+                            value=round(self.result_dict.get("oe_lof"), 2),
+                            lower=round(self.result_dict.get(
                                 "oe_lof_lower"), 2),
-                            upper=round(result_dict.get(
+                            upper=round(self.result_dict.get(
                                 "oe_lof_upper"), 2))
                 else:
                     status_code = 495
             else:
-                if "ac_hemi_exome" in result_dict.keys():
-                    result_dict["ac_hemi"] = (result_dict.get("ac_hemi_exome") or 0) \
-                                             + (result_dict.get("ac_hemi_genome") or 0)
-                    result_dict["ac_hom"] = (result_dict.get("ac_hom_exome") or 0) \
-                                            + (result_dict.get("ac_hom_genome") or 0)
-                    result_dict["ac"] = (result_dict.get("ac_exome") or 0) \
-                                        + (result_dict.get("ac_genome") or 0)
-
+                self.result_dict["ac_hemi"] = (self.result_dict.get("ac_hemi_exome") or 0) \
+                                         + (self.result_dict.get("ac_hemi_genome") or 0)
+                self.result_dict["ac_hom"] = (self.result_dict.get("ac_hom_exome") or 0) \
+                                        + (self.result_dict.get("ac_hom_genome") or 0)
+                self.result_dict["ac"] = (self.result_dict.get("ac_exome") or 0) \
+                                    + (self.result_dict.get("ac_genome") or 0)
                 if self.variant[0] in ["X", "x"]:
-                    result_dict["male_count"] = result_dict.get("ac_hemi") or 0
-                    total_allele_count = result_dict.get("ac") or 0
-                    result_dict["female_count"] = total_allele_count - result_dict.get("male_count")
-
-                if "errors" in result_dict.keys():
-                    for i in range(len(result_dict.get("errors"))):
-                        try:
-                            if result_dict.get("errors")[i].get("message") == "Variant not found":
-                                not_in_gnomad_dict = {}
-                                not_in_gnomad_dict["ac_hemi"] = 0
-                                not_in_gnomad_dict["ac_hom"] = 0
-                                not_in_gnomad_dict["ac"] = 0
-                                return not_in_gnomad_dict, status_code
-                        except (AttributeError, TypeError, IndexError):
-                            print("Could not retrieve Error Code from gnomAD Server response!")
-            try:
-                if not os.path.isdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad"):
-                    if not os.path.isdir(
-                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp"):
-                        os.mkdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp")
-                    os.mkdir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")
-            except (FileExistsError, FileNotFoundError):
-                pass
-            try:
-                num_entries = len(list(os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad")))
-                with open(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/gnomad/{num_entries}.pickle", "wb") as pickle_file:
-                    pickle.dump(self.gnomad_requests, pickle_file)
-            except FileNotFoundError:
-                pass
-
-            return result_dict, status_code
-
+                    self.result_dict["male_count"] = self.result_dict.get("ac_hemi") or 0
+                    total_allele_count = self.result_dict.get("ac") or 0
+                    self.result_dict["female_count"] = total_allele_count - self.result_dict.get("male_count")
+            return self.result_dict, status_code
         else:
             return None, status_code
 
@@ -252,12 +256,12 @@ class GnomADQuery:
                 self.recursion(value, suffix)
             else:
                 if isinstance(value, float):
-                    result_dict[key + suffix] = round(value, 2)
+                    self.result_dict[key + suffix] = round(value, 2)
                 else:
-                    result_dict[key + suffix] = value
-        return result_dict
+                    self.result_dict[key + suffix] = value
 
-# print(GnomADQuery("X:153032470:G:A", "variant").get_gnomad_info())
+#x = GnomADQuery("1:55516888:G:GA", "variant").get_gnomad_info()
+#print("")
 # print(GnomADQuery("1-55516888-G-GA", "variant").get_gnomad_info())
 # gnomad_variant_result = gnomad_variant_instance.get_gnomad_info()
 # gnomad_instance = GnomADQuery("ENSG00000198753")

@@ -79,6 +79,8 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
 
     # iterrating through the rows of the chunk, variant by variant
     for row_id, row in vcf_chunk.iterrows():
+        if str(row["POS"]) == "151138164":
+           print("a")
         try:
             chrom = row["#CHROM"]
         except pd.core.indexing.IndexingError:
@@ -88,15 +90,11 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
         alt = row["ALT"]
         alt = alt.replace("*", "-")
         variant_vcf = ":".join(map(str, [chrom, pos, ref, alt]))
-        print(f"non_comph {row_id + 1} of {len(vcf_chunk)}: {variant_vcf}")
         quality_parameters = extract_quality_parameters(row, ped_file)
 
-        # todo change this back
-        #if "," in variant_vcf:
-        #    continue
-
-
-        if "de_novo" in str(vcf_chunk.loc[row_id, "INFO"]):
+        if "comphet_side" in str(vcf_chunk.loc[row_id, "INFO"]):
+            continue
+        elif "de_novo" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "de_novo"
         elif "homo" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "homo"
@@ -105,7 +103,10 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
         elif "autosomal_dominant" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "ad_inherited"
         else:
-            continue
+            inheritance = "unknown"
+
+        print(f"non_comph {row_id + 1} of {len(vcf_chunk)}: {variant_vcf}")
+
 
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance=inheritance,
@@ -168,7 +169,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, num_t
     # vcf_annotated = vcf_annotated.loc[vcf_annotated["#CHROM"] == "chr1"]
 
 
-    vcf_chunks = [vcf_annotated.loc[i * round(len(vcf_annotated) / num_threads):(i+1) * round(len(vcf_annotated) / num_threads),:] for i in range(num_threads)]
+    vcf_chunks = [vcf_annotated.loc[round(i * len(vcf_annotated) / num_threads):round((i+1) * len(vcf_annotated) / num_threads),:] for i in range(num_threads)]
 
     # this starts annotation of all variants that are comphet
     with ThreadPoolExecutor() as executor:
@@ -235,11 +236,9 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, num_threa
                 j = len(comphet_cross_df)
                 chrom_2, pos_2, ref_2, alt_2 = substring.split("/")[-4:]
                 vcf_2 = ":".join([chrom_2, pos_2, ref_2, alt_2])
-
                 comphet_cross_df.loc[j, "var_1"] = vcf_1
                 comphet_cross_df.loc[j, "var_2"] = vcf_2
                 comphet_cross_df.loc[j, "quality_parameters"] = quality_parameters
-
         except IndexError:
             continue
 
@@ -397,7 +396,7 @@ def main(ctx, verbose):
               default="0",
               help="Max number of alternative sequence homozygotes in gnomad.")
 @click.option("--quality", "-q",
-              default="200",
+              default="400",
               help="Minimum quality of variants.")
 @click.option("--gq_filter", "-gq",
               default="10",
@@ -468,44 +467,12 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
     if skip_slivar:
         slivar_noncomp_process = subprocess.run(shlex.split("echo test"))
-        slivar_precomp_process = subprocess.run(shlex.split("echo test"))
         slivar_comp_process = subprocess.run(shlex.split("echo test"))
     else:
-        """slivar_precomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} ' \
-                                 f'-p {ped_file} --pass-only ' \
-                                 f'-g {gnotate_file} -o {cache}/{trio_name}_comp_prefiltered ' \
-                                 f'--info "INFO.gnomad_popmax_af <= {compf_af_max} && variant.QUAL >= {quality}' \
-                                 f'&& INFO.gnomad_nhomalt < 10 && variant.FILTER == \'PASS\'" ' \
-                                 f'--trio "comphet_side:comphet_side(kid, mom, dad)"'
-
-        slivar_precomp_process = subprocess.run(shlex.split(slivar_precomp_command),
-                                        stdout=subprocess.PIPE,
-                                        universal_newlines=True)
-        slivar_comp_command = f'{slivar_dir} compound-hets -v {cache}/{trio_name}_comp_prefiltered ' \
-                              f'-p {ped_file} -o {cache}/{trio_name}_comphets'
-        slivar_comp_process = subprocess.run(shlex.split(slivar_comp_command),
-                                        stdout=subprocess.PIPE,
-                                        universal_newlines=True)"""
-
         if interpret_pedigree(ped_file)[0]:
             slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                      f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                     f'--info "variant.QUAL >= {quality} && variant.FILTER == \'PASS\' ' \
-                                     f'&& INFO.gnomad_nhomalt <= {nhomalt}" ' \
-                                     f'--trio "homo:recessive(kid, mom, dad)" ' \
-                                     f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
-                                     f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                                     f'&& x_recessive(kid, mom, dad)" ' \
-                                     f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                     '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
-                                     '|| variant.CHROM==\'chrX\') ' \
-                                     f'&& x_denovo(kid, mom, dad)))" ' \
-                                     f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
-                                     '&& trio_autosomal_dominant(kid, mom, dad)" '
-        else:
-            slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                                     f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                     f'--info "variant.QUAL >= {quality} && variant.FILTER == \'PASS\' ' \
+                                     f'--info "variant.QUAL >= {quality}' \
                                      f'&& INFO.gnomad_nhomalt <= {nhomalt} && INFO.impactful" ' \
                                      f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
                                      f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
@@ -513,8 +480,23 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                      f'&& x_recessive(kid, mom, dad)" ' \
                                      f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
                                      '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
-                                     '|| variant.CHROM==\'chrX\') ' \
-                                     f'&& x_denovo(kid, mom, dad)))" ' \
+                                     '|| variant.CHROM==\'chrX\') && x_denovo(kid, mom, dad)))" ' \
+                                     f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
+                                     f'&& INFO.gnomad_popmax_af <= {compf_af_max}"' \
+                                     f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
+                                     '&& trio_autosomal_dominant(kid, mom, dad)" '
+        else:
+            slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
+                                     f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
+                                     f'--info "variant.QUAL >= {quality}' \
+                                     f'&& INFO.gnomad_nhomalt <= {nhomalt} && INFO.impactful" ' \
+                                     f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
+                                     f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
+                                     f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
+                                     f'&& x_recessive(kid, mom, dad)" ' \
+                                     f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
+                                     '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
+                                     '|| variant.CHROM==\'chrX\') && x_denovo(kid, mom, dad)))" ' \
                                      f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
                                      f'&& INFO.gnomad_popmax_af <= {compf_af_max}"'
 
@@ -530,40 +512,6 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                              universal_newlines=True)
 
 
-
-        """if interpret_pedigree(ped_file)[0]:
-            slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                                 f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                 f'--info "variant.QUAL >= {quality}" ' \
-                                 f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
-                                 f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                                 '--trio "x_linked_recessive:variant.CHROM==\'X\' ' \
-                                 f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                                 f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
-                                 f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                 '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'X\' ' \
-                                 f'&& trio_x_linked_recessive(kid, dad, mom)))" ' \
-                                 f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
-                                 '&& trio_autosomal_dominant(kid, mom, dad)" '
-        else:
-            slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                                     f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                     f'--info "variant.QUAL >= {quality}" ' \
-                                     f'--trio "homo:INFO.gnomad_nhomalt <= {nhomalt} ' \
-                                     f'&& trio_autosomal_recessive(kid, mom, dad)" ' \
-                                     '--trio "x_linked_recessive:variant.CHROM==\'X\' ' \
-                                     f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                                     f'&& trio_x_linked_recessive(kid, dad, mom)" ' \
-                                     f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                     '&& (trio_denovo(kid, mom, dad) || (variant.CHROM==\'X\' ' \
-                                     f'&& trio_x_linked_recessive(kid, dad, mom)))" '
-
-        slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
-                                        stdout=subprocess.PIPE,
-                                        universal_newlines=True)"""
-
-
-
     if not all(c == 0 for c in [slivar_noncomp_process.returncode, slivar_comp_process.returncode]):
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
     else:
@@ -572,17 +520,6 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         print("comphets scored!")
         non_comphet_variant_instances = score_non_comphets(f"{cache}/{trio_name}_non_comphets", cache, trio_name, assembly, ped_file)
         print("de_novos, x_linked & recessive scored!")
-
-
-        """        with open(cache + "/non_comphet_variant_instances_scored", "wb") as non_comphet_out:
-            pickle.dump(non_comphet_variant_instances, non_comphet_out)
-        with open(cache + "/comphet_variant_instances_scored", "wb") as comphet_out:
-            pickle.dump(comphet_variant_instances, comphet_out)
-
-        with open(cache + "/non_comphet_variant_instances_scored", "rb") as non_comphet_out:
-            non_comphet_variant_instances = pickle.load(non_comphet_out)
-        with open(cache + "/comphet_variant_instances_scored", "rb") as comphet_out:
-            comphet_variant_instances = pickle.load(comphet_out)"""
 
         merged_instances = pd.concat([non_comphet_variant_instances, comphet_variant_instances], ignore_index=True)
         merged_instances.fillna("", inplace=True)
@@ -642,15 +579,8 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                          decimal=",",
                          sep="\t")
 
-        """try:
-            os.mkdir(f"/home/johann/VCFs/slivar_filtered/{trio_name}")
-        except FileExistsError:
-            pass
-        shutil.copyfile(f"{cache}/{trio_name}_non_comphets",
-                        f"/home/johann/VCFs/slivar_filtered/{trio_name}/{trio_name}_non_comphets")
-        shutil.copyfile(f"{cache}/{trio_name}_comphets",
-                        f"/home/johann/VCFs/slivar_filtered/{trio_name}/{trio_name}_comphets")"""
-        shutil.rmtree(cache)
+        #shutil.rmtree(cache)
+
         for api in ["gnomad", "vep"]:
             if os.path.isdir(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/{api}"):
                 with open(
@@ -659,8 +589,11 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                     requests = pickle.load(requests_file)
                     for entry in os.scandir(f"/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/tmp/{api}"):
                         with open(entry.path, "rb") as new_request_file:
-                            new_request = pickle.load(new_request_file)
-                            requests.update(new_request)
+                            try:
+                                new_request = pickle.load(new_request_file)
+                                requests.update(new_request)
+                            except UnicodeDecodeError:
+                                pass
                 with open(
                         f"/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/{api}_requests_{assembly}",
                         "wb") as requests_file:
@@ -671,22 +604,11 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
 
 if __name__ == "__main__":
-    """score_vcf(shlex.split("-v /home/johann/Bernt_VCF/bernt_vcf_coding "
-                      "-p /home/johann/Bernt_VCF/pedigrees/pedigree_MR144.ped "
-                       "-g /home/johann/tools/slivar/gnotate/gnomad.hg38.v2.zip "
-                       "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                      "-o /home/johann/Bernt_VCF/scored/MR144_scored.csv "
-                      "-a GRCh38 "
-                      "-s /home/johann/tools/slivar/slivar "
-                      "-ssli "
-                      "-dbed "
-                      "-nc "
-                      ))"""
-    """score_vcf(shlex.split("-v /home/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered "
-                      "-p /home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files/L20-0325.ped "
+    """score_vcf(shlex.split("-v /home/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered.AC_filtered.impact_filtered.vcf.gz "
+                      "-p /home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files/L18-1803.ped "
                        "-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                        "-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                      "-o /home/johann/trio_scoring_results/varvis_trios/L20-0325.ped.csv "
+                      "-o /home/johann/trio_scoring_results/varvis_trios/L18-1803.ped.csv "
                       "-a GRCh37 "
                       "-s /home/johann/tools/slivar/slivar "
                       "-ssli "
