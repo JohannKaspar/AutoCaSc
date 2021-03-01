@@ -242,6 +242,8 @@ class AutoCaSc:
             self.ac_hom = gnomad_variant_result.get("ac_hom")
             self.allele_count = gnomad_variant_result.get("ac")
             self.n_hemi = gnomad_variant_result.get("ac_hemi")
+            self.male_count = gnomad_variant_result.get("male_count") or 0
+            self.female_count = gnomad_variant_result.get("female_count") or 0
 
     def check_variant_format(self):
         """This function checks if the entered variant matches either HGVS or VCF format after doing some formatting.
@@ -850,18 +852,18 @@ class AutoCaSc:
         if self.inheritance == "ad_inherited":
             self.inheritance_score, self.explanation_dict["inheritance"] = 0, "inherited autosomal dominant    -->    0"
         if self.inheritance == "comphet":
-            if self.family_history in [False, "no"]:
-                self.inheritance_score, self.explanation_dict["inheritance"] = 1,\
-                    "compound heterozygous, one affected child    -->    1"
-            elif self.family_history in [True, "yes"]:
-                self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
-                    "compound heterozygous, multiple affected children    -->    3"
+            # if self.family_history in [False, "no"]:
+            self.inheritance_score, self.explanation_dict["inheritance"] = 1,\
+                "compound heterozygous, one affected child    -->    1"
+            # elif self.family_history in [True, "yes"]:
+            #     self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
+            #         "compound heterozygous, multiple affected children    -->    3"
         if self.inheritance == "homo":
-            if self.family_history is True:
-                self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
-                    "homo, multiple affected children    -->    3"
-            else:
-                self.inheritance_score, self.explanation_dict["inheritance"] = 2, "homo, one affected child    -->    2"
+            # if self.family_history is True:
+            #     self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
+            #         "homo, multiple affected children    -->    3"
+            # else:
+            self.inheritance_score, self.explanation_dict["inheritance"] = 2, "homo, one affected child    -->    2"
 
         if self.inheritance == "x_linked":
             if self.family_history == True:
@@ -1021,6 +1023,7 @@ class AutoCaSc:
                     "autosomal recessive & MAF < 0.0005    -->    0.5"
 
         if self.inheritance == "x_linked":
+            gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
             if self.n_hemi <= 1 and self.female_count >= 5:
                 self.frequency_score, self.explanation_dict["frequency"] = 2,\
                     "X linked and discrepancy of MAF in gnomAD between males and females (max.1/min.5)    -->    2"

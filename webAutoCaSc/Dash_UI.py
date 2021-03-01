@@ -33,7 +33,8 @@ url_bar_and_content_div = html.Div([
     Download(id="download"),
     html.Div(id='page-content',
              style={"width":"100%",
-                    "color": "#000000"})
+                    "color": "#000000",
+                    })
 ])
 
 navbar = html.Div(
@@ -57,6 +58,8 @@ navbar = html.Div(
                         dbc.Row(
                             [
                                 dbc.Col(dbc.NavLink("About", href='/about'),
+                                        width="auto"),
+                                dbc.Col(dbc.NavLink("FAQ", href='/faq'),
                                         width="auto"),
                                 dbc.Col(dbc.NavLink("Impressum", href='/impressum'),
                                         width="auto"),
@@ -84,9 +87,9 @@ navbar = html.Div(
             color="dark",
             dark=True,
             fixed="top",
-            sticky="fixed"
+            #sticky="top"
         ),
-html.Div(style={"height": "10vh"})
+    html.Div(style={"height": "80px"})
     ]
 )
 
@@ -114,6 +117,29 @@ html.Div(style={"height": "10vh"})
 #     dark=True,
 #     #align="center",
 # )
+
+footer = dbc.Navbar(
+            dbc.Container(
+                [
+                    html.A(html.Img(src="https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-sa.eu.svg",
+                                    height="30px"),
+                           href="https://creativecommons.org/licenses/by-nc-sa/4.0/",
+                           target="_blank"),
+                    dbc.NavLink("Github", href='https://github.com', target="_blank", style={"color": "#ffffff"}),
+                    dbc.NavLink("Human Genetics Leipzig",
+                                href='https://www.uniklinikum-leipzig.de/einrichtungen/humangenetik',
+                                target="_blank",
+                                style={"color": "#ffffff"}),
+                    dbc.NavLink("Our Manuscript",
+                                href="https://www.biorxiv.org",
+                                target="_blank",
+                                style={"color": "#ffffff"})
+                ],
+            ),
+            color="dark",
+            dark=True,
+            sticky="bottom"
+        )
 
 variant_input_card = dbc.FormGroup(
     [
@@ -144,6 +170,7 @@ misc_input_card = dbc.FormGroup(
                 {"label": "homozygous recessive", "value": "homo"},
                 {"label": "X-linked", "value": "x_linked"},
                 {"label": "compound heterozygous", "value": "comphet"},
+                {"label": "unknown", "value": "unknown"}
             ],
             inline=True
         ),
@@ -159,6 +186,43 @@ misc_input_card = dbc.FormGroup(
         # )
     ]
 )
+
+landing_page = html.Div([
+    navbar,
+    html.Div(style={"height": "10vh"}),
+    dbc.Container(
+            [
+                dbc.Row(
+                    dbc.Col(
+                        [
+                            dcc.Markdown("""# Welcome to **webAutoCaSc**,\n
+#### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
+                            html.Hr(),
+                            dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
+                            variant_input_card,
+                            misc_input_card
+                        ]
+                    ),
+                ),
+                html.Br(),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dbc.Button(
+                                "Start search",
+                                color="primary",
+                                id="search_button"
+                            )
+                        )
+                    ]
+                )
+            ],
+        style={"min-height": "calc(89vh - 135px)"}
+        ),
+    html.Div(style={"height": "1vh"}),
+    footer
+])
+
 
 search_page = html.Div([
     navbar,
@@ -189,7 +253,9 @@ results_page_clear = html.Div([
         #     ""
         # )
     ],
-    )
+        style={"height": "90vh"}
+    ),
+    footer
 ],
 
 )
@@ -211,7 +277,6 @@ about_page = html.Div([
     navbar,
     dbc.Container(
         [
-            html.Br(),
             dbc.Row([
                 html.H2("About"),
                 dbc.Button("DE", id="about_language_button")
@@ -233,14 +298,56 @@ about_page = html.Div([
             html.Br(),
             citations
         ],
-    )
+        style={"min-height": "calc(99vh - 150px)"}
+    ),
+    html.Div(style={"height": "1vh"}),
+    footer
+    ])
+
+faq_page = html.Div([
+    navbar,
+    dbc.Container(
+        [
+            dcc.Markdown("""
+            FAQ
+            ---
+            __What is AutoCaSc?__  
+            AutoCaSc is a tool for evaluating the plausibility of candidate variants in cases of neurologic devlopemntal disorders (NDD). It takes variant-specific parameters (conservation, in silico predictions) into account, just as well as gene specific parameters (gene constraint, expression pattern, protein interactions), the segregation and the interplay between those.
+            
+            __What do the 4 subscores stand for?__  
+            - __Variant Attributes (6 points max):__ These include conservation (GERP++), in silico predictions (MutationAssessor, MutationTaster, Sift), splice site predictions (MaxEntScan, AdaBoost, RandomForest), expected impact (VEP)
+            - __Gene Attributes (1 points max):__ These are gene constraint parameters from gnomAD; LOUEF for loss of function variants, Z for missense variants.
+            - __Inheritance (2 points max):__ These points depend on inheritance of the variant of interest and segregation of the variant in the family.
+            - __Gene Plausibility (6 points max):__ These points are calculated based on expression pattern, protein interactions, animal model phenotypes, processed articles on PubMed, de novo mutations in the gene of interest that have been linked to NDD and other sources.
+            
+            __How can I enter multiple (compound heterogyous) variants?__  
+            Just enter all your variants of interest by separating them by a comma. If "compound heterozygous" is selected, webAutoCaSc will automatically match variants in the same gene and process them as corresponding compound heterozygous variants.
+            
+            __What do the inheritance options stand for?__  
+            - __de novo:__ De novo variants are variants that have not been inherited from the parents.
+            - __inherited dominant:__ In case of an inherited dominant variant, the variant of interested has been inherited by an euqally affected parent.
+            - __homozygous recessive:__ Homozygous recessive variants are heterozygously present in both parents. The index person is homozygous for this variant.
+            - __X-linked:__ X-linked variants are being inherited from the mother and cause a phenotype in a male descendant as he has only one affected allele and no healthy second allele to compensate.
+            - __Compund heterozygous:__ Compound heterozygous variants are two different variants that influence the function of the same gene.
+            - __Unknown:__ The "unknown" option can be used if information on the parents is missing.
+            
+            __What does _webAutoCaSc_ stand for?__  
+            _AutoCaSc_ stands for __Auto__mated __Ca__ndidate __Sc__ore and __web__ is the prefix as this is the webapplication running the AutoCaSc script.
+            
+            __Can webAutoCaSc be used for other phenotypes as well?__  
+            AutoCaSc has been developed to work for NDD. We don't recommend using it for other phenotypes. We are planning on expanding the phenotypic spectrum.
+            """),
+        ],
+        style={"min-height": "calc(99vh - 150px)"}
+    ),
+    html.Div(style={"height": "1vh"}),
+    footer
     ])
 
 impressum_page = html.Div(
     [
         navbar,
         dbc.Container([
-            html.Br(),
             dbc.Row([
                 html.H2("Impressum"),
                 dbc.Button("EN", id="impressum_language_button")
@@ -285,48 +392,13 @@ impressum_page = html.Div(
                 """)
             ],
             id="impressum_text")
-        ])
+        ],
+        style={"min-height": "calc(99vh - 150px)"}
+        ),
+        html.Div(style={"height": "1vh"}),
+        footer
     ]
 )
-
-landing_page = html.Div([
-    navbar,
-    html.Div(style={"height": "10vh"}),
-    dbc.Container(
-            [
-                dbc.Row(
-                    dbc.Col(
-                        [
-                            dcc.Markdown("""# Welcome to **webAutoCaSc**,\n
-#### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
-                            html.Hr(),
-                            dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
-                            variant_input_card,
-                            misc_input_card
-                        ]
-                    ),
-                ),
-                html.Br(),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            dbc.Button(
-                                "Start search",
-                                color="primary",
-                                id="search_button"
-                            )
-                        ),
-                        dbc.Col(
-                            html.Div(
-                                id="spinner_card"
-                            )
-                        )
-                    ]
-                )
-            ],
-        ),
-
-])
 
 
 
@@ -359,7 +431,6 @@ app.validation_layout = html.Div([
         ]),
     html.Div(id="loading_output"),
     impressum_page,
-    about_page
 ])
 
 
@@ -394,7 +465,6 @@ def get_results_page(results_memory):
 
         results_page = html.Div([
             navbar,
-            html.Br(),
             dbc.Container([
                 dbc.Card([
                     dbc.CardHeader(
@@ -423,7 +493,11 @@ def get_results_page(results_memory):
                         style={"padding-bottom": "0"}
                     )
                 ])
-            ])
+            ],
+                style={"min-height": "calc(99vh - 135px)"}
+        ),
+            html.Div(style={"height": "1vh"}),
+            footer,
         ])
         return results_page
 
@@ -482,9 +556,8 @@ def display_page(pathname, results_memory):
             return about_page
         if pathname == "/impressum":
             return impressum_page
-        # if pathname == "/results":
-        #     if results_memory is not None: #return empty site just in case
-        #         raise PreventUpdate
+        if "/faq" in pathname:
+            return faq_page
         if "/search" in pathname:
             if results_memory is None:
                 print("search page")

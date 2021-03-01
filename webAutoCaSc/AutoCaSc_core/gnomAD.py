@@ -161,7 +161,7 @@ class GnomADQuery:
     # requests and returns gnomAD gene information
     def get_gnomad_info(self, mode="default"):
         r = None
-        if mode != "web":
+        if self.path_to_request_cache_dir:
             self.gnomad_requests = {}
             # trying to load stored gnomad requests
             try:

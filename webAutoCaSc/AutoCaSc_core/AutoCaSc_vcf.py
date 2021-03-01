@@ -244,8 +244,9 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, num_threa
     comphet_cross_df = comphet_cross_df.rename(columns={"var_1":"variant", "var_2":"other_variant"})
     return comphet_cross_df
 
-def edit_java_script_functions(js_file, dp_filter=20, gq_filter=10):
+def edit_java_script_functions(js_file, dp_filter=20, gq_filter=20):
     with open(js_file, "r") as original_file, open(js_file + ".temp", "w") as new_file:
+        new_file.write(f"var config = {{min_GQ: 20, min_AB: 0.20, min_DP: 20}")
         for line in original_file:
             if "function hq(sample)" in line:
                 break
@@ -314,6 +315,8 @@ def execute_slivar(slivar_dir,
                    autosomal_af_max,
                    comp_af_max,
                    ar_af_max,
+                   gq_filter,
+                   dp_filter,
                    nhomalt,
                    deactivate_bed_filter):
     if not bed_file:
@@ -333,7 +336,7 @@ def execute_slivar(slivar_dir,
         else:
             click.echo("There has been a problem filtering for protein coding variants only! Continuing with all variants.")
 
-    #javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
+    javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
     # todo restore filtering function
 
     if float(x_recessive_af_max) == 0.0:
@@ -723,6 +726,8 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                    comp_af_max,
                                    ar_af_max,
                                    nhomalt,
+                                   gq_filter,
+                                   dp_filter,
                                    deactivate_bed_filter)
 
     if not slivar_ok:
@@ -750,16 +755,12 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                               blacklist_path=blacklist_path,
                                               sysid_primary_path=sysid_primary_path,
                                               sysid_candidates_path=sysid_candidates_path)
-
         autocasc_df.to_csv(f"{output_path}",
                          index=False,
                          decimal=",",
                          sep="\t")
-
         #shutil.rmtree(cache)
-
         update_request_cache(assembly, path_to_request_cache_dir)
-
         #os.remove(javascript_file)
 
 
