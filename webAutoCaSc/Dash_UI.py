@@ -49,31 +49,16 @@ navbar = html.Div(
                                         }),
                         href="/",
                     ),
-                    # dbc.Col(dbc.NavLink("About", href='/about'),
-                    #                 width="auto"),
-                    # dbc.Col(dbc.NavLink("another link", href='/about'),
-                    #         width="auto"),
                     dbc.NavbarToggler(id="navbar-toggler"),
                     dbc.Collapse(
                         dbc.Row(
                             [
-                                dbc.Col(dbc.NavLink("About", href='/about'),
+                                dbc.Col(dbc.NavLink("About", href='/about', style={"color": "#ffffff"}),
                                         width="auto"),
-                                dbc.Col(dbc.NavLink("FAQ", href='/faq'),
+                                dbc.Col(dbc.NavLink("FAQ", href='/faq', style={"color": "#ffffff"}),
                                         width="auto"),
-                                dbc.Col(dbc.NavLink("Impressum", href='/impressum'),
+                                dbc.Col(dbc.NavLink("Impressum", href='/impressum', style={"color": "#ffffff"}),
                                         width="auto"),
-                                # dbc.Col(
-                                #     dbc.Input(type="search", placeholder="Search variant")
-                                # ),
-                                # dbc.Col(
-                                #     dbc.Button(
-                                #         "Search", color="primary", className="ml-2"
-                                #     ),
-                                #     # set width of button column to auto to allow
-                                #     # search box to take up remaining space.
-                                #     width="auto",
-                                # ),
                             ],
                             no_gutters=True,
                             className="ml-auto flex-nowrap mt-3 mt-md-0",
@@ -165,12 +150,12 @@ misc_input_card = dbc.FormGroup(
         dbc.RadioItems(
             id="inheritance_input",
             options=[
-                {"label": "de novo", "value": "de_novo"},
-                {"label": "inherited dominant", "value": "ad_inherited"},
-                {"label": "homozygous recessive", "value": "homo"},
+                {"label": "De novo", "value": "de_novo"},
+                {"label": "Inherited dominant", "value": "ad_inherited"},
+                {"label": "Homozygous recessive", "value": "homo"},
                 {"label": "X-linked", "value": "x_linked"},
-                {"label": "compound heterozygous", "value": "comphet"},
-                {"label": "unknown", "value": "unknown"}
+                {"label": "Compound heterozygous", "value": "comphet"},
+                {"label": "Unknown", "value": "unknown"}
             ],
             inline=True
         ),
@@ -312,30 +297,30 @@ faq_page = html.Div([
             FAQ
             ---
             __What is AutoCaSc?__  
-            AutoCaSc is a tool for evaluating the plausibility of candidate variants in cases of neurologic devlopemntal disorders (NDD). It takes variant-specific parameters (conservation, in silico predictions) into account, just as well as gene specific parameters (gene constraint, expression pattern, protein interactions), the segregation and the interplay between those.
+            The AutoCaSc tool systematically evaluates the plausibility of variants in genes not yet associated with human disease ("candidate genes") to be associated with neurodevelopmental disorders (NDDs). Such variants are typically identified through genome wide screening approaches in individuals NDDs but without a clear diagnostic variant. AutoCaSc accounts for variant-specific parameters (conservation, "in silico" predictions), gene specific parameters (gene constraint, expression pattern, protein interactions), segregation of the variant and the overall interplay between these parameters.
             
             __What do the 4 subscores stand for?__  
-            - __Variant Attributes (6 points max):__ These include conservation (GERP++), in silico predictions (MutationAssessor, MutationTaster, Sift), splice site predictions (MaxEntScan, AdaBoost, RandomForest), expected impact (VEP)
-            - __Gene Attributes (1 points max):__ These are gene constraint parameters from gnomAD; LOUEF for loss of function variants, Z for missense variants.
+            - __Variant Attributes (6 points max):__ These include conservation (GERP++), "in silico" predictions (MutationAssessor, MutationTaster, Sift), splice site predictions (MaxEntScan, AdaBoost, RandomForest) and expected impact (VEP).
+            - __Gene Attributes (1 point max):__ These are gene constraint parameters from gnomAD; LOUEF for loss of function variants, Z for missense variants.
             - __Inheritance (2 points max):__ These points depend on inheritance of the variant of interest and segregation of the variant in the family.
-            - __Gene Plausibility (6 points max):__ These points are calculated based on expression pattern, protein interactions, animal model phenotypes, processed articles on PubMed, de novo mutations in the gene of interest that have been linked to NDD and other sources.
-            
+            - __Gene Plausibility (6 points max):__ These points are calculated based on the gene's expression pattern, protein-protein interactions, animal model phenotypes, published articles on PubMed, de novo variants in the gene linked to NDD and other sources.
+
             __How can I enter multiple (compound heterogyous) variants?__  
             Just enter all your variants of interest by separating them by a comma. If "compound heterozygous" is selected, webAutoCaSc will automatically match variants in the same gene and process them as corresponding compound heterozygous variants.
             
             __What do the inheritance options stand for?__  
-            - __de novo:__ De novo variants are variants that have not been inherited from the parents.
-            - __inherited dominant:__ In case of an inherited dominant variant, the variant of interested has been inherited by an euqally affected parent.
-            - __homozygous recessive:__ Homozygous recessive variants are heterozygously present in both parents. The index person is homozygous for this variant.
-            - __X-linked:__ X-linked variants are being inherited from the mother and cause a phenotype in a male descendant as he has only one affected allele and no healthy second allele to compensate.
-            - __Compund heterozygous:__ Compound heterozygous variants are two different variants that influence the function of the same gene.
-            - __Unknown:__ The "unknown" option can be used if information on the parents is missing.
+            - __De novo:__ De novo variants are identified only in the index and have not been inherited from the parents.
+            - __Inherited dominant:__ In case of an inherited dominant variant, the variant of interested has been inherited by an equally affected parent.
+            - __Homozygous recessive:__ Variant is identified in homozygous state in the index and in heterozygous state in both healthy parents.
+            - __X-linked:__ X-linked variants are being inherited from the heterozygous carrier mother and cause a phenotype in a male descendant as he has only one affected allele and no healthy second allele to compensate. De novo variants on the X-chromosome, for both female and male index individuals, are account for in the de novo inheritance option.
+            - __Compound heterozygous:__ Compound heterozygous variants are two different variants in the same gene but on different alleles. Each is inherited from only one heterozygous carrier parent.
+            - __Unknown:__ The "unknown" option can be used if information on the parents and thus on segregation is missing.
             
             __What does _webAutoCaSc_ stand for?__  
-            _AutoCaSc_ stands for __Auto__mated __Ca__ndidate __Sc__ore and __web__ is the prefix as this is the webapplication running the AutoCaSc script.
+            _AutoCaSc_ stands for __Auto__mated __Ca__ndidate __Sc__ore. We use the __web__ prefix to distinguish the command line interface (CLI) from the webapplication running the AutoCaSc script. The __Ca__ndidate __Sc__ore principle has been previously descrbed (Büttner et al. bioRxiv. 2019). 
             
             __Can webAutoCaSc be used for other phenotypes as well?__  
-            AutoCaSc has been developed to work for NDD. We don't recommend using it for other phenotypes. We are planning on expanding the phenotypic spectrum.
+            AutoCaSc has been developed to work for NDDs. We don't recommend using it for other phenotypes. We are planning a generalized phenotype agnostic framework for future updates.
             """),
         ],
         style={"min-height": "calc(99vh - 150px)"}
