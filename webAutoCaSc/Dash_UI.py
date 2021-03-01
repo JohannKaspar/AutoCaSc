@@ -103,7 +103,9 @@ navbar = html.Div(
 #     #align="center",
 # )
 
-footer = dbc.Navbar(
+footer = html.Div(
+    [
+        dbc.Navbar(
             dbc.Container(
                 [
                     html.A(html.Img(src="https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-sa.eu.svg",
@@ -123,8 +125,11 @@ footer = dbc.Navbar(
             ),
             color="dark",
             dark=True,
-            sticky="bottom"
-        )
+            fixed="bottom"
+        ),
+        html.Div(style={"height": "70px"})
+    ]
+)
 
 variant_input_card = dbc.FormGroup(
     [
@@ -182,7 +187,7 @@ landing_page = html.Div([
                         [
                             dcc.Markdown("""# Welcome to **webAutoCaSc**,\n
 #### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
-                            html.Hr(),
+                            # html.Hr(),
                             dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
                             variant_input_card,
                             misc_input_card
@@ -202,9 +207,9 @@ landing_page = html.Div([
                     ]
                 )
             ],
-        style={"min-height": "calc(89vh - 135px)"}
+        # style={"min-height": "calc(89vh - 135px)"}
         ),
-    html.Div(style={"height": "1vh"}),
+    # html.Div(style={"height": "1vh"}),
     footer
 ])
 
@@ -283,9 +288,9 @@ about_page = html.Div([
             html.Br(),
             citations
         ],
-        style={"min-height": "calc(99vh - 150px)"}
+        # style={"min-height": "calc(99vh - 150px)"}
     ),
-    html.Div(style={"height": "1vh"}),
+    # html.Div(style={"height": "1vh"}),
     footer
     ])
 
@@ -323,9 +328,9 @@ faq_page = html.Div([
             AutoCaSc has been developed to work for NDDs. We don't recommend using it for other phenotypes. We are planning a generalized phenotype agnostic framework for future updates.
             """),
         ],
-        style={"min-height": "calc(99vh - 150px)"}
+        # style={"min-height": "calc(99vh - 150px)"}
     ),
-    html.Div(style={"height": "1vh"}),
+    # html.Div(style={"height": "1vh"}),
     footer
     ])
 
@@ -378,9 +383,9 @@ impressum_page = html.Div(
             ],
             id="impressum_text")
         ],
-        style={"min-height": "calc(99vh - 150px)"}
+        # style={"min-height": "calc(99vh - 150px)"}
         ),
-        html.Div(style={"height": "1vh"}),
+        # html.Div(style={"height": "1vh"}),
         footer
     ]
 )
@@ -479,9 +484,9 @@ def get_results_page(results_memory):
                     )
                 ])
             ],
-                style={"min-height": "calc(99vh - 135px)"}
+                # style={"min-height": "calc(99vh - 135px)"}
         ),
-            html.Div(style={"height": "1vh"}),
+            # html.Div(style={"height": "1vh"}),
             footer,
         ])
         return results_page
