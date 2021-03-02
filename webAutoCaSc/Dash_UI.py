@@ -204,7 +204,7 @@ landing_page = html.Div([
                 )
             ],
             style={"max-height": "calc(100vh - 150px)",
-                    "overflow": "scroll"}
+                    "overflow-y": "auto"}
         ),
     # html.Div(style={"height": "1vh"}),
 ])
@@ -238,7 +238,7 @@ results_page_clear = html.Div([
         # )
     ],
         style={"max-height": "calc(100vh - 150px)",
-               "overflow": "scroll"}
+               "overflow-y": "auto"}
     ),
 ],
 
@@ -308,7 +308,7 @@ about_page = html.Div([
             citations
         ],
         style={"max-height": "calc(100vh - 180px)",  # html.Hr margin seemed to induce global scrollbar
-               "overflow": "scroll"}
+               "overflow-y": "auto"}
     ),
     # html.Div(style={"height": "1vh"}),
     ])
@@ -348,7 +348,7 @@ faq_page = html.Div([
             """),
         ],
         style={"max-height": "calc(100vh - 150px)",
-               "overflow": "scroll"}
+               "overflow-y": "auto"}
     ),
     # html.Div(style={"height": "1vh"}),
     ])
@@ -404,7 +404,7 @@ impressum_page = html.Div(
             )
         ],
         style={"max-height": "calc(100vh - 150px)",
-               "overflow": "scroll"}
+               "overflow-y": "auto"}
         ),
     ]
 )
@@ -502,7 +502,7 @@ def get_results_page(results_memory):
                 ])
             ],
                 style={"max-height": "calc(100vh - 150px)",
-                       "overflow": "scroll"}
+                       "overflow-y": "auto"}
         ),
         ])
         return results_page
