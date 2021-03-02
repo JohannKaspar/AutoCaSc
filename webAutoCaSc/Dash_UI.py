@@ -307,7 +307,7 @@ about_page = html.Div([
             html.Br(),
             citations
         ],
-        style={"max-height": "calc(100vh - 150px)",
+        style={"max-height": "calc(100vh - 180px)",  # html.Hr margin seemed to induce global scrollbar
                "overflow": "scroll"}
     ),
     # html.Div(style={"height": "1vh"}),
