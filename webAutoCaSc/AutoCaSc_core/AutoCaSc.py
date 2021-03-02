@@ -19,7 +19,6 @@ from gnomAD import GnomADQuery
 from tools import safe_get, filterTheDict, get_seq_difference
 
 
-AUTOCASC_VERSION = 0.96
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
 gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
@@ -55,7 +54,6 @@ class AutoCaSc:
         """
 
         self.mutationtaster_converted_rankscore = None
-        self.version = AUTOCASC_VERSION
         self.variant = variant
         self.inheritance = inheritance
         self.comphet_id = None
@@ -79,8 +77,6 @@ class AutoCaSc:
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
         else:
             self.server = "http://rest.ensembl.org"  # API endpoint for GRCh38
-
-        # ToDo das hier hübscher machen?
 
         # assign initial "None" to all parameters
         self.ada_score = None
@@ -129,12 +125,6 @@ class AutoCaSc:
         self.filter_pass = True
 
         self.check_for_other_variant()
-
-        if version == "current":
-            self.version = "v3"
-        else:
-            self.version = version
-
         self.check_variant_format()  # this function is called to check if the entered variant is valid
         if self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
             self.status_code = 401
@@ -349,8 +339,6 @@ class AutoCaSc:
             if self.status_code == 200:
                 self.assign_results(response_decoded, transcript_index)
 
-    # function that makes the server request
-    # @retry(tries=10, delay=5, backoff=1.2, jitter=(1, 3), logger=logger)
 
     # stores and returns relevant parameters in a dictionary
     def assign_results(self, variant_anno_data, transcript_index):
@@ -631,8 +619,6 @@ class AutoCaSc:
             self.candidate_score_v2 = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
             # self.candidate_score = round(mean([product(factor_list), self.literature_score]), 2)
 
-
-
     def score_dominant(self):
         if self.inheritance == "de_novo":
             if self.allele_count == 0:
@@ -779,7 +765,6 @@ class AutoCaSc:
             return self.virlof_ar_enrichment / 2.0
         else:
             return 0
-
 
 
     ########## functions from v1 ############
@@ -991,7 +976,6 @@ class AutoCaSc:
                 self.conservation_score, self.explanation_dict["conservation"] = 1, "LoF    -->    1"
             else:
                 self.conservation_score, self.explanation_dict["conservation"] = 0, "no data!    -->    0"
-        # TODO "use UCSC and give Numbers between 0 - 1"?
 
     def rate_frequency(self):
         """This function scores the variants frequency.
@@ -1039,8 +1023,6 @@ class AutoCaSc:
             if self.ac_hom != 0:
                 self.filter_pass = False
                 self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
-
-
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
