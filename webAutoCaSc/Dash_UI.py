@@ -23,20 +23,6 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
                 server=server)
 app.title = "webAutoCaSc"
 
-url_bar_and_content_div = html.Div([
-    dcc.Location(id='url', refresh=False),
-    dcc.Store(id="query_memory"),
-    dcc.Store(id="variant_queue_input"),
-    dcc.Store(id="variant_queue_url"),
-    dcc.Store(id="variant_memory"),
-    dcc.Store(id="results_memory"),
-    Download(id="download"),
-    html.Div(id='page-content',
-             style={"width":"100%",
-                    "color": "#000000",
-                    })
-])
-
 navbar = html.Div(
     [
         dbc.Navbar(
@@ -131,6 +117,19 @@ footer = html.Div(
     ]
 )
 
+url_bar_and_content_div = html.Div([
+    dcc.Location(id='url', refresh=False),
+    dcc.Store(id="query_memory"),
+    dcc.Store(id="variant_queue_input"),
+    dcc.Store(id="variant_queue_url"),
+    dcc.Store(id="variant_memory"),
+    dcc.Store(id="results_memory"),
+    Download(id="download"),
+    navbar,
+    html.Div(id='page-content'),
+    footer
+])
+
 variant_input_card = dbc.FormGroup(
     [
         dbc.Input(
@@ -139,7 +138,6 @@ variant_input_card = dbc.FormGroup(
             placeholder="e.g. X:12345:T:C",
             autoFocus=True
         ),
-        #dbc.FormText(""),
         dcc.Markdown('''Although HGVS works as well, we recommend using VCF format.\t
                      Examples: [11:94730916:A:C](/search/inheritance%3Dde_novo/variants%3D11%3A94730916%3AA%3AC), 
                      [X:101409056:A:C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC), 
@@ -178,7 +176,6 @@ misc_input_card = dbc.FormGroup(
 )
 
 landing_page = html.Div([
-    navbar,
     html.Div(style={"height": "10vh"}),
     dbc.Container(
             [
@@ -187,7 +184,6 @@ landing_page = html.Div([
                         [
                             dcc.Markdown("""# Welcome to **webAutoCaSc**,\n
 #### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
-                            # html.Hr(),
                             dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
                             variant_input_card,
                             misc_input_card
@@ -207,22 +203,20 @@ landing_page = html.Div([
                     ]
                 )
             ],
-        # style={"min-height": "calc(89vh - 135px)"}
+            style={"max-height": "calc(100vh - 150px)",
+                    "overflow": "scroll"}
         ),
     # html.Div(style={"height": "1vh"}),
-    footer
 ])
 
 
 search_page = html.Div([
-    navbar,
     dbc.Container([
         dbc.Spinner(fullscreen=True)
     ])
 ])
 
 results_page_clear = html.Div([
-    navbar,
     dbc.Container([
         html.H3(
             "X:12345:C:T"
@@ -243,28 +237,53 @@ results_page_clear = html.Div([
         #     ""
         # )
     ],
-        style={"height": "90vh"}
+        style={"max-height": "calc(100vh - 150px)",
+               "overflow": "scroll"}
     ),
-    footer
 ],
 
 )
-
-citations = dcc.Markdown("""
----
-1. [__VEP__](https://grch37.ensembl.org/info/docs/tools/vep/index.html): McLaren, W. et al. The Ensembl Variant Effect Predictor. Genome Biol 17, 122 (2016).\n
-2. [__gnomAD__](https://gnomad.broadinstitute.org): Karczewski, K. J. et al. The mutational constraint spectrum quantified from variation in 141,456 humans. Nature 581, 434–443 (2020).\n
-3. [__GTEx__](http://www.gtexportal.org/home/index.html): Consortium, T. Gte. The GTEx Consortium atlas of genetic regulatory effects across human tissues. Science 369, 1318–1330 (2020).\n
-4. [__STRING__](https://string-db.org): Szklarczyk, D. et al. STRING v11: protein-protein association networks with increased coverage, supporting functional discovery in genome-wide experimental datasets. Nucleic Acids Res 47, D607–D613 (2019).\n
-5. [__MGI__](http://www.informatics.jax.org): Bult, C. J. et al. Mouse Genome Database (MGD) 2019. Nucleic Acids Res 47, D801–D806 (2019).\n
-6. [__PubTator__](https://www.ncbi.nlm.nih.gov/research/pubtator/): Wei, C.-H., Allot, A., Leaman, R. & Lu, Z. PubTator central: automated concept annotation for biomedical full text articles. Nucleic Acids Res 47, W587–W593 (2019).\n
-7. [__PsyMuKB__](http://www.psymukb.net): Lin, G. N. et al. PsyMuKB: An Integrative De Novo Variant Knowledge Base for Developmental Disorders. Genomics Proteomics Bioinformatics 17, 453–464 (2019).\n
-8. [__DisGeNET__](https://www.disgenet.org): Piñero, J. et al. DisGeNET: a comprehensive platform integrating information on human disease-associated genes and variants. Nucleic Acids Res 45, D833–D839 (2017).\n
----
-""")
+citations = html.Div([
+    html.Hr(),
+    dbc.Container([
+        html.P([
+            "1. ", html.A(html.B("VEP"), href="https://grch37.ensembl.org/info/docs/tools/vep/index.html", target="_blank"),
+            ": McLaren, W. et al. The Ensembl Variant Effect Predictor. Genome Biol 17, 122 (2016)."
+        ]),
+        html.P([
+            "2. ", html.A(html.B("gnomAD"), href="https://gnomad.broadinstitute.org", target="_blank"),
+            ": Karczewski, K. J. et al. The mutational constraint spectrum quantified from variation in 141,456 humans. Nature 581, 434–443 (2020)."
+        ]),
+        html.P([
+            "3. ", html.A(html.B("GTEx"), href="http://www.gtexportal.org/home/index.html", target="_blank"),
+            ": Consortium, T. Gte. The GTEx Consortium atlas of genetic regulatory effects across human tissues. Science 369, 1318–1330 (2020)."
+        ]),
+        html.P([
+            "4. ", html.A(html.B("STRING"), href="https://string-db.org", target="_blank"),
+            ": Szklarczyk, D. et al. STRING v11: protein-protein association networks with increased coverage, supporting functional discovery in genome-wide experimental datasets. Nucleic Acids Res 47, D607–D613 (2019)."
+        ]),
+        html.P([
+            "5. ", html.A(html.B("MGI"), href="http://www.informatics.jax.org", target="_blank"),
+            ": Bult, C. J. et al. Mouse Genome Database (MGD) 2019. Nucleic Acids Res 47, D801–D806 (2019)."
+        ]),
+        html.P([
+            "6. ", html.A(html.B("PubTator"), href="https://www.ncbi.nlm.nih.gov/research/pubtator/", target="_blank"),
+            ": Wei, C.-H., Allot, A., Leaman, R. & Lu, Z. PubTator central: automated concept annotation for biomedical full text articles. Nucleic Acids Res 47, W587–W593 (2019)."
+        ]),
+        html.P([
+            "7. ", html.A(html.B("PsyMuKB"), href="http://www.psymukb.net", target="_blank"),
+            ": Lin, G. N. et al. PsyMuKB: An Integrative De Novo Variant Knowledge Base for Developmental Disorders. Genomics Proteomics Bioinformatics 17, 453–464 (2019)."
+        ]),
+        html.P([
+            "8. ", html.A(html.B("DisGeNET"), href="https://www.disgenet.org", target="_blank"),
+            ": Piñero, J. et al. DisGeNET: a comprehensive platform integrating information on human disease-associated genes and variants. Nucleic Acids Res 45, D833–D839 (2017)."
+        ])
+    ]),
+    html.Hr()
+])
 
 about_page = html.Div([
-    navbar,
+    html.Br(),
     dbc.Container(
         [
             dbc.Row([
@@ -288,19 +307,19 @@ about_page = html.Div([
             html.Br(),
             citations
         ],
-        # style={"min-height": "calc(99vh - 150px)"}
+        style={"max-height": "calc(100vh - 150px)",
+               "overflow": "scroll"}
     ),
     # html.Div(style={"height": "1vh"}),
-    footer
     ])
 
 faq_page = html.Div([
-    navbar,
     dbc.Container(
         [
+            html.Br(),
+            html.H2("FAQ"),
+            html.Br(),
             dcc.Markdown("""
-            FAQ
-            ---
             __What is AutoCaSc?__  
             The AutoCaSc tool systematically evaluates the plausibility of variants in genes not yet associated with human disease ("candidate genes") to be associated with neurodevelopmental disorders (NDDs). Such variants are typically identified through genome wide screening approaches in individuals NDDs but without a clear diagnostic variant. AutoCaSc accounts for variant-specific parameters (conservation, "in silico" predictions), gene specific parameters (gene constraint, expression pattern, protein interactions), segregation of the variant and the overall interplay between these parameters.
             
@@ -328,16 +347,16 @@ faq_page = html.Div([
             AutoCaSc has been developed to work for NDDs. We don't recommend using it for other phenotypes. We are planning a generalized phenotype agnostic framework for future updates.
             """),
         ],
-        # style={"min-height": "calc(99vh - 150px)"}
+        style={"max-height": "calc(100vh - 150px)",
+               "overflow": "scroll"}
     ),
     # html.Div(style={"height": "1vh"}),
-    footer
     ])
 
 impressum_page = html.Div(
     [
-        navbar,
-        dbc.Container([
+            dbc.Container([
+            html.Br(),
             dbc.Row([
                 html.H2("Impressum"),
                 dbc.Button("EN", id="impressum_language_button")
@@ -381,12 +400,12 @@ impressum_page = html.Div(
                             © Copyright 2021
                 """)
             ],
-            id="impressum_text")
+            id="impressum_text",
+            )
         ],
-        # style={"min-height": "calc(99vh - 150px)"}
+        style={"max-height": "calc(100vh - 150px)",
+               "overflow": "scroll"}
         ),
-        # html.Div(style={"height": "1vh"}),
-        footer
     ]
 )
 
@@ -404,8 +423,7 @@ app.validation_layout = html.Div([
     results_page_clear,
     dbc.Button(id="download_button"),
     html.Div([
-            navbar,
-            dbc.Container([
+                    dbc.Container([
                 dbc.Card([
                     dbc.CardHeader(
                         dbc.Tabs(
@@ -454,8 +472,7 @@ def get_results_page(results_memory):
             tab_num += 1
 
         results_page = html.Div([
-            navbar,
-            dbc.Container([
+                    dbc.Container([
                 dbc.Card([
                     dbc.CardHeader(
                         dbc.Row(
@@ -484,10 +501,9 @@ def get_results_page(results_memory):
                     )
                 ])
             ],
-                # style={"min-height": "calc(99vh - 135px)"}
+                style={"max-height": "calc(100vh - 150px)",
+                       "overflow": "scroll"}
         ),
-            # html.Div(style={"height": "1vh"}),
-            footer,
         ])
         return results_page
 
