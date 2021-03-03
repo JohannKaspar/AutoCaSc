@@ -246,7 +246,7 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, num_threa
 
 def edit_java_script_functions(js_file, dp_filter=20, gq_filter=20):
     with open(js_file, "r") as original_file, open(js_file + ".temp", "w") as new_file:
-        new_file.write(f"var config = {{min_GQ: 20, min_AB: 0.20, min_DP: 20}")
+        new_file.write(f"var config = {{min_GQ: 20, min_AB: 0.20, min_DP: 20}}")
         for line in original_file:
             if "function hq(sample)" in line:
                 break
@@ -410,9 +410,7 @@ def make_spreadsheet(merged_instances):
             result_df.loc[i, "hgvsp"] = _instance.__dict__.get("hgvsp_change")
             result_df.loc[i, "impact"] = _instance.__dict__.get("impact")
             result_df.loc[i, "inheritance"] = _instance.__dict__.get("inheritance")
-            result_df.loc[i, "candidate_score_v1"] = _instance.__dict__.get("candidate_score_v1")
-            result_df.loc[i, "candidate_score_v2"] = _instance.__dict__.get("candidate_score_v2")
-            result_df.loc[i, "candidate_score_v3"] = _instance.__dict__.get("candidate_score_v3")
+            result_df.loc[i, "candidate_score"] = _instance.__dict__.get("candidate_score")
             result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
             result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
             result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
@@ -432,7 +430,7 @@ def make_spreadsheet(merged_instances):
     return result_df
 
 
-def update_request_cache(assembly, path_to_request_cache_dir):
+def update_request_cache(path_to_request_cache_dir, assembly="GRCh37"):
     for api in ["gnomad", "vep"]:
         if os.path.isdir(f"{path_to_request_cache_dir}tmp/{api}"):
             with open(f"{path_to_request_cache_dir}{api}_requests_{assembly}", "rb") as requests_file:
@@ -453,7 +451,8 @@ def filter_blacklist(df, blacklist_path):
     with open(blacklist_path, "r") as file:
         blacklist = [line.strip() for line in file if not line[0] == "#"]
     for pattern in blacklist:
-        df = df.loc[~df.gene_symbol.str.contains(pattern, regex=True, na=False)]
+        df.loc[df.gene_symbol.str.contains(pattern, regex=True, na=False), "blacklist_filtered"] = True
+        #df = df.loc[~df.gene_symbol.str.contains(pattern, regex=True, na=False)]
     return df.reset_index(drop=True)
 
 
@@ -511,7 +510,9 @@ def filter_ac_impact_mim(df):
         temp = df.loc[df.mim_number == ""]
     temp = temp.loc[temp.impact.isin(["moderate", "high"])]
     temp.AC = pd.to_numeric(temp.AC, errors="coerce", downcast="unsigned").fillna(1)
-    temp = temp.loc[~((temp.candidate_score_v1 == 0) & (temp.candidate_score_v2 == 0) & (temp.candidate_score_v3 == 0))]
+    temp = temp.loc[~(temp.candidate_score == 0)]
+    if "blacklist_filtered" in temp.columns:
+        temp = temp.loc[temp.blacklist_filtered != True]
 
     temp = temp.loc[(pd.to_numeric(temp.DP_index, errors="coerce") > 20) & (pd.to_numeric(temp.DP_moth, errors="coerce") > 20) & (pd.to_numeric(temp.DP_father, errors="coerce") > 20)]
 
@@ -541,34 +542,33 @@ def filter_ac_impact_mim(df):
 
 
 def add_ranks(df):
-    for version in ["v1", "v2", "v3"]:
-        df[f"candidate_score_{version}"] = pd.to_numeric(df[f"candidate_score_{version}"],
-                                                         errors="coerce")
-        df.sort_values(f"candidate_score_{version}",
-                       ascending=False,
-                       inplace=True,
-                       ignore_index=True)
-        df.loc[:, f"rank_{version}"] = df.index
-        df.loc[:, f"rank_{version}"] = df.loc[:, f"rank_{version}"].apply(lambda x: int(x+1))
+    df[f"candidate_score"] = pd.to_numeric(df[f"candidate_score"],
+                                                     errors="coerce")
+    df.sort_values(f"candidate_score",
+                   ascending=False,
+                   inplace=True,
+                   ignore_index=True)
+    df.loc[:, f"rank"] = df.index
+    df.loc[:, f"rank"] = df.loc[:, f"rank"].apply(lambda x: int(x+1))
 
-        temp = filter_ac_impact_mim(df)
-        temp.sort_values(f"candidate_score_{version}",
-                         ascending=False,
-                         inplace=True,
-                         ignore_index=True)
-        temp.loc[:, f"rank_{version}_filtered"] = temp.index
-        temp.loc[:, f"rank_{version}_filtered"] = temp.loc[:, f"rank_{version}_filtered"].apply(lambda x: int(x+1))
+    temp = filter_ac_impact_mim(df)
+    temp.sort_values(f"candidate_score",
+                     ascending=False,
+                     inplace=True,
+                     ignore_index=True)
+    temp.loc[:, f"rank_filtered"] = temp.index
+    temp.loc[:, f"rank_filtered"] = temp.loc[:, f"rank_filtered"].apply(lambda x: int(x+1))
 
-        if "autocasc_filter" in temp.columns:
-            merge_columns = [f"rank_{version}", f"rank_{version}_filtered", "autocasc_filter"]
-        else:
-            merge_columns = [f"rank_{version}", f"rank_{version}_filtered"]
-        df = df.merge(temp[merge_columns],
-                      on=f"rank_{version}",
-                      how="left")
-        df.loc[:, f"rank_{version}_filtered"] = pd.to_numeric(df.loc[:, f"rank_{version}_filtered"],
-                                                                         downcast="unsigned",
-                                                                         errors="ignore")
+    if "autocasc_filter" in temp.columns:
+        merge_columns = [f"rank", f"rank_filtered", "autocasc_filter"]
+    else:
+        merge_columns = [f"rank", f"rank_filtered"]
+    df = df.merge(temp[merge_columns],
+                  on=f"rank",
+                  how="left")
+    df.loc[:, f"rank_filtered"] = pd.to_numeric(df.loc[:, f"rank_filtered"],
+                                                                     downcast="unsigned",
+                                                                     errors="ignore")
     return df
 
 
@@ -760,7 +760,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                          decimal=",",
                          sep="\t")
         #shutil.rmtree(cache)
-        update_request_cache(assembly, path_to_request_cache_dir)
+        update_request_cache(path_to_request_cache_dir, assembly)
         #os.remove(javascript_file)
 
 

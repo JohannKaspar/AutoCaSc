@@ -25,8 +25,8 @@ gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
 # This loads the calculated gene scores and gnomad constraints.
 
 class AutoCaSc:
-    """AutoCaSc_core is a tool for quantifying plausibility of gene variants as a cause for neurodevelopmental delay.
-    This class is the core program. A variant is annotated by initializing the class.
+    """AutoCaSc is a tool for quantifying plausibility of gene variants as a cause for neurodevelopmental delay.
+    This class is the core. A variant is annotated by initializing the class.
     Class attributes correspond to variant parameters ranging from position to candidate score.
     """
     def __init__(self, variant,
@@ -40,7 +40,6 @@ class AutoCaSc:
                  other_variant=None,
                  assembly="GRCh37",
                  transcript_num=None,
-                 version="current",
                  family_history=False,
                  mode="default",
                  path_to_request_cache_dir=None):
@@ -72,6 +71,7 @@ class AutoCaSc:
         self.mode = mode
         self.data_retrieved = False
         self.path_to_request_cache_dir = path_to_request_cache_dir
+        self.candidate_score = None
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
@@ -133,6 +133,8 @@ class AutoCaSc:
 
 
     def check_for_other_variant(self):
+        """Check if a corresponding autocasc objet exists. If so set other_variant to its variant.
+        """
         if self.other_autocasc_obj and self.other_variant is None:
             if self.other_autocasc_obj.vcf_string:
                 self.other_variant = self.other_autocasc_obj.vcf_string
@@ -141,6 +143,9 @@ class AutoCaSc:
 
 
     def retrieve_data(self, gnomad=True):
+        """Method for collecting data from VEP and gnomad. If used on a local machine it is possible to check,
+        if the variant of interest has already been requested and saved before in order to increase analysis speed.
+        """
         self.data_retrieved = True
         start = time.time()
         self.get_vep_data()  # this method call initiates the annotation of the given variant
@@ -168,6 +173,10 @@ class AutoCaSc:
 
 
     def hgvs_strand_shift(self, gnomad=True):
+        """It sometimes occurs, that VEP returns error codes if a variant is entered in HGVS format. Nevertheless, it
+        returns the variant in the correct VCF format. This can then be used to resend the request, this time resulting
+        in the correct results.
+        """
         test_instance = AutoCaSc(self.vcf_string,
                                  inheritance=self.inheritance,
                                  parent_affected=self.parent_affected,
@@ -184,6 +193,8 @@ class AutoCaSc:
 
 
     def create_url(self):
+        """This method concatenates all paprts for the request URL to VEP.
+        """
         if self.variant_format == "vcf":
             # definition of instance variables
             self.chromosome, self.pos_start, self.ref_seq, self.alt_seq = self.variant.split(":")
@@ -204,6 +215,9 @@ class AutoCaSc:
             self.ext_url = "/vep/human/hgvs/" + self.variant + "?&hgvs=1&vcf_string=1&numbers=1&dbscSNV=1&CADD=1&GeneSplicer=1&SpliceRegion=1&MaxEntScan=1&canonical=1&dbNSFP=SIFT_converted_rankscore,GERP%2B%2B_RS_rankscore,MutationAssessor_rankscore,MutationTaster_converted_rankscore&content-type=application/json"
 
     def get_gnomad_constraint(self):
+        """This method pulls gene constraint parameters which are stored together with gene plausibility scores in
+        all_gene_data.csv
+        """
         if self.gene_id in gene_scores.ensemble_id.to_list():
             # checks if there are contraint values in gnomad for the given gene
             for parameter in ["pLI",
@@ -225,6 +239,8 @@ class AutoCaSc:
             self.oe_lof_interval = f"{self.oe_lof}  [{self.oe_lof_lower} - {self.oe_lof_upper}]"
 
     def get_gnomad_counts(self):
+        """This method initiates a GnomADQuery instance in order to retrieve allele counts from gnomad.
+        """
         gnomad_variant_result, self.status_code = GnomADQuery(self.vcf_string,
                                                               "variant",
                                                               path_to_request_cache_dir=self.path_to_request_cache_dir).get_gnomad_info()
@@ -238,9 +254,10 @@ class AutoCaSc:
     def check_variant_format(self):
         """This function checks if the entered variant matches either HGVS or VCF format after doing some formatting.
         """
-        input = self.variant.strip()
-        if not type(input) == str:
+        if not type(self.variant) == str:
             input = ""
+        else:
+            input = self.variant
         input = re.sub(r"^[\W]", "", input)  # deletes characters that are not a word character
         input = re.sub(r"Chr|chr", "", input)
 
@@ -266,8 +283,8 @@ class AutoCaSc:
            stop=stop_after_attempt(5),
            wait=wait_exponential(multiplier=1.3, min=0.1, max=3))
     def vep_api_request(self):
-        """General function for handling API communication.
-        Return obtained data as a dict.
+        """General function for handling API communication. If there is some error with the returned data, the request
+        will be retried a couple of times. Return obtained data as a dict.
         """
         url = self.server + self.ext_url
 
@@ -291,15 +308,15 @@ class AutoCaSc:
     @retry(stop=stop_after_attempt(5),
            wait=wait_random(0.1, 2))
     def open_pickle_file(self):
+        """Method for loading stored VEP requests. Useful if the same variant is analysed multiple times.
+        """
         self.vep_requests = {}
         with open(f"{self.path_to_request_cache_dir}vep_requests_{self.assembly}", "rb") as vep_requests_file:
             self.vep_requests = pickle.load(vep_requests_file)
 
-
-    # core function for annotation
     def get_vep_data(self):
-        """This function requests the VEP API in order to annotate a given variant and selects relevant parameters.
-        :return:
+        """This function retrieves VEP data either by loading from stored VEP requests or addressing the REST API of
+        VEP. It then calls assing_results to select relevant parameters and do some formatting.
         """
         response_decoded = None
         if self.mode == "vcf_hase":
@@ -339,8 +356,6 @@ class AutoCaSc:
             if self.status_code == 200:
                 self.assign_results(response_decoded, transcript_index)
 
-
-    # stores and returns relevant parameters in a dictionary
     def assign_results(self, variant_anno_data, transcript_index):
         """This function filters and formats the received annotation results.
 
@@ -437,12 +452,9 @@ class AutoCaSc:
                     else:
                         self.maxentscan_consequence = "splicing not affected"
 
-
-    # gets variant frequency in gnomAD exomes and minor allele frequency
     def get_frequencies(self, colocated_variants):
         """This function checks the annotation data for the variants frequency in gnomad and its
         minor allele frequency. If it doesn't find a MAF it sets it to the variants frequency.
-
 
         :param colocated_variants: slice of variant annotation results
         :return: variant frequency in gnomad, minor allele frequency
@@ -470,11 +482,15 @@ class AutoCaSc:
 
             return gnomad_frequency, maf
 
-    # selects relevant transcript from given transcripts
     def get_transcript_index(self, response_dec):
         """This function selects the transcript index to consider for further calculations, based on
         1) the transcript with the most severe consequence
-        2) the canonical transcript (if existing if existing and equally severe consequence
+        2) the canonical transcript (if existing if existing and equally severe consequence)
+        3) protein coding transcripts
+        In case multiple transcripts seem to be equally relevant the first of the list is returned and the number of
+        equally important transcripts stored to the class. Depending on the usecase, the other transcripts can be
+        scored afterwards.
+
         :param response_dec: VEP response dictionary with a list of transcripts
         :return: transcript index to consider for further calculations
         """
@@ -482,7 +498,6 @@ class AutoCaSc:
         impact_severity_dict = {"MODIFIER": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3}
 
         transcript_df = pd.DataFrame()
-        # selection prioritisation: 1) most severe consequence    2) canonical
         try:
             for i, transcript in enumerate(response_dec["transcript_consequences"]):
                 transcript_df.loc[i, "transcript_id"] = i
@@ -500,7 +515,6 @@ class AutoCaSc:
                     transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"]
                     if len(transcript_df) > 1:
                         if not self.transcript_num:
-                            #print("CAVE! Two protein_coding transcripts are affected!")
                             self.multiple_transcripts = len(transcript_df)
                         else:
                             return int(transcript_df.loc[self.transcript_num, "transcript_id"])
@@ -519,258 +533,10 @@ class AutoCaSc:
             self.status_code = 497
             return None
 
-    def calculate_candidate_score(self):
+    def calculate_candidate_score(self, recursively=True):
+        """This method calls all the scoring functions and assigns their results to class attributes.
+        """
         self.check_for_other_variant()
-
-        # in order to compare the performance of all versions, all versions are calculated
-        self.calculate_candidate_score_v2()
-
-        self.calculate_candidate_score_v3()
-
-        self.calculate_candidate_score_v1()
-
-    # master calculation function, calls subcalculations
-    def calculate_candidate_score_v3(self):
-        """This method calls all the scoring functions and assigns their results to class attributes.
-        """
-        if self.status_code == 200:
-            self.explanation_dict = {}
-            self.factors = []
-
-            if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:  # autosomal dominant branch
-                self.score_dominant()
-
-            elif self.inheritance in ["comphet", "homo"]:
-                self.score_recessive()
-
-            elif self.inheritance == "x_linked":
-                if self.sex == "XX":
-                    self.score_recessive()
-                elif self.sex == "XY":
-                    self.score_x_hemi()
-
-            if self.gene_id in gene_scores.ensemble_id.to_list():
-                # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-                self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
-                                                                  "prediction_proba"].values[0], 2)
-
-                #self.factors.append((self.literature_score, "precalculated plausibility score"))
-
-                # Assigning the plausibility subscores for being able to call them individually.
-                for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                              "mgi_score", "string_score"]:
-                    self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
-                                                 2)
-            else:
-                # If not, the values are set to 0.
-                for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                              "mgi_score", "string_score"]:
-                    self.__dict__[score] = 0.
-                mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
-                self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
-
-            factor_list, explanation_list = [[factor for factor, _ in self.factors],
-                                             [explanation for _, explanation in self.factors]]
-
-            self.candidate_score_v3 = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
-
-    def calculate_candidate_score_v2(self):
-        """This method calls all the scoring functions and assigns their results to class attributes.
-        """
-        if self.status_code == 200:
-            self.explanation_dict = {}
-            self.factors = []
-
-            if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:  # autosomal dominant branch
-                self.score_dominant()
-
-            elif self.inheritance in ["comphet", "homo"]:
-                self.score_recessive()
-
-            elif self.inheritance == "x_linked":
-                if self.sex == "XX":
-                    self.score_recessive()
-                elif self.sex == "XY":
-                    self.score_x_hemi()
-
-            if self.gene_id in gene_scores.ensemble_id.to_list():
-                # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-                self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
-                                                              "weighted_score"].values[0], 2)
-
-                #self.factors.append((self.literature_score, "precalculated plausibility score"))
-
-                # Assigning the plausibility subscores for being able to call them individually.
-                for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                              "mgi_score", "string_score"]:
-                    self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
-                                                 2)
-            else:
-                # If not, the values are set to 0.
-                for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
-                              "mgi_score", "string_score"]:
-                    self.__dict__[score] = 0.
-                mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
-                self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
-
-            factor_list, explanation_list = [[factor for factor, _ in self.factors],
-                                             [explanation for _, explanation in self.factors]]
-
-            self.candidate_score_v2 = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
-            # self.candidate_score = round(mean([product(factor_list), self.literature_score]), 2)
-
-    def score_dominant(self):
-        if self.inheritance == "de_novo":
-            if self.allele_count == 0:
-                self.factors.append((1, "denovo and not in gnomad"))
-            elif self.allele_count == 1:
-                self.factors.append((0.9, "denovo and once in gnomad"))
-            else:
-                self.factors.append((0, "denovo and multiple times in gnomad"))
-        elif self.inheritance == "unknown":
-            if self.allele_count == 0:
-                self.factors.append((0.9, "inheritance unknown and not in gnomad"))
-            else:
-                self.factors.append((0, "inheritance unknown, present in gnoamd"))
-        elif self.inheritance == "ad_inherited":
-            # hier wird davon ausgegangen, dass ad_inherited nur möglich wenn self.parent_affected == True
-            inheritance_factor = 1 - ((self.allele_count + 1) * 0.1)
-            self.factors.append((inheritance_factor,
-                                 f"inherited autosomal dominant, {self.allele_count}x in gnomad"))
-
-        if self.impact == "high":
-            if self.oe_lof_upper:
-                self.factors.append((self.get_loeuf_factor(), f"impact high and LOEUF {self.oe_lof_upper}"))
-            else:
-                self.factors.append((1.0, "LOEUF not available"))
-        elif self.impact == "moderate":
-            self.factors.append((self.get_Z_factor(), f"impact moderate and Z {self.mis_z}"))
-        else:
-            self.factors.append((0, "low impact"))  # if impact not moderate or high --> variant == 0
-
-        if not self.cadd_phred == 0:
-            self.factors.append((self.get_cadd_factor(), f"CADD {self.cadd_phred}"))
-        else:
-            self.factors.append((1, f"no data on CADD available"))
-
-    def score_recessive(self):
-        if self.impact not in ["high", "moderate"]:
-            self.factors.append((0, "low impact"))
-
-        if self.has_sibling:
-            if self.cosegregating:
-                self.factors.append((1, "variant cosegregating"))
-            else:
-                self.factors.append((0, "sibling affected but variant not present or "
-                                        "not affected but variant present"))
-        else:
-            self.factors.append((0.95, "no sibling available"))
-
-        if self.inheritance == "homo":
-            if self.ac_hom == 0:
-                self.factors.append((1, "moderate impact, variant not homozygous in gnomad"))
-            elif self.ac_hom == 1:
-                self.factors.append((0.5, "moderate impact, variant only once homozygous in gnomad"))
-            else:
-                self.factors.append((0, f"moderate imapct, variant {self.ac_hom}x in gnomad"))
-
-        if self.inheritance == "comphet":
-            if self.other_autocasc_obj:
-                if self.other_autocasc_obj.status_code == 200:
-                    for autocasc_object in [self, self.other_autocasc_obj]:
-                        # check prevalence of homozygous variant in gnomad
-                        if self.ac_hom == 0:
-                            self.factors.append((1, f"moderate impact, variant {autocasc_object.ac_hom} not homozygous in gnomad"))
-                        elif self.ac_hom == 1:
-                            self.factors.append((0.5, f"moderate impact, variant {autocasc_object.ac_hom} only once homozygous in gnomad"))
-                        else:
-                            self.factors.append((0, f"moderate imapct, variant {autocasc_object.ac_hom}x in gnomad"))
-                else:
-                    self.status_code = self.other_autocasc_obj.status_code
-            else:
-                self.status_code = 402
-
-        self.factors.append((self.get_gevir_score(), f"GEVIR virlof ar enrichment {self.virlof_ar_enrichment}"))
-
-        if (self.inheritance == "homo") or ((self.inheritance == "x_linked" and self.sex == "XX")):
-            if not self.cadd_phred == 0:
-                self.factors.append((self.get_cadd_factor(), f"CADD {self.cadd_phred}"))
-            else:
-                self.factors.append((1, f"no data on CADD available"))
-        elif self.inheritance == "comphet":
-            if (self.cadd_phred != 0) and (self.other_autocasc_obj.cadd_phred != 0):
-                mean_cadd = mean([self.cadd_phred, self.other_autocasc_obj.cadd_phred])
-                self.factors.append((self.get_cadd_factor(mean_cadd), f"comphet, one CADD {self.cadd_phred} "
-                                                                      f"other CADD {self.other_autocasc_obj.cadd_phred}"))
-            else:
-                self.factors.append((1, f"no data on CADD available"))
-
-    def score_x_hemi(self):
-        if self.n_hemi == 0:
-            self.factors.append((self.get_cadd_factor(),
-                                 f"x-linked hemizygous, CADD {self.cadd_phred}"))
-        else:
-            self.factors.append((0,
-                                f"x-linked hemizygous, variant {self.n_hemi}x hemizygous in gnomad"))
-
-    def get_loeuf_factor(self):
-        if self.oe_lof_upper >= 0.6:
-            loeuf_score = 0.
-        elif self.oe_lof_upper <= 0.2:
-            loeuf_score = 1.
-        else:
-            loeuf_model = poly1d([218.18181818, -341.01010101,175.33333333,-37.33665224,3.82452381])
-            loeuf_score = loeuf_model(self.oe_lof_upper)
-        if loeuf_score >= 1.:
-            loeuf_score = 1.
-        if loeuf_score < 0:
-            loeuf_score = 0
-        self.loeuf_score = loeuf_score
-        return loeuf_score
-
-    def get_Z_factor(self):
-        if self.mis_z is None:
-            self.z_score = 0
-            return 0
-        if self.mis_z <= 0.:
-            z_score = 0.
-        elif self.mis_z >= 3.09:
-            z_score = 1.
-        else:
-            z_model = poly1d([0.00542974, -0.09183755, 0.55584498, 0.00952595])
-            z_score = z_model(self.mis_z)
-        if z_score >= 1.:
-            z_score = 1.
-        self.z_score = z_score
-        return z_score
-
-    def get_cadd_factor(self, cadd_phred=None):
-        if not cadd_phred:
-            cadd_phred = self.cadd_phred
-        if cadd_phred >= 30:
-            cadd_score = 1.
-        else:
-            cadd_model = poly1d([3.83333333e-05, -3.85000000e-03, 1.28666667e-01, -4.40000000e-01])
-            cadd_score = cadd_model(cadd_phred)
-
-        if cadd_score < 0.:
-            cadd_score = 0.
-        elif cadd_score > 1.:
-            cadd_score = 1.
-        self.cadd_score = cadd_score
-        return cadd_score
-
-    def get_gevir_score(self):
-        if self.virlof_ar_enrichment:
-            return self.virlof_ar_enrichment / 2.0
-        else:
-            return 0
-
-
-    ########## functions from v1 ############
-    def calculate_candidate_score_v1(self, recursively=True):
-        """This method calls all the scoring functions and assigns their results to class attributes.
-        """
         self.explanation_dict = {}
 
         self.rate_inheritance()
@@ -805,14 +571,14 @@ class AutoCaSc:
             self.gene_attribute_score,
             self.variant_score,
             self.literature_score]]
-        self.candidate_score_v1 = round(sum(candidate_score_list), 2)
+        self.candidate_score = round(sum(candidate_score_list), 2)
 
         if not self.filter_pass:
-            self.candidate_score_v1 = 0
+            self.candidate_score = 0
 
         if self.inheritance == "comphet":
             if self.other_autocasc_obj and recursively:
-                self.other_autocasc_obj.calculate_candidate_score_v1(recursively=False)
+                self.other_autocasc_obj.calculate_candidate_score(recursively=False)
 
                 if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
                     self.candidte_score_v1 = 0
@@ -820,11 +586,10 @@ class AutoCaSc:
                         self.filter_fail_explanation = f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
 
                 else:
-                    self.candidate_score_v1 = round(mean([self.candidate_score_v1,
-                                                       self.other_autocasc_obj.__dict__.get("candidate_score_v1")]), 2)
+                    self.candidate_score = round(mean([self.candidate_score,
+                                                       self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)
                     if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
-                        self.candidate_score_v1 += 1
-
+                        self.candidate_score += 1
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.
@@ -915,7 +680,6 @@ class AutoCaSc:
         else:
             self.filter_pass = False
             self.filter_fail_explanation = "low impact"
-
 
     def rate_in_silico(self):
         """This function scores in silico predictions.

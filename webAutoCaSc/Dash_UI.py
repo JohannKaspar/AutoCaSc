@@ -338,6 +338,9 @@ faq_ger = dcc.Markdown("""
             - __X-linked:__ X-chromosomale Varianten werden von der heterozygoten Trägermutter vererbt und verursachen bei einem männlichen Nachkommen einen Phänotyp, da er nur ein betroffenes Allel und kein gesundes zweites Allel zum Ausgleich hat. De-novo-Varianten auf dem X-Chromosom, sowohl bei weiblichen als auch bei männlichen Index-Individuen, werden in der Option De-novo-Vererbung berücksichtigt.
             - __Compound heterozygous:__ Compound heterozygote Varianten sind zwei verschiedene Varianten im selben Gen, aber auf verschiedenen Allelen. Jede wird von nur einem heterozygoten Trägerelternteil vererbt.
             - __Unknown:__ Die Option "unbekannt" kann verwendet werden, wenn Informationen zu den Eltern und damit zur Segregation fehlen.
+            
+            __Ab wann ist ein Score hoch?__
+            Die maximale Punktzahl sind 15. Um ein besseres Gefühl zu geben, ob ein candidate score hoch ist, wurde ein Tooltip implementiert, welcher angezeigt wird wenn der Mauszeiger über dem Ergebnis schwebt. Der Tooltip zeigt an, wie viel Prozent der Kandidaten, welche am Institut für Humangenetik in Leipzig evaluiert wurden, ein höheres Ergebnis erreichten.
 
             __Wofür steht _webAutoCaSc_?__  
             _AutoCaSc_ steht für __Auto__mated __Ca__ndidate __Sc__ore. Wir benutzen den __web__ Präfix, um das command line interface (CLI) von der Webapp zu unterscheiden, welche auf dem AutoCaSc script basiert. Das __Ca__ndidate __Sc__ore Prinzip wurde bereits von _Büttner et al. bioRxiv. 2019_ beschrieben. 
@@ -366,6 +369,9 @@ faq_eng = dcc.Markdown("""
             - __X-linked:__ X-linked variants are being inherited from the heterozygous carrier mother and cause a phenotype in a male descendant as he has only one affected allele and no healthy second allele to compensate. De novo variants on the X-chromosome, for both female and male index individuals, are account for in the de novo inheritance option.
             - __Compound heterozygous:__ Compound heterozygous variants are two different variants in the same gene but on different alleles. Each is inherited from only one heterozygous carrier parent.
             - __Unknown:__ The "unknown" option can be used if information on the parents and thus on segregation is missing.
+            
+            __When is a score high?__  
+            The maximum score is 15. To give a better feeling if a candidate score is high, a tooltip has been implemented, which is displayed when the mouse pointer hovers over the result. The tooltip shows what percentage of candidates evaluated at the Institute of Human Genetics in Leipzig achieved a higher score.
             
             __What does _webAutoCaSc_ stand for?__  
             _AutoCaSc_ stands for __Auto__mated __Ca__ndidate __Sc__ore. We use the __web__ prefix to distinguish the command line interface (CLI) from the webapplication running the AutoCaSc script. The __Ca__ndidate __Sc__ore principle has been previously described (Büttner et al. bioRxiv. 2019). 
@@ -932,7 +938,7 @@ def get_tab_card(active_tab, results_memory):
                                         justify="start",
                                         no_gutters=True),
                                 style=cell_style),
-                        html.Th(_instance_attributes.get("candidate_score_v1"),
+                        html.Th(_instance_attributes.get("candidate_score"),
                                 style=cell_style),
                         html.Th(html.P(_hgvs,
                                        id=f"hgvs_target_{i}"),
@@ -988,7 +994,7 @@ def get_tab_card(active_tab, results_memory):
                         dbc.Col(
                             dbc.Row(
                                 [
-                                    dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score_v1')}",
+                                    dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score')}",
                                                     id="percentile_target")),
                                     dbc.Col(dbc.Button("Download",
                                                        id="download_button",
@@ -1012,7 +1018,7 @@ def get_tab_card(active_tab, results_memory):
                 [
                     dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
                             className="col-12 col-md-6"),
-                    dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score_v1')}",
+                    dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score')}",
                                     id="percentile_target"),
                             className="col-12 col-md-6")
                 ]
@@ -1108,7 +1114,7 @@ def get_tab_card(active_tab, results_memory):
 
             tab_card_content = [
                 html.Div(description_tooltips + explanation_tooltips),
-                dbc.Tooltip(f"About {get_percentile(_instance_attributes.get('candidate_score_v1'))} of the scored variants @Institute for Human Genetics Leipzig had a higher score than this.",
+                dbc.Tooltip(f"About {get_percentile(_instance_attributes.get('candidate_score'))} of the scored variants @Institute for Human Genetics Leipzig had a higher score than this.",
                             target="percentile_target"),
                 card_header,
                 html.Hr(),
@@ -1354,7 +1360,7 @@ def download_button_click(n_cklicks, results_memory):
         else:
             df.loc[i, "var_2_full_name"] = ""
         df.loc[i, "inheritance"] = _instance.get("inheritance")
-        df.loc[i, "candidate_score"] = _instance.get("candidate_score_v1")
+        df.loc[i, "candidate_score"] = _instance.get("candidate_score")
         df.loc[i, "literature_plausibility"] = _instance.get("literature_score")
         df.loc[i, "inheritance_score"] = _instance.get("inheritance_score")
         if comphet:
