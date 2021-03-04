@@ -6,29 +6,18 @@ import re
 from AutoCaSc_core.AutoCaSc import AutoCaSc
 from AutoCaSc_core.AutoCaSc_vcf import update_request_cache
 
-def load_manual_candidate_table(path_to_excel="/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/candidate-scores-for-varvis-analysis.xlsx"):
+def load_manual_candidate_table(path_to_excel="/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/data/candidate-scores.xlsx"):
     candidate_table = pd.read_excel(path_to_excel)
-    candidate_table["family_id"] = candidate_table["PLIGU number"].apply(lambda x: x.rsplit("-", 1)[0] if str(x)[0] == "L" else None)
-    candidate_table.dropna(subset=["family_id"], inplace=True)
-    candidate_table.drop(columns=["PLIGU number"], inplace=True)
-    candidate_table.rename(columns={"""Zygosity
-
-het /
-homo /
-hemi /
-mosaic""": "zygosity",
-                                    """Zygosity
-de novo = 2
-homo or comphet with multiple affected children = 3
-homo with one affected child = 2
-comphet with one affected child = 1
-X-linked and a boy = 1
-X-linked and an affected maternal male relative = 2
-other inheritance = 0""": "zygosity_points"}, inplace=True)
+    candidate_table["family_id"] = candidate_table["PLIGU_Number"].apply(lambda x: x.rsplit("-", 1)[0] if str(x)[0] == "L" else None)
+    candidate_table.dropna(subset=["Identifier"], inplace=True)
+    candidate_table.drop(columns=["PLIGU_Number"], inplace=True)
+    # candidate_table = candidate_table.loc[candidate_table.index != 0]
+    candidate_table.rename(columns={"Zygosity": "zygosity",
+                                    "Inheritance_Score": "zygosity_points"}, inplace=True)
     candidate_table.zygosity_points = pd.to_numeric(candidate_table.zygosity_points,
                                                     downcast="unsigned",
                                                     errors="coerce")
-    return candidate_table
+    return candidate_table.reset_index(drop=True)
 
 def filter_family_ids(candidate_table, family_ids):
     candidate_table = candidate_table.loc[candidate_table.family_id.isin(family_ids)]
@@ -38,37 +27,43 @@ def filter_family_ids(candidate_table, family_ids):
 def clean_variants(candidate_table):
     for i, row in candidate_table.iterrows():
         try:
-            candidate_table.loc[i, "variant_1"] = re.findall("^NM.+(?=p\.)", row["variant 1"])[0]
+            candidate_table.loc[i, "variant_1"] = re.findall("^NM.+(?=p\.)", row["Variant1FullName"])[0]
             candidate_table.loc[i, "variant_1"] = re.sub("\s", "", candidate_table.loc[i, "variant_1"])
-            if row["variant 2"] != None and not pd.isnull(row["variant 2"]):
-                if re.findall("^NM.+(?=p\.)", row["variant 2"]) != []:
-                    candidate_table.loc[i, "variant_2"] = re.findall("^NM.+(?=p\.)", row["variant 2"])[0]
-        except IndexError:
+            if row["Variant2FullName"] != None and not pd.isnull(row["Variant2FullName"]):
+                if re.findall("^NM.+(?=p\.)", row["Variant2FullName"]) != []:
+                    candidate_table.loc[i, "variant_2"] = re.findall("^NM.+(?=p\.)", row["Variant2FullName"])[0]
+        except (IndexError, TypeError):
             pass
-    candidate_table.drop(columns=["variant 1", "variant 2"], inplace=True)
+    #candidate_table.drop(columns=["variant 1", "variant 2"], inplace=True)
     return candidate_table
 
 
 def interpret_inheritance(candidate_table):
     for i, row in candidate_table.iterrows():
-        zygosity = row["zygosity"]
-        zygosity_points = row["zygosity_points"]
-        if "hemi" in zygosity:
-            inheritance = "x_linked"
-        elif zygosity[:3] == "het":
-            if zygosity_points == 2:
-                inheritance = "de_novo"
-            elif zygosity_points == 0:
-                inheritance = "unknown"
-            elif zygosity_points == 1:
+        try:
+            zygosity = row["zygosity"]
+            observed_inheritance = row["Observed_Inheritance"]
+            if zygosity == "hemi":
+                if observed_inheritance == "de novo":
+                    inheritance = "de_novo"
+                else:
+                    inheritance = "x_linked"
+            elif zygosity == "het":
+                if observed_inheritance == "de novo":
+                    inheritance = "de_novo"
+                else:
+                    inheritance = "unknown"
+            elif zygosity == "ad_inherited":
                 inheritance = "ad_inherited"
-        elif "comphet" in zygosity.lower():
-            inheritance = "comphet"
-        elif zygosity == "homo":
-            inheritance = "homo"
-        else:
-            inheritance = None
-        candidate_table.loc[i, "inheritance"] = inheritance
+            elif zygosity.lower() == "comphet":
+                inheritance = "comphet"
+            elif zygosity == "homo":
+                inheritance = "homo"
+            else:
+                inheritance = None
+            candidate_table.loc[i, "inheritance"] = inheritance
+        except AttributeError:
+            candidate_table.loc[i, "inheritance"] = None
     return candidate_table
 
 
@@ -90,13 +85,22 @@ def get_vcf_strings(candidate_table):
 
 def get_candidate_scores(candidate_table):
     for i, row in candidate_table.iterrows():
+        try:
+            int(row["AutoCaSc"])
+        except (AttributeError, TypeError, ValueError):
+            continue
         print(i)
+        start_1 = row["Variant1VCF_Format"].split(":")[1]
+        if not pd.isnull(row["Variant2VCF_Format"]):
+            start_2 = row["Variant2VCF_Format"].split(":")[1]
+        else:
+            start_2 = None
         instance = make_vep_requests(hgvs_string=row["variant_1"],
-                                     gene_symbol=row["Gene"],
-                                     start_pos=row['Pos\n\nStart'],
+                                     gene_symbol=row["HGNC_Symbol"],
+                                     start_pos=start_1,
                                      inheritance=row["inheritance"],
                                      hgvs_string_2=row["variant_2"],
-                                     start_pos_2=row['Pos\n\nStart'])
+                                     start_pos_2=start_2)
         if instance == None:
             candidate_table.loc[i, "variant_1_vcf"] = None
             candidate_table.loc[i, "variant_2_vcf"] = None
@@ -207,5 +211,5 @@ update_request_cache("/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_f
 candidate_table.columns = [x.replace("\n", "") for x in candidate_table.columns]
 
 
-candidate_table.to_csv("/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/data/candidate_scores_cases_filtered.csv",
+candidate_table.to_csv("/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/data/candidate-scores_rerun_20210304.csv",
                        index=False)
