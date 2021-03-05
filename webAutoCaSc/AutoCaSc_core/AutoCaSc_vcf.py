@@ -485,7 +485,6 @@ def mim_map(df, omim_morbid_path, column="gene_symbol"):
         _gene = df.loc[i, column]
         mim_number = get_mim_number(_gene, omim_morbid)
         df.loc[i, "mim_number"] = mim_number
-
     return df
 
 

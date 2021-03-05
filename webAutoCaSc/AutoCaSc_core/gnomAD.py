@@ -159,7 +159,7 @@ class GnomADQuery:
 
 
     # requests and returns gnomAD gene information
-    def get_gnomad_info(self, mode="default"):
+    def get_gnomad_info(self):
         r = None
         if self.path_to_request_cache_dir:
             self.gnomad_requests = {}
@@ -185,7 +185,7 @@ class GnomADQuery:
             except IOError:
                 print("Some problem with gnomAD API request!")
                 status_code = 400
-            if r.status_code == 200 and self.path_to_request_cache_dir is not None:
+            if r.status_code == 200 and self.path_to_request_cache_dir:
                 if self.gnomad_requests != {}:
                     new_gnomad_requests = {self.variant: r}
                     try:

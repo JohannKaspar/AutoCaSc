@@ -24,15 +24,31 @@ def filter_family_ids(candidate_table, family_ids):
     candidate_table.reset_index(inplace=True)
     return candidate_table
 
+def extract_regex_variant(string):
+    if string == "ENST00000431530.3:c.2752C>T p.Arg918Trp":
+        print("")
+    matches = re.match("^(NM|ENST).+(?=(p\.|None))", string)
+    variant = None
+    if matches:
+        for match in matches.regs:
+            _matching_string = string[match[0]:match[1]]
+            if variant:
+                if len(variant) > len(_matching_string):
+                    continue
+            variant = _matching_string
+            variant = re.sub("\s", "", variant)
+        return variant
+    return None
+
 def clean_variants(candidate_table):
     for i, row in candidate_table.iterrows():
         try:
-            candidate_table.loc[i, "variant_1"] = re.findall("^NM.+(?=p\.)", row["Variant1FullName"])[0]
-            candidate_table.loc[i, "variant_1"] = re.sub("\s", "", candidate_table.loc[i, "variant_1"])
-            if row["Variant2FullName"] != None and not pd.isnull(row["Variant2FullName"]):
-                if re.findall("^NM.+(?=p\.)", row["Variant2FullName"]) != []:
-                    candidate_table.loc[i, "variant_2"] = re.findall("^NM.+(?=p\.)", row["Variant2FullName"])[0]
-        except (IndexError, TypeError):
+            variant_1 = extract_regex_variant(row["Variant1FullName"])
+            candidate_table.loc[i, "variant_1"] = variant_1
+            if not pd.isnull(row["Variant2FullName"]):
+                variant_2 = extract_regex_variant(row["Variant2FullName"])
+                candidate_table.loc[i, "variant_2"] = variant_2
+        except (IndexError, TypeError, AttributeError):
             pass
     #candidate_table.drop(columns=["variant 1", "variant 2"], inplace=True)
     return candidate_table
@@ -85,14 +101,23 @@ def get_vcf_strings(candidate_table):
 
 def get_candidate_scores(candidate_table):
     for i, row in candidate_table.iterrows():
+        if row["Identifier"] < 1012:
+            continue
         try:
             int(row["AutoCaSc"])
         except (AttributeError, TypeError, ValueError):
             continue
         print(i)
-        start_1 = row["Variant1VCF_Format"].split(":")[1]
+        if not pd.isnull(row["Variant1VCF_Format"]):
+            start_1 = row["Variant1VCF_Format"].split(":")[1]
+            if "-" in start_1:
+                start_1 = start_1.split("-")[0]
+        else:
+            start_1 = None
         if not pd.isnull(row["Variant2VCF_Format"]):
             start_2 = row["Variant2VCF_Format"].split(":")[1]
+            if "-" in start_2:
+                start_2 = start_2.split("-")[0]
         else:
             start_2 = None
         instance = make_vep_requests(hgvs_string=row["variant_1"],
@@ -138,13 +163,15 @@ def make_vep_requests(hgvs_string,
     if inheritance != "comphet":
         instance = AutoCaSc(variant=hgvs_string,
                             inheritance=inheritance,
-                            path_to_request_cache_dir=request_cache)
+                            path_to_request_cache_dir=request_cache,
+                            mode="vcf_hase")
         if instance != None:
             if instance.status_code == 200:
                 return instance
         instance = AutoCaSc(gene_symbol + ":" + hgvs_string.split(":")[1],
                             inheritance=inheritance,
-                            path_to_request_cache_dir=request_cache)
+                            path_to_request_cache_dir=request_cache,
+                            mode="vcf_hase")
         if instance.status_code == 200:
             if str(instance.vcf_string.split(":")[1]) == str(start_pos):
                 return instance
@@ -154,20 +181,23 @@ def make_vep_requests(hgvs_string,
             return None
         instance_2 = AutoCaSc(variant=hgvs_string_2,
                               inheritance=inheritance,
-                              path_to_request_cache_dir=request_cache)
+                              path_to_request_cache_dir=request_cache,
+                              mode="vcf_hase")
         if instance_2 != None:
             if instance_2.status_code == 200:
                 instance_1 = AutoCaSc(variant=hgvs_string,
                                       inheritance=inheritance,
                                       other_autocasc_obj=instance_2,
-                                      path_to_request_cache_dir=request_cache)
+                                      path_to_request_cache_dir=request_cache,
+                                      mode="vcf_hase")
                 if instance_1 != None:
                     if instance_1.status_code == 200:
                         return instance_1
                 instance_1 = AutoCaSc(gene_symbol + ":" + hgvs_string.split(":")[1],
                                       inheritance=inheritance,
                                       other_autocasc_obj=instance_2,
-                                      path_to_request_cache_dir=request_cache)
+                                      path_to_request_cache_dir=request_cache,
+                                      mode="vcf_hase")
                 if instance_1.status_code == 200:
                     if str(instance_1.vcf_string.split(":")[1]) == str(start_pos):
                         return instance_1
@@ -179,14 +209,16 @@ def make_vep_requests(hgvs_string,
                 instance_1 = AutoCaSc(variant=hgvs_string,
                                       inheritance=inheritance,
                                       other_autocasc_obj=instance_2,
-                                      path_to_request_cache_dir=request_cache)
+                                      path_to_request_cache_dir=request_cache,
+                                      mode="vcf_hase")
                 if instance_1 != None:
                     if instance_1.status_code == 200:
                         return instance_1
                 instance_1 = AutoCaSc(gene_symbol + ":" + hgvs_string.split(":")[1],
                                       inheritance=inheritance,
                                       other_autocasc_obj=instance_2,
-                                      path_to_request_cache_dir=request_cache)
+                                      path_to_request_cache_dir=request_cache,
+                                      mode="vcf_hase")
                 if instance_1.status_code == 200:
                     if str(instance_1.vcf_string.split(":")[1]) == str(start_pos):
                         return instance_1
@@ -211,5 +243,9 @@ update_request_cache("/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_f
 candidate_table.columns = [x.replace("\n", "") for x in candidate_table.columns]
 
 
-candidate_table.to_csv("/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/data/candidate-scores_rerun_20210304.csv",
+for column in candidate_table.columns:
+    candidate_table[column] = candidate_table[column].apply(lambda x: x.replace("\n", "") if isinstance(x, str) else x)
+    candidate_table[column] = candidate_table[column].apply(lambda x: x.replace("\t", "") if isinstance(x, str) else x)
+    candidate_table[column] = candidate_table[column].apply(lambda x: x.replace(";", "|") if isinstance(x, str) else x)
+candidate_table.to_csv("/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/data/candidate-scores_rerun_20210304_id1012_downwards.csv",
                        index=False)

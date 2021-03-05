@@ -184,6 +184,7 @@ class AutoCaSc:
                                  cosegregating=self.cosegregating,
                                  sex=self.sex,
                                  assembly=self.assembly,
+                                 mode=self.mode
                                  )
         test_instance.retrieve_data(gnomad=gnomad)
         variant_pre_standshift = self.variant
@@ -319,7 +320,7 @@ class AutoCaSc:
         VEP. It then calls assing_results to select relevant parameters and do some formatting.
         """
         response_decoded = None
-        if self.mode == "vcf_hase":
+        if self.path_to_request_cache_dir is not None:
             try:
                 self.open_pickle_file()
                 if self.vep_requests.get(self.variant):
@@ -581,7 +582,7 @@ class AutoCaSc:
                 self.other_autocasc_obj.calculate_candidate_score(recursively=False)
 
                 if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
-                    self.candidte_score_v1 = 0
+                    self.candidate_score = 0
                     if self.filter_pass:
                         self.filter_fail_explanation = f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
 
