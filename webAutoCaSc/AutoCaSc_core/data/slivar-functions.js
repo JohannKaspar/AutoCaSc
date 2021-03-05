@@ -69,7 +69,7 @@ function fake_auto_dom(kid, mom, dad) {
 function trio_autosomal_dominant(kid, dad, mom) {
   // affected samples must be het.
   if(!(kid.affected == (kid.alts == 1) && mom.affected == (mom.alts == 1) && dad.affected == (dad.alts == 1))) { return false; }
-  return kid.affected && hiqual(kid, dad, mom)
+  return kid.affected && hq(kid, dad, mom)
 }
 
 

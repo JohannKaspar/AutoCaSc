@@ -244,33 +244,13 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, num_threa
     comphet_cross_df = comphet_cross_df.rename(columns={"var_1":"variant", "var_2":"other_variant"})
     return comphet_cross_df
 
-def edit_java_script_functions(js_file, dp_filter=20, gq_filter=20):
+def edit_java_script_functions(js_file, dp_filter=20, ab_filter=0.2, gq_filter=20):
     with open(js_file, "r") as original_file, open(js_file + ".temp", "w") as new_file:
-        new_file.write(f"var config = {{min_GQ: 20, min_AB: 0.20, min_DP: 20}}")
+        new_file.write(f"var config = {{min_GQ: {gq_filter}, min_AB: {ab_filter}, min_DP: {dp_filter}}}")
         for line in original_file:
-            if "function hq(sample)" in line:
-                break
+            if "var config" in line:
+                continue
             new_file.write(line)
-        new_file.write(
-            "function hq(sample) {\n"
-                "if(sample.alts == -1) { return false; }\n"
-                "if(sample.DP < 10) { return false; }\n"
-                f"if(sample.GQ < {gq_filter}) {{ return false; }}\n"
-                "if(sample.alts == 0) {\n"
-                    f"if(sample.DP > {dp_filter} && sample.AB > 0.02) {{ return false; }}\n"
-                    f"if(sample.DP <= {dp_filter} && sample.AD[1] > 1) {{ return false; }}\n"
-                    "return true\n"
-                "}\n"
-                "if(sample.alts == 1) {\n"
-                    "if(sample.AB < 0.25 || sample.AB > 0.75) { return false; }\n"
-                    "return true\n"
-                "}\n"
-                "if(sample.alts == 2) {\n"
-                    f"if(sample.DP > {dp_filter} && sample.AB < 0.98) {{ return false; }}\n"
-                    f"if(sample.DP <= {dp_filter} && sample.AD[0] > 1) {{ return false; }}\n"
-                    "return true\n"
-                "}\n"
-            "}\n")
     js_file += ".temp"
     return js_file
 
@@ -316,6 +296,7 @@ def execute_slivar(slivar_dir,
                    comp_af_max,
                    ar_af_max,
                    gq_filter,
+                   ab_filter,
                    dp_filter,
                    nhomalt,
                    deactivate_bed_filter):
@@ -337,20 +318,18 @@ def execute_slivar(slivar_dir,
             click.echo("There has been a problem filtering for protein coding variants only! Continuing with all variants.")
 
     javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
-    # todo restore filtering function
 
     if float(x_recessive_af_max) == 0.0:
         x_recessive_af_max = "0.000000001"
     if float(denovo_af_max) == 0.0:
         denovo_af_max = "0.000000001"
     if float(comp_af_max) == 0.0:
-        compf_af_max = "0.000000001"
+        comp_af_max = "0.000000001"
 
     if interpret_pedigree(ped_file)[0]:
         slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                  f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                 f'--info "variant.QUAL >= {quality} && variant.FILTER == \'PASS\' ' \
-                                 f'&& INFO.gnomad_nhomalt <= {nhomalt}" ' \
+                                 f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt}" ' \
                                  f'--trio "homo:recessive(kid, mom, dad)" ' \
                                  f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
                                  f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
@@ -360,12 +339,14 @@ def execute_slivar(slivar_dir,
                                  '|| variant.CHROM==\'chrX\') ' \
                                  f'&& x_denovo(kid, mom, dad)))" ' \
                                  f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
-                                 '&& trio_autosomal_dominant(kid, mom, dad)" '
+                                 '&& trio_autosomal_dominant(kid, mom, dad)" ' \
+                                 f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
+                                 f'&& INFO.gnomad_popmax_af <= {comp_af_max}"'
     else:
         slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                  f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                 f'--info "variant.QUAL >= {quality} && variant.FILTER == \'PASS\' ' \
-                                 f'&& INFO.gnomad_nhomalt <= {nhomalt} && INFO.impactful" ' \
+                                 f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt} ' \
+                                 f'&& INFO.impactful" ' \
                                  f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
                                  f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
                                  f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
@@ -375,7 +356,7 @@ def execute_slivar(slivar_dir,
                                  '|| variant.CHROM==\'chrX\') ' \
                                  f'&& x_denovo(kid, mom, dad)))" ' \
                                  f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
-                                 f'&& INFO.gnomad_popmax_af <= {compf_af_max}"'
+                                 f'&& INFO.gnomad_popmax_af <= {comp_af_max}"'
 
     slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
                                             stdout=subprocess.PIPE,
@@ -581,6 +562,7 @@ def post_scoring_polish(df, omim_morbid_path,
     if sysid_primary_path and sysid_candidates_path:
         df = in_sysid(df, sysid_primary_path, sysid_candidates_path)
     df = add_ranks(df)
+    df.loc[df.autocasc_filter != "PASS", "autocasc_filter"] = "FAIL"
     return df
 
 
@@ -634,7 +616,7 @@ def main(ctx, verbose):
 @click.option("--ar_af_max", "-raf",
               default="0.005",
               help="Popmax AF in gnomad for autosomal recessive variants.")
-@click.option("--compf_af_max", "-caf",
+@click.option("--comp_af_max", "-caf",
               default="0.005",
               help="Popmax AF in gnomad for compound heterozygous variants.")
 @click.option("--autosomal_af_max", "-aaf",
@@ -649,6 +631,9 @@ def main(ctx, verbose):
 @click.option("--gq_filter", "-gq",
               default="10",
               help="Minimum GQ (quality) for variants.")
+@click.option("--ab_filter", "-ab",
+              default="0.2",
+              help="Minimum allele balance for variants.")
 @click.option("--dp_filter", "-dp",
               default="10",
               help="Minimum DP (reads) for variants.")
@@ -693,7 +678,7 @@ def main(ctx, verbose):
 # todo change mim flag to path to morbid file
 def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, output_path,
               denovo_af_max, x_recessive_af_max, ar_af_max, comp_af_max, autosomal_af_max, nhomalt,
-              quality, gq_filter, dp_filter, cache, slivar_dir, assembly, deactivate_bed_filter,
+              quality, gq_filter, ab_filter, dp_filter, cache, slivar_dir, assembly, deactivate_bed_filter,
               skip_slivar, vcf_comphet_path, vcf_non_comphet_path, path_to_request_cache_dir,
               blacklist_path, omim_morbid_path, sysid_primary_path, sysid_candidates_path):
     trio_name = ped_file.split("/")[-1].split(".")[0]
@@ -726,6 +711,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                    ar_af_max,
                                    nhomalt,
                                    gq_filter,
+                                   ab_filter,
                                    dp_filter,
                                    deactivate_bed_filter)
 

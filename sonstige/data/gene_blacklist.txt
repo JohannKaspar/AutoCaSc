@@ -2,5 +2,7 @@
 ^MUC[0-9]+
 ^HLA.+
 ^OBSC$
-^TTN
+^TTN$
 ^FLG$
+^HTT$
+^KRTAP.?$
