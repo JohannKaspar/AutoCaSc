@@ -481,6 +481,12 @@ class AutoCaSc:
         self.check_for_other_variant()
         self.explanation_dict = {}
 
+
+        print("")
+        self.calculate_candidate_score_ml()
+
+
+
         self.rate_inheritance()
         self.rate_pli_z()
         self.rate_impact()
@@ -535,7 +541,6 @@ class AutoCaSc:
                 #         self.filter_fail_explanation = \
                 #             f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
                 # else:
-
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.
@@ -728,6 +733,51 @@ class AutoCaSc:
             #     self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
 
 
+    ##### new approach #####
+    def calculate_candidate_score_ml(self):
+        """This method calls all the scoring functions and assigns their results to class attributes.
+        """
+        if self.status_code == 200:
+            self.explanation_dict = {}
+            self.factors = []
+
+            if self.gene_id in gene_scores.ensemble_id.to_list():
+                # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
+                self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
+                                                              "prediction_proba"].values[0], 2)
+
+                # self.factors.append((self.literature_score, "precalculated plausibility score"))
+            else:
+                # If not, the values are set to 0.
+                for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                              "mgi_score", "string_score"]:
+                    self.__dict__[score] = 0.
+                mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
+                self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
+
+            self.factors.append((self.get_cadd_factor(), f"CADD {self.cadd_phred}"))
+            factor_list, explanation_list = [[factor for factor, _ in self.factors],
+                                             [explanation for _, explanation in self.factors]]
+
+            self.candidate_score_ml = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
+
+    def get_cadd_factor(self, cadd_phred=None):
+        if not cadd_phred:
+            cadd_phred = self.cadd_phred
+        if cadd_phred >= 30:
+            cadd_score = 1.
+        else:
+            cadd_model = poly1d([3.83333333e-05, -3.85000000e-03, 1.28666667e-01, -4.40000000e-01])
+            cadd_score = cadd_model(cadd_phred)
+
+        if cadd_score < 0.:
+            cadd_score = 0.
+        elif cadd_score > 1.:
+            cadd_score = 1.
+        self.cadd_score = cadd_score
+        return cadd_score
+
+
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
 @click.pass_context
 @click.option('--verbose', '-v',
@@ -894,5 +944,7 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
+    single(["-v", "X:14748582:G:A",
+            "-ih", "x_linked"])
+    # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
