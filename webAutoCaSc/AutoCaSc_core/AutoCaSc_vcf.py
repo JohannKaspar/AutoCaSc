@@ -618,6 +618,10 @@ def main(ctx, verbose):
 @click.option("--dp_filter", "-dp",
               default="10",
               help="Minimum DP (reads) for variants.")
+@click.option("--pass-only", "-pass",
+              is_flag=True,
+              default=False,
+              help="Whether to use vants with VCF-filter 'PASS' only.")
 @click.option("--cache", "-c",
               type=click.Path(exists=True),
               help="Path to cache for temporary data.")
