@@ -1,9 +1,22 @@
-import random
+import os
+import pickle
 
 import pandas as pd
+ROOT_DIR = "/AutoCaSc_maintenance/data/"
 
-ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+
+def write_new_api_request(path, data):
+    try:
+        if not os.path.isdir(path):
+            if not os.path.isdir(path.rsplit("/", 1)[0]):
+                os.mkdir(path.rsplit("/", 1)[0])
+            os.mkdir(path)
+    except FileExistsError:
+        pass
+    num_entries = len(list(os.scandir(path)))
+    with open(f"{path}/{num_entries}.pickle", "wb") as pickle_file:
+        pickle.dump(data, pickle_file)
+
 
 def get_seq_difference(ref, alt):
     """if val == "+":

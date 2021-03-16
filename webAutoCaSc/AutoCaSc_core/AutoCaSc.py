@@ -16,7 +16,7 @@ import pandas as pd
 import requests
 from numpy import isnan, poly1d, product
 from gnomAD import GnomADQuery
-from tools import safe_get, filterTheDict, get_seq_difference
+from tools import safe_get, filterTheDict, get_seq_difference, write_new_api_request
 
 
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
@@ -31,10 +31,6 @@ class AutoCaSc:
     """
     def __init__(self, variant,
                  inheritance="other",
-                 parent_affected=False,
-                 has_sibling=False,
-                 cosegregating=False,
-                 sex="XY",
                  other_autocasc_obj=None,
                  other_impact="unknown",
                  other_variant=None,
@@ -46,20 +42,27 @@ class AutoCaSc:
         """This function assigns basic parameters and initializes the scoring process.
 
         :param variant: the variant including position and alternative sequence
-        :param inheritance: segregation/zygosity --> de_novo, homo, comphet, other, ad_inherited, x_linked
+        :param inheritance: segregation/zygosity: de_novo, homo, comphet, other, ad_inherited, x_linked
         :param family_history: are there multiple affected family members? if x_linked affected male family members?
         :param other_impact: impact of the corresponding variant if it is compound heterozygous
         :param assembly: either GRCh37 or GRCh38
         """
+        default_none_attributes = ["mutationtaster_converted_rankscore", "comphet_id", "candidate_score",
+                                   "ada_score", "rf_score", "maxentscan_ref", "maxentscan_alt", "maxentscan_decrease",
+                                   "vcf_string", "ref_seq_vep", "gnomad_frequency", "maf", "impact",
+                                   "gerp_rs_rankscore", "transcript", "consequence", "hgvsc_change", "protein",
+                                   "hgvsp_change", "polyphen_prediction", "ada_consequence", "maxentscan_consequence",
+                                   "hgvsc_change", "pLI", "mis_z", "oe_lof", "oe_lof_lower", "oe_lof_upper", "oe_mis",
+                                   "oe_mis_lower", "oe_mis_upper", "oe_mis_interval", "oe_lof_interval",
+                                   "sift_converted_rankscore", "mutationtaster_converted_rankscore",
+                                   "mutationassessor_rankscore", "mgi_score", "virlof_ar_enrichment", "ref_seq",
+                                    "filter_fail_explanation", "factors"
+                                   ]
+        for attribute in default_none_attributes:
+            self.__dict__[attribute] = None
 
-        self.mutationtaster_converted_rankscore = None
         self.variant = variant
         self.inheritance = inheritance
-        self.comphet_id = None
-        self.parent_affected = parent_affected
-        self.has_sibling = has_sibling
-        self.cosegregating = cosegregating  # this is meant to be True if a sibling is affected and has the same variant
-        self.sex = sex
         self.other_autocasc_obj = other_autocasc_obj
         self.other_impact = other_impact
         self.other_variant = other_variant
@@ -71,58 +74,21 @@ class AutoCaSc:
         self.mode = mode
         self.data_retrieved = False
         self.path_to_request_cache_dir = path_to_request_cache_dir
-        self.candidate_score = None
+        self.filter_pass = True
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
         else:
             self.server = "http://rest.ensembl.org"  # API endpoint for GRCh38
 
-        # assign initial "None" to all parameters
-        self.ada_score = None
-        self.rf_score = None
-        self.maxentscan_ref = None
-        self.maxentscan_alt = None
-        self.maxentscan_decrease = None
         self.cadd_phred = 0
-        self.vcf_string = None
-        self.ref_seq_vep = None
-        self.gnomad_frequency = None
-        self.maf = None
-        self.impact = None
-        self.gerp_rs_rankscore = None
-        self.transcript = None
-        self.consequence = None
-        self.hgvsc_change = None
-        self.protein = None
-        self.hgvsp_change = None
-        self.polyphen_prediction = None
-        self.ada_consequence = None
-        self.maxentscan_consequence = None
-        self.hgvsc_change = None
-        self.pLI = None
-        self.mis_z = None
-        self.oe_lof = None
-        self.oe_lof_lower = None
-        self.oe_lof_upper = None
-        self.oe_mis = None
-        self.oe_mis_lower = None
-        self.oe_mis_upper = None
-        self.oe_mis_interval = None
-        self.oe_lof_interval = None
         self.explanation_dict = {}
         self.inheritance_score = 0
+        self.frequency_score = 0
         self.variant_score = 0
         self.literature_score = 0
         self.gene_attribute_score = 0
         self.candidate_score = 0
-        self.sift_converted_rankscore = None
-        self.mutationtaster_converted_rankscore = None
-        self.mutationassessor_rankscore = None
-        self.mgi_score = None
-        self.virlof_ar_enrichment = None
-        self.ref_seq = None
-        self.filter_pass = True
 
         self.check_for_other_variant()
         self.check_variant_format()  # this function is called to check if the entered variant is valid
@@ -158,16 +124,14 @@ class AutoCaSc:
             self.get_gnomad_counts()  # gets allele counts in gnomad
             end = time.time()
             print(f"gnomad execution time {round(end - start, 2)}")
-            if self.other_variant and self.other_autocasc_obj is None:
-                self.other_autocasc_obj = AutoCaSc(variant=self.other_variant,
-                                                   inheritance=self.inheritance,
-                                                   parent_affected=self.parent_affected,
-                                                   has_sibling=self.has_sibling,
-                                                   cosegregating=self.cosegregating,
-                                                   sex=self.sex,
-                                                   assembly=self.assembly,
-                                                   transcript_num=self.transcript_num
-                                                   )
+            if self.other_variant is not None and self.other_autocasc_obj is None:
+                other_instance = AutoCaSc(variant=self.other_variant,
+                                          inheritance=self.inheritance,
+                                          assembly=self.assembly,
+                                          transcript_num=self.transcript_num,
+                                          mode=self.mode)
+                self.other_autocasc_obj = other_instance
+                self.status_code = other_instance.status_code
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
 
@@ -179,14 +143,16 @@ class AutoCaSc:
         """
         test_instance = AutoCaSc(self.vcf_string,
                                  inheritance=self.inheritance,
-                                 parent_affected=self.parent_affected,
-                                 has_sibling=self.has_sibling,
-                                 cosegregating=self.cosegregating,
-                                 sex=self.sex,
                                  assembly=self.assembly,
-                                 mode=self.mode
+                                 mode=self.mode,
+                                 other_variant=self.other_variant,
+                                 other_autocasc_obj=self.other_autocasc_obj,
+                                 transcript_num = self.transcript_num,
+                                 family_history = self.family_history,
+                                 path_to_request_cache_dir = self.path_to_request_cache_dir
                                  )
-        test_instance.retrieve_data(gnomad=gnomad)
+        if not test_instance.data_retrieved:
+            test_instance.retrieve_data(gnomad=gnomad)
         variant_pre_standshift = self.variant
         if test_instance.status_code == 200:
             self.__dict__ = test_instance.__dict__
@@ -292,10 +258,8 @@ class AutoCaSc:
         # try to pull the requested data and check if request was successful
         r = requests.get(url, headers={"content-type": "application/json"})
 
-        # if status code == 200
         if r.ok:
             return safe_get(r.json(), 0), 200
-        # if error "too many requests" retry after given time
         else:
             # if some sort of error occurs
             if "matches reference" in str(r.content, "utf-8"):
@@ -317,7 +281,7 @@ class AutoCaSc:
 
     def get_vep_data(self):
         """This function retrieves VEP data either by loading from stored VEP requests or addressing the REST API of
-        VEP. It then calls assing_results to select relevant parameters and do some formatting.
+        VEP. It then calls assign_results to select relevant parameters and do some formatting.
         """
         response_decoded = None
         if self.path_to_request_cache_dir is not None:
@@ -328,7 +292,7 @@ class AutoCaSc:
             except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
                 print("could not open vep pickle")
 
-        if self.status_code != 200 or response_decoded is None:
+        if response_decoded is None:
             self.create_url()
             try:
                 response_decoded, self.status_code = self.vep_api_request()
@@ -338,18 +302,8 @@ class AutoCaSc:
 
             if self.status_code == 200:
                 if self.path_to_request_cache_dir is not None:
-                    new_vep_request = {}
-                    new_vep_request[self.variant] = response_decoded
-                    try:
-                        if not os.path.isdir(f"{self.path_to_request_cache_dir}tmp/vep"):
-                            if not os.path.isdir(f"{self.path_to_request_cache_dir}tmp"):
-                                os.mkdir(f"{self.path_to_request_cache_dir}tmp")
-                            os.mkdir(f"{self.path_to_request_cache_dir}tmp/vep")
-                    except FileExistsError:
-                        pass
-                    num_entries = len(list(os.scandir(f"{self.path_to_request_cache_dir}tmp/vep")))
-                    with open(f"{self.path_to_request_cache_dir}tmp/vep/{num_entries}.pickle", "wb") as pickle_file:
-                        pickle.dump(new_vep_request, pickle_file)
+                    new_vep_request = {self.variant: response_decoded}
+                    write_new_api_request(f"{self.path_to_request_cache_dir}tmp/vep", new_vep_request)
 
         if self.status_code == 200:
             transcript_index = self.get_transcript_index(response_decoded)
@@ -370,26 +324,23 @@ class AutoCaSc:
             # extracts reference sequence from variant id in vcf format
             self.ref_seq_vep = safe_get(self.vcf_string.split(":"), 2)
             self.alt_seq_vep = safe_get(self.vcf_string.split(":"), 3)
+            if self.ref_seq is None:
+                self.ref_seq = variant_anno_data.get("vcf_string").split("-")[2]
+                self.alt_seq = variant_anno_data.get("vcf_string").split("-")[3]
+        self.id = variant_anno_data.get("id")
         if self.variant_format == "vcf":
-            # formats given variant into VCF format
-            self.id = re.sub(r"[^a-zA-Z^0-9-]", ":", variant_anno_data.get("id"))
-        else:
-            self.id = variant_anno_data.get("id")
-        if self.ref_seq is None:
-            self.ref_seq = variant_anno_data.get("vcf_string").split("-")[2]
-            self.alt_seq = variant_anno_data.get("vcf_string").split("-")[3]
+            self.id = re.sub(r"[^a-zA-Z^0-9-]", ":", self.id)
 
         # checks if reference sequences match and returns result dictionary and status code accordingly
-        if any([x == None for x in [self.ref_seq, self.ref_seq_vep, self.alt_seq, self.alt_seq_vep]]):
+        if any([x is None for x in [self.ref_seq, self.ref_seq_vep, self.alt_seq, self.alt_seq_vep]]):
             pass
         else:
             if not get_seq_difference(self.ref_seq, self.alt_seq) == get_seq_difference(self.ref_seq_vep,
                                                                                             self.alt_seq_vep):
                 self.status_code = 201
             else:
-                # gets varint gnomad exome frequency and MAF
+                # gets variant gnomad exome frequency and MAF
                 self.gnomad_frequency, self.maf = self.get_frequencies(variant_anno_data.get("colocated_variants"))
-
                 # This list of parameters is assigned to corresponding class attributes.
                 key_list = ["gene_symbol",
                             "amino_acids",
@@ -402,7 +353,6 @@ class AutoCaSc:
                             "rf_score",
                             "maxentscan_ref",
                             "maxentscan_alt"]
-
                 for key in key_list:
                     if selected_transcript_consequences.get(key) is not None:
                         value = selected_transcript_consequences.get(key)
@@ -420,15 +370,13 @@ class AutoCaSc:
                 if selected_transcript_consequences.get("consequence_terms") is not None:
                     self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
                 if selected_transcript_consequences.get("hgvsc") is not None:
-                    self.transcript = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 0) or \
-                                      selected_transcript_consequences.get("transcript_id")
-                    self.hgvsc_change = safe_get(selected_transcript_consequences.get("hgvsc").split(":"), 1)
+                    self.transcript, self.hgvsc_change = selected_transcript_consequences.get("hgvsc").split(":")
+
                 if selected_transcript_consequences.get("consequence_terms") is not None:
                     self.consequence = re.sub(r"_", " ", safe_get(selected_transcript_consequences.get("consequence_terms"), 0))
 
                 if selected_transcript_consequences.get("hgvsp") is not None:
-                    self.protein = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 0)
-                    self.hgvsp_change = safe_get(selected_transcript_consequences.get("hgvsp").split(":"), 1)
+                    self.protein, self.hgvsp_change = selected_transcript_consequences.get("hgvsp").split(":")
 
                 if selected_transcript_consequences.get("polyphen_prediction") is not None:
                     self.polyphen_prediction = re.sub(r"_", " ", selected_transcript_consequences.get("polyphen_prediction"))
@@ -467,20 +415,17 @@ class AutoCaSc:
             return gnomad_frequency, maf
         else:
             # getting variant frequency
-            for colocated_list in colocated_variants:
-                frequencies_dict = colocated_list.get("frequencies")
+            for _variant in colocated_variants:
+                frequencies_dict = _variant.get("frequencies")
                 if frequencies_dict is not None:
                     if frequencies_dict.get(self.alt_seq) is not None:
                         gnomad_frequency = frequencies_dict.get(self.alt_seq).get("gnomad") or 0
-                        # TODO 'NM_002642.3:c.422C>T' freq for "aa" but not "gnomad" --> calculate total frequency?
-
             # getting MAF
             for colocated_dict in colocated_variants:
                 if colocated_dict.get("minor_allele_freq") is not None:
                     maf = colocated_dict.get("minor_allele_freq")
             if maf == 0:
                 maf = gnomad_frequency
-
             return gnomad_frequency, maf
 
     def get_transcript_index(self, response_dec):
@@ -495,9 +440,7 @@ class AutoCaSc:
         :param response_dec: VEP response dictionary with a list of transcripts
         :return: transcript index to consider for further calculations
         """
-
         impact_severity_dict = {"MODIFIER": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3}
-
         transcript_df = pd.DataFrame()
         try:
             for i, transcript in enumerate(response_dec["transcript_consequences"]):
@@ -525,11 +468,9 @@ class AutoCaSc:
         except AttributeError:
             self.status_code = 499
             return None
-
         except KeyError:
             self.status_code = 498  # intergenic variant
             return None
-
         except TypeError:
             self.status_code = 497
             return None
@@ -567,15 +508,15 @@ class AutoCaSc:
                           "mgi_score", "string_score"]:
                 self.__dict__[score] = 0.
 
-        candidate_score_list = [i if i is not None else 0 for i in [
-            self.inheritance_score,
-            self.gene_attribute_score,
-            self.variant_score,
-            self.literature_score]]
-        self.candidate_score = round(sum(candidate_score_list), 2)
-
         if not self.filter_pass:
             self.candidate_score = 0
+        else:
+            candidate_score_list = [i if i is not None else 0 for i in [
+                self.inheritance_score,
+                self.gene_attribute_score,
+                self.variant_score,
+                self.literature_score]]
+            self.candidate_score = round(sum(candidate_score_list), 2)
 
         if self.inheritance == "comphet":
             if self.other_autocasc_obj and recursively:
@@ -584,51 +525,51 @@ class AutoCaSc:
                 if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
                     self.candidate_score = 0
                     if self.filter_pass:
-                        self.filter_fail_explanation = f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
-
+                        self.filter_fail_explanation = \
+                            f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
                 else:
                     self.candidate_score = round(mean([self.candidate_score,
                                                        self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)
                     if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
                         self.candidate_score += 1
+                        self.impact_score = 3
+                        self.other_autocasc_obj.__dict__["impact"] = 3
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.
         """
         if self.inheritance == "de_novo":
             # ToDo weniger auf de_novo geben wenn family_history positiv?
-            self.inheritance_score, self.explanation_dict["inheritance"] = 2, "de novo    -->    2"
+            self.inheritance_score, self.explanation_dict["inheritance"] = 2, "de novo: 2"
         if self.inheritance == "other":
-            self.inheritance_score, self.explanation_dict["inheritance"] = 0, "other    -->    0"
+            self.inheritance_score, self.explanation_dict["inheritance"] = 0, "other: 0"
         if self.inheritance == "ad_inherited":
-            self.inheritance_score, self.explanation_dict["inheritance"] = 0, "inherited autosomal dominant    -->    0"
+            self.inheritance_score, self.explanation_dict["inheritance"] = 0, "inherited autosomal dominant: 0"
         if self.inheritance == "comphet":
-            # if self.family_history in [False, "no"]:
-            self.inheritance_score, self.explanation_dict["inheritance"] = 1,\
-                "compound heterozygous, one affected child    -->    1"
-            # elif self.family_history in [True, "yes"]:
-            #     self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
-            #         "compound heterozygous, multiple affected children    -->    3"
+            if self.family_history in [False, "no"]:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 1, \
+                    "compound heterozygous, one affected child: 1"
+            elif self.family_history in [True, "yes"]:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 3, \
+                    "compound heterozygous, multiple affected children: 3"
         if self.inheritance == "homo":
-            # if self.family_history is True:
-            #     self.inheritance_score, self.explanation_dict["inheritance"] = 3,\
-            #         "homo, multiple affected children    -->    3"
-            # else:
-            self.inheritance_score, self.explanation_dict["inheritance"] = 2, "homo, one affected child    -->    2"
-
-        if self.inheritance == "x_linked":
-            if self.family_history == True:
-                # ToDo was wenn weibliche Verwandte betroffen, extra differenzieren?
-                self.inheritance_score, self.explanation_dict["inheritance"] = 2,\
-                    "x_linked and another maternal male relative    -->    2"
+            if self.family_history is True:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 3, \
+                    "homo, multiple affected children: 3"
             else:
-                self.inheritance_score, self.explanation_dict["inheritance"] = 1, "x_linked and a boy    -->    1"
+                self.inheritance_score, self.explanation_dict["inheritance"] = 2, "homo, one affected child: 2"
+        if self.inheritance == "x_linked":
+            if self.family_history is True:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 2, \
+                    "x_linked and another maternal male relative: 2"
+            else:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 1, "x_linked and a boy: 1"
 
     def rate_pli_z(self):
         """This function scores gnomAD constraints (pLI/Z).
         """
         if self.inheritance in ["homo", "comphet"]:
-            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "recessive    -->    0"
+            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "recessive: 0"
         else:
             # if impact is not None:
             if self.impact == "high":
@@ -636,48 +577,46 @@ class AutoCaSc:
                     if self.pLI < 0.5:
                         if self.inheritance == "de_novo":
                             self.gene_attribute_score, self.explanation_dict[
-                                "pli_z"] = -2, "de novo LoF & pLI < 0.5    -->    -2"
+                                "pli_z"] = -2, "de novo LoF & pLI < 0.5: -2"
                         else:
-                            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "LoF & pLI < 0.5    -->    0"
+                            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "LoF & pLI < 0.5: 0"
                     elif self.pLI < 0.9:
                         if self.inheritance == "de_novo":
                             self.gene_attribute_score, self.explanation_dict[
-                                "pli_z"] = 0, "de novo LoF & 0.5 <= pLI < 0.9    -->    0"
+                                "pli_z"] = 0, "de novo LoF & 0.5 <= pLI < 0.9: 0"
                         else:
                             self.gene_attribute_score, self.explanation_dict[
-                                "pli_z"] = 0.5, "LoF & pLI <= 0.5 pLI < 0.9    -->    0.5"
+                                "pli_z"] = 0.5, "LoF & pLI <= 0.5 pLI < 0.9: 0.5"
                     else:
-                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "LoF & pLI >= 0.9    -->    1"
+                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "LoF & pLI >= 0.9: 1"
                 else:
-                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on pLI    --> 0"
+                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on pLI: 0"
             elif self.impact == "moderate":
                 if self.mis_z is not None:
                     if self.mis_z < 0:
-                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "missense & Z < 0    -->    0"
+                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "missense & Z < 0: 0"
                     elif self.mis_z >= 0 and self.mis_z < 2.5:
                         self.gene_attribute_score, self.explanation_dict[
-                            "pli_z"] = 0.5, "missense & 0 <= Z < 2.5    -->    0.5"
+                            "pli_z"] = 0.5, "missense & 0 <= Z < 2.5: 0.5"
                     elif self.mis_z >= 2.5:
-                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "missense & Z >= 2.5    -->    1"
+                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "missense & Z >= 2.5: 1"
                 else:
-                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on Z score    -->    0"
+                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on Z score: 0"
             else:
-                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "low impact or no data on impact --> 0"
+                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "low impact or no data on impact: 0"
 
     def rate_impact(self):
         """This function scores the variants predicted impact.
         """
-        if self.other_autocasc_obj:
-            self.other_impact = self.other_autocasc_obj.__dict__.get("impact")
-
-        self.impact_score, self.explanation_dict["impact"] = 0, f"impact {self.impact}    -->    0"
+        self.impact_score, self.explanation_dict["impact"] = 0, f"impact {self.impact}: 0"
 
         if self.impact == "moderate":
-            self.impact_score, self.explanation_dict["impact"] = 0, "impact moderate    -->    0"
+            self.impact_score, self.explanation_dict["impact"] = 0, "impact moderate: 0"
         elif self.impact == "high":
-            self.impact_score, self.explanation_dict["impact"] = 2, "impact high, heterozygous    -->    2"
+            self.impact_score, self.explanation_dict["impact"] = 2, "impact high, heterozygous: 2"
             if self.inheritance == "homo":
-                self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic    -->    3"
+                self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic: 3"
+            # for comphets, this is checked seperately later
         else:
             self.filter_pass = False
             self.filter_fail_explanation = "low impact"
@@ -685,11 +624,10 @@ class AutoCaSc:
     def rate_in_silico(self):
         """This function scores in silico predictions.
         """
-        # ToDo ranked scores benutzt? checken!
         score_list = []
         affected_splice_counter = []
 
-        self.in_silico_score, self.explanation_dict["in_silico"] = 0, f"{self.impact} and no prediction values --> 0"
+        self.in_silico_score, self.explanation_dict["in_silico"] = 0, f"{self.impact} and no prediction values: 0"
 
         if self.sift_converted_rankscore is not None:
             score_list.append(float(self.sift_converted_rankscore))
@@ -701,10 +639,10 @@ class AutoCaSc:
         # "average of in silico"
         if score_list:
             self.in_silico_score, self.explanation_dict["in_silico"] = round(mean(score_list), 2),\
-                    f"mean in silico score    -->    {round(mean(score_list), 2)}"
+                    f"mean in silico score: {round(mean(score_list), 2)}"
         elif self.impact == "high":
             # If there are no in silico scores for the variant and its impact is high, we assume a score of 1 point.
-            self.in_silico_score, self.explanation_dict["in_silico"] = 1, "LoF --> 1"
+            self.in_silico_score, self.explanation_dict["in_silico"] = 1, "LoF: 1"
 
         # In case of absent in silico values and a moderate or low impact: consider splice site predictions, if existing
         else:
@@ -720,32 +658,30 @@ class AutoCaSc:
 
             if not affected_splice_counter and self.impact == "moderate":
                 self.in_silico_score = 0.5
-                self.explanation_dict["in_silico"] = "missense, no available in silico values    -->    0.5"
-            if sum(affected_splice_counter) == 1:  # "splicing affected in one program"
+                self.explanation_dict["in_silico"] = "missense, no available in silico values: 0.5"
+            if sum(affected_splice_counter) == 1:
                 self.in_silico_score = 0.5
-                self.explanation_dict["in_silico"] = "splicing affected in one program    -->    0.5"
-            if sum(affected_splice_counter) >= 2:  # "splicing affected in two or more programs"
+                self.explanation_dict["in_silico"] = "splicing affected in one program: 0.5"
+            if sum(affected_splice_counter) >= 2:
                 self.in_silico_score = 1
-                self.explanation_dict["in_silico"] = "splicing affected in two or more programs    -->    1"
+                self.explanation_dict["in_silico"] = "splicing affected in two or more programs: 1"
 
     def rate_conservation(self):
         """This function scores the variants conservation.
         """
         if self.gerp_rs_rankscore is not None:
             self.conservation_score, self.explanation_dict["conservation"] = self.gerp_rs_rankscore,\
-                   f"GERP++ rankscore {self.gerp_rs_rankscore}    -->    {self.gerp_rs_rankscore}"
-
-        # "estimation in case of absent GERP++"
-        else:
+                   f"GERP++ rankscore {self.gerp_rs_rankscore}: {self.gerp_rs_rankscore}"
+        else:  # "estimation in case of absent GERP++"
             if self.impact == "high":
-                self.conservation_score, self.explanation_dict["conservation"] = 1, "LoF    -->    1"
+                self.conservation_score, self.explanation_dict["conservation"] = 1, "LoF: 1"
             else:
-                self.conservation_score, self.explanation_dict["conservation"] = 0, "no data!    -->    0"
+                self.conservation_score, self.explanation_dict["conservation"] = 0, "no data!: 0"
 
     def rate_frequency(self):
         """This function scores the variants frequency.
         """
-        self.frequency_score, self.explanation_dict["frequency"] = 0, "other    -->    0"
+        self.frequency_score, self.explanation_dict["frequency"] = 0, "other: 0"
 
         if self.inheritance in ["de_novo", "ad_inherited"]:
             if self.allele_count != 0:
@@ -753,12 +689,12 @@ class AutoCaSc:
                 self.filter_fail_explanation = f"{self.allele_count}x in gnomad"
             if self.maf < 0.000005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
-                    f"{self.inheritance} & MAF < 0.000005    -->    1"
+                    f"{self.inheritance} & MAF < 0.000005: 1"
             elif self.maf < 0.00002:
                 self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
-                    f"{self.inheritance} & MAF < 0.00002    -->    0.5"
+                    f"{self.inheritance} & MAF < 0.00002: 0.5"
             else:
-                self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002    -->    0"
+                self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002: 0"
 
         if self.inheritance in ["homo", "comphet"]:
             if self.ac_hom != 0:
@@ -766,20 +702,19 @@ class AutoCaSc:
                 self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
             if self.maf < 0.00005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
-                    "autosomal recessive & MAF < 0.00005    -->    1"
+                    "autosomal recessive & MAF < 0.00005: 1"
             elif self.maf < 0.0005:
                 self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
-                    "autosomal recessive & MAF < 0.0005    -->    0.5"
+                    "autosomal recessive & MAF < 0.0005: 0.5"
 
         if self.inheritance == "x_linked":
             gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()
             if self.n_hemi <= 1 and self.female_count >= 5:
-                self.frequency_score, self.explanation_dict["frequency"] = 2,\
-                    "X linked and discrepancy of MAF in gnomAD between males and females (max.1/min.5)    -->    2"
-                #TODO DAS HIER DRUNTER WURDE ADAPTIERT, MUSS MIT RAMI BESPROCHEN WERDEN
+                self.frequency_score, self.explanation_dict["frequency"] = 2, \
+                    "X linked and discrepancy of MAF in gnomAD between males and females (max.1/min.5): 2"
             elif self.n_hemi == 0:
                 self.frequency_score = 1
-                self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD  -->    1"
+                self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD: 1"
             else:
                 self.frequency_score = 0
                 self.explanation_dict["frequency"] = f"X linked and {self.n_hemi}x hemizygous in gnomad!"
@@ -798,25 +733,15 @@ class AutoCaSc:
 @click.option("--assembly", "-a",
               default="GRCh37",
               help="Reference assembly to use.")
-@click.option("--parent_affected", "-pa",
-              default="n",
-              help="Is at least one of the parents affected either y or n.")
-@click.option("--cosegregating", "-c",
-              default="no_sibling",
-              help="This option can either be no_sibling, cosegregating or not_cosegregating.")
-@click.option("--sex", "-s",
-              default="XY",
-              help="Sex of index patient. Either XX or XY.")
 @click.option("--output_path", "-o",
               help="Output path for csv-file.")
-def main(ctx, verbose, assembly, parent_affected, cosegregating, sex, output_path):
+def main(ctx, verbose, assembly, output_path):
     group_commands = ['single', 'batch']
     """
             AutoCaSc_core is a command line tool that helps scoring
             variants of NDD patients for their plausible pathogenicity.\n
             example: python AutoCaSc_core.py batch -i input/file/path
     """
-
     if ctx.invoked_subcommand is None:
         # No command supplied
         # Inform user on the available commands when running the app
@@ -825,83 +750,67 @@ def main(ctx, verbose, assembly, parent_affected, cosegregating, sex, output_pat
 
     ctx.obj["VERBOSE"] = verbose
     ctx.obj["ASSEMBLY"] = assembly
-    ctx.obj["PARENT_AFFECTED"] = parent_affected
-    ctx.obj["SEX"] = sex
     ctx.obj["OUTPUT_PATH"] = output_path
 
-    if cosegregating == "no_sibling":
-        ctx.obj["HAS_SIBLING"] = False
-        ctx.obj["COSEGREGATING"] = False
-    elif cosegregating == "cosegregating":
-        ctx.obj["HAS_SIBLING"] = True
-        ctx.obj["COSEGREGATING"] = True
-    elif cosegregating == "not_cosegregating":
-        ctx.obj["HAS_SIBLING"] = True
-        ctx.obj["COSEGREGATING"] = False
-
 @click.pass_context
-def score_variants(ctx, variants, inheritances):
+def score_variants(ctx, variants, inheritances, corresponding_variants, family_histories):
     if ctx.obj:
         verbose = ctx.obj.get('VERBOSE')
         assembly = ctx.obj.get('ASSEMBLY')
-        parent_affected = ctx.obj.get('PARENT_AFFECTED')
-        sex = ctx.obj.get('SEX')
         output_path = ctx.obj.get('OUTPUT_PATH')
-        has_sibling = ctx.obj.get('HAS_SIBLING')
-        cosegregating = ctx.obj.get('COSEGREGATING')
     else:
         verbose = True
         assembly = "GRCh37"
-        parent_affected = False
-        sex = "XY"
         output_path = None
-        has_sibling = False
-        cosegregating = False
 
     results_df = pd.DataFrame()
     variant_dict = {}
-    for _variant, _inheritance in zip(variants, inheritances):
-        variant_dict[_variant] = AutoCaSc(variant=_variant,
-                              inheritance=_inheritance,
-                              parent_affected=parent_affected,
-                              has_sibling=has_sibling,
-                              cosegregating=cosegregating,
-                              sex=sex,
-                              assembly=assembly)
+    for _variant, _inheritance, _corresponding_variant, _family_history in \
+            zip(variants, inheritances, corresponding_variants, family_histories):
+        _instance = AutoCaSc(variant=_variant,
+                             inheritance=_inheritance,
+                             other_variant=_corresponding_variant,
+                             family_history=_family_history,
+                             assembly=assembly)
+        if _instance.status_code == 200:
+            if _instance.other_autocasc_obj:
+                if _instance.other_autocasc_obj.status_code == 200:
+                    _instance.calculate_candidate_score()
+            else:
+                _instance.calculate_candidate_score()
+        variant_dict[_variant] = _instance
 
-    #ToDo: check this again, maybe write one function for both vcf and batch CLI
-
-    comphet_genes_dict = {}
-    for _variant, _inheritance in zip(variants, inheritances):
-        if _inheritance == "comphet":
-            gene_id = variant_dict.get(_variant).gene_id
-            if gene_id:
-                comphet_genes_dict[_variant] = gene_id
-        else:
-            variant_dict.get(_variant).calculate_candidate_score()
-    # comphet_df = pd.DataFrame.from_dict(gene_dict, orient='index').reset_index()
-    # comphet_df.columns = ['variant', 'gene_id']
-
-    for _variant in comphet_genes_dict.keys():
-        try:
-            variant_gene = comphet_genes_dict.get(_variant)
-            other_variant = list(filterTheDict(comphet_genes_dict, variant_gene, _variant).keys())[0]
-            variant_dict.get(_variant).other_autocasc_obj = variant_dict.get(other_variant)
-            variant_dict.get(_variant).calculate_candidate_score()
-        except IndexError:
-            pass
+    # comphet_genes_dict = {}
+    # for _variant, _inheritance in zip(variants, inheritances):
+    #     if _inheritance == "comphet":
+    #         gene_id = variant_dict.get(_variant).gene_id
+    #         if gene_id:
+    #             comphet_genes_dict[_variant] = gene_id
+    #     else:
+    #         variant_dict.get(_variant).calculate_candidate_score()
+    #
+    # for _variant in comphet_genes_dict.keys():
+    #     try:
+    #         variant_gene = comphet_genes_dict.get(_variant)
+    #         other_variant = list(filterTheDict(comphet_genes_dict, variant_gene, _variant).keys())[0]
+    #         variant_dict.get(_variant).other_autocasc_obj = variant_dict.get(other_variant)
+    #         variant_dict.get(_variant).calculate_candidate_score()
+    #     except IndexError:
+    #         pass
 
     # create the final result_df containing scoring results
     for _variant, _inheritance in zip(variants, inheritances):
         variant_instance = variant_dict.get(_variant)
         results_df.loc[_variant, "candidate_score"] = variant_instance.candidate_score
+        results_df.loc[_variant, "gene_symbol"] = variant_instance.__dict__.get("gene_symbol")
+        results_df.loc[_variant, "other_variant"] = variant_instance.other_variant
         if verbose:
             results_df.loc[_variant, "inheritance_score"] = variant_instance.inheritance_score
             results_df.loc[_variant, "gene_score"] = variant_instance.gene_attribute_score
             results_df.loc[_variant, "variant_score"] = variant_instance.variant_score
             results_df.loc[_variant, "literature_score"] = variant_instance.literature_score
-        results_df.loc[_variant, "inheritance_mode"] = _inheritance
-        results_df.loc[_variant, "comphet_id"] = variant_instance.comphet_id
+        results_df.loc[_variant, "inheritance_mode"] = variant_instance.inheritance
+        results_df.loc[_variant, "filter_fail_explanation"] = variant_instance.filter_fail_explanation
         results_df.loc[_variant, "status_code"] = str(int(variant_instance.status_code))
         print(variant_instance.factors)
 
@@ -911,63 +820,75 @@ def score_variants(ctx, variants, inheritances):
     return results_df
 
 
+def check_inheritance_input(inheritances):
+    for _inheritance in inheritances:
+        if not _inheritance in ["comphet", "de_novo", "homo", "ad_inherited", "x_linked", "unknown"]:
+            raise IOError(f"Could not interpret inheritance '{_inheritance}'")
+
+
 @main.command("batch")
 @click.option("--input_file", "-i",
               type=click.Path(exists=True),
-              help="Path to file containing variants.")
+              help="Path to file with comma-separated columns containing "
+                      "Variant | Inheritance | Corresponding comphet variant | Family history. "
+                   "For family history use: "
+                   "'de_novo' for de novo variants,  'homo' for homozygous variants,  'comphet' for compound "
+                   "heterozygous variants, 'ad_inherited' for inherited variants, 'x_linked' for X-linked variants, "
+                   "'unknown' for variants where inheritance pattern is unknown")
 def batch(input_file):
     lines = open(input_file).readlines()
-    lines = [line_.strip("\n ") for line_ in lines]
+    lines = [_line.strip("\n ") for _line in lines]
     try:
         variants = [line_.split(",")[0].strip() for line_ in lines]
         inheritances = [line_.split(",")[1].strip() for line_ in lines]
     except IndexError:
-        #ToDo error handling
-        variants = [line_.strip("\n ") for line_ in lines]
-        inheritances = ["de_novo" for _ in lines]
+        raise IOError("Could not interpret input. Please provide a file with comma-separated columns containing "
+                      "Variant | Inheritance | Corresponding variant | Family history")
+    check_inheritance_input(inheritances)
+    try:
+        corresponding_variants = [line_.split(",")[2].strip() for line_ in lines]
+        corresponding_variants = [None if _cv == "" else _cv for _cv in corresponding_variants]
+    except IndexError:
+        corresponding_variants = [None] * len(variants)
 
-    results_df = score_variants(variants, inheritances)
+    try:
+        family_histories = [interpret_family_history(line_.split(",")[3].strip()) for line_ in lines]
+    except IndexError:
+        family_histories = [False] * len(variants)
 
-    click.echo(results_df.head(len(results_df)))
+    results_df = score_variants(variants=variants,
+                                inheritances=inheritances,
+                                corresponding_variants=corresponding_variants,
+                                family_histories=family_histories)
 
+    click.echo(results_df.loc[:])
+
+def interpret_family_history(input):
+    if isinstance(input, str):
+        if "true" in input.lower() or "yes" in input.lower():
+            return True
+    if input == True:
+        return True
+    return False
 
 @main.command("single")
-@click.option("--variant", "-vcf",
+@click.option("--variant", "-v",
               required=True,
               help="Variant in either VCF or HGVS format.")
+@click.option("--corresponding_variant", "-ov",
+              default=None,
+              help="Corresponding compound heterozygous variant.")
 @click.option("--inheritance", "-ih",
               default="de_novo",
               help="Inheritance mode of variant.")
 @click.option("--family_history", "-f",
-              default="no",
-              help="Are there any relatives that are affected too?")
-def single(variant, inheritance, family_history):
-    results_df = score_variants([variant], [inheritance])
+              default=False,
+              help="Is there another family member who could have this variant as well? True / False")
+def single(variant, corresponding_variant, inheritance, family_history):
+    family_history = interpret_family_history(family_history)
+    results_df = score_variants([variant], [inheritance], [corresponding_variant], [family_history])
     click.echo(results_df.head(len(results_df)))
 
 
 if __name__ == "__main__":
-    # single(["--variant", "X:52674562:G:T",
-    #              "-ih", "x_linked",
-    #              "-f", "yes"])
-    # batch(["--input_file",
-    #        "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
-
-# print(AutoCaSc_core("2:46803383:G:A", "de_novo").candidate_score)  # benign
-# print(AutoCaSc_core("1:1737948:A:G", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("X:153040798:C:A", "de_novo").candidate_score)  # benign
-# print(AutoCaSc_core("1:3732936:A:G", "de_novo").candidate_score)  # pathogenic --> impact high LOEUF 0.74
-# print(AutoCaSc_core("1:7725246:G:A", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("1:2234850:G:A", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("1:3755660:A:C", "de_novo").candidate_score)  # pathogenic
-# print(AutoCaSc_core("1:1959699:G:A", "other").candidate_score)  # benign, high expressesed, GABA receptor.......
-# print(AutoCaSc_core("CBLB:c.1822C>T", "other").candidate_score)
-# print(AutoCaSc_core("NM_001113498.2:c.794T>A", "de_novo").candidate_score)
-# print(AutoCaSc_core("chr4:175812275:T:C", inheritance="de_novo", assembly="GRCh38").candidate_score)
-# print(AutoCaSc_core("3:149619809:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:-", "de_novo").candidate_score)  # benign, high expressesed, GABA receptor.......
-
-
-# homo: NM_001199266.1:c.132_134del
-
-# 2:46803383:G:A, 1:3732936:T:C

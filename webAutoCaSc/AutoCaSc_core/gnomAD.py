@@ -1,11 +1,8 @@
 import os
-import random
-
 import requests
-import time
-
 import pickle
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_random
+from tools import write_new_api_request
 
 # GraphQL query code
 query_code = '''
@@ -187,21 +184,8 @@ class GnomADQuery:
                 status_code = 400
             if r.status_code == 200 and self.path_to_request_cache_dir:
                 if self.gnomad_requests != {}:
-                    new_gnomad_requests = {self.variant: r}
-                    try:
-                        if not os.path.isdir(
-                                f"{self.path_to_request_cache_dir}tmp/gnomad"):
-                            if not os.path.isdir(
-                                    f"{self.path_to_request_cache_dir}tmp"):
-                                os.mkdir(
-                                    f"{self.path_to_request_cache_dir}tmp")
-                            os.mkdir(
-                                f"{self.path_to_request_cache_dir}tmp/gnomad")
-                    except FileExistsError:
-                        pass
-                    num_entries = len(list(os.scandir(f"{self.path_to_request_cache_dir}tmp/gnomad")))
-                    with open(f"{self.path_to_request_cache_dir}tmp/gnomad/{num_entries}.pickle", "wb") as pickle_file:
-                        pickle.dump(new_gnomad_requests, pickle_file)
+                    new_gnomad_request = {self.variant: r}
+                    write_new_api_request(f"{self.path_to_request_cache_dir}tmp/gnomad", new_gnomad_request)
         if r is not None:
             status_code = r.status_code
 

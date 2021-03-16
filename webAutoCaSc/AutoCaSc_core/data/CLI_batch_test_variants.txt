@@ -1,2 +1,2 @@
-NM_001145165.1:c.446C>G, comphet
-NM_001145165.1:c.224T>G, comphet
+NM_001145165.1:c.446C>G, comphet, NM_001145165.1:c.111000224T>G, True
+NM_015317.2:c.2216del, de_novo,, False

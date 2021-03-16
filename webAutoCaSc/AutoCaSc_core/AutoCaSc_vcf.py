@@ -1,26 +1,23 @@
 import copy
 import os
 import sys
-import random
 import shlex
 import subprocess
 from io import StringIO
-from statistics import mean
 import click
-import time
 from AutoCaSc import AutoCaSc
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import re
 import shutil
-from tenacity import retry, stop_after_attempt, wait_exponential
 import pickle
 
-def create_bed_file(assembly="GRCh37", ensembl_version="101"):
+
+def create_bed_file(path=f"/home/johann/AutoCaSc/data/BED/Homo_sapiens.GRCh37.101.gtf"):
     print("create bed currently not working")
     """This function expands the exon positions by 50 to each side. Then one has to use the UNIX commands:
-    sort -k 1,1 -k2,2n Homo_sapiens.GRCh38.bed | bedtools merge -i - | awk '{print "chr"$0}' - > GRCh38.bed"""
-    df = pd.read_csv(f"/home/johann/AutoCaSc/data/BED/Homo_sapiens.{assembly}.{ensembl_version}.gtf", sep="\t", skiprows=5)
+    sort -k 1,1 -k2,2n Homo_sapiens.GRCh38.bed | bedtools merge -i - > GRCh38.bed"""
+    df = pd.read_csv(path, sep="\t", skiprows=5)
     df.columns = ["chr", "source", "type", "start", "stop", "unknown_1", "unknown_2", "unknown_3", "info"]
     exons = df.loc[df.type == "exon"]
     exons = exons.loc[exons["info"].str.contains("protein_coding")]
@@ -28,27 +25,11 @@ def create_bed_file(assembly="GRCh37", ensembl_version="101"):
     exons.start = exons.start - 50
     exons.stop = exons.stop + 50
     "chr" + exons.chr.astype(str)
-    exons.to_csv(f"/home/johann/AutoCaSc/data/BED/Homo_sapiens.{assembly}_unsorted.bed", sep="\t", index=False, header=False)
+    exons.to_csv(path + ".bed", sep="\t", index=False, header=False)
 
-    # cache = "/home/johann/AutoCaSc/data/BED/temp/"
-    # if not os.path.exists(cache):
-    #     os.mkdir(cache)
-    # exons.to_csv(f"{cache}{assembly}_unsorted.bed", sep="\t", index=False, header=False)
-    # subprocess.run(shlex.split(f"echo hi"),
-    #                stdout=subprocess.PIPE,
-    #                universal_newlines=True,
-    #                shell=True)
-    # subprocess.run(shlex.split(f"sort -k 1,1 -k2,2n {cache}{assembly}_unsorted.bed"),
-    #                stdout=subprocess.PIPE,
-    #                universal_newlines=True)
-    # subprocess.Popen(shlex.split(f"bedtools merge -i - > data/BED/{assembly}.bed"),
-    #                stdout=subprocess.PIPE,
-    #                universal_newlines=True,
-    #                shell=True)
-    # shutil.rmtree(cache)
 
-def thread_function_AutoCaSc_non_comp(param_tuple):
-    vcf_chunk, assembly, ped_file = param_tuple
+def thread_function_AutoCaSc_non_comp(params):
+    vcf_chunk, assembly, ped_file, path_to_request_cache_dir = params
     vcf_chunk.reset_index(drop=True, inplace=True)
     return_df = pd.DataFrame(columns=["variant", "instance", "transcript_num"])
 
@@ -83,7 +64,7 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance=inheritance,
                                      assembly=assembly,
-                                     path_to_request_cache_dir="/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/")
+                                     path_to_request_cache_dir=path_to_request_cache_dir)
 
         if autocasc_instance.status_code == 200:
             autocasc_instance.calculate_candidate_score()
@@ -102,20 +83,19 @@ def thread_function_AutoCaSc_non_comp(param_tuple):
                                                 inheritance=inheritance,
                                                 assembly=assembly,
                                                 transcript_num=transcript_num,
-                                                path_to_request_cache_dir="/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/")
+                                                path_to_request_cache_dir=path_to_request_cache_dir)
                 if alternative_instance.status_code == 200:
                     alternative_instance.calculate_candidate_score()
 
                 ix = len(return_df)
-                return_df.loc[ix, "variant"] = variant_vcf
+                return_df.loc[ix, "variant"] = variant_vcf + f" ({transcript_num})"
                 return_df.loc[ix, "instance"] = alternative_instance
                 return_df.loc[ix, "transcript_num"] = transcript_num
-
     return return_df
 
 
-def thread_function_AutoCaSc_comp(param_tuple):
-    variants, assembly = param_tuple
+def thread_function_AutoCaSc_comp(params):
+    variants, assembly, path_to_request_cache_dir = params
     return_dict = {}
     # iterrating through the variants
     for i, variant_vcf in enumerate(variants):
@@ -123,13 +103,13 @@ def thread_function_AutoCaSc_comp(param_tuple):
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance="comphet",
                                      assembly=assembly,
-                                     path_to_request_cache_dir="/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/")
+                                     path_to_request_cache_dir=path_to_request_cache_dir)
         return_dict[variant_vcf] = autocasc_instance
     # multiple transcripts will be ignored for compound heterozygous variants
     return return_dict
 
 
-def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, num_threads=5):
+def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=5):
     # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
     with open(filtered_vcf, "r") as inp, open(
             f"{cache}/temp_{trio_name}.tsv",
@@ -149,7 +129,8 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, num_t
         df_iterator = executor.map(thread_function_AutoCaSc_non_comp,
                                    zip(vcf_chunks,
                                        [assembly] * len(vcf_chunks),
-                                       [ped_file] * len(vcf_chunks)))
+                                       [ped_file] * len(vcf_chunks),
+                                       [path_to_request_cache_dir] * len(vcf_chunks)))
         variant_df = pd.DataFrame()
         for _df in df_iterator:
         # instances_iterator = executor.map(thread_function_AutoCaSc_classic, vcf_chunks)
@@ -182,15 +163,13 @@ def extract_quality_parameters(row, ped_file):
 
     return ";".join(quality_parameters)
 
-def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, num_threads=5):
+def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=5):
     #this loads the vcf containing all compound heterozygous variants and converts it to a DataFrame
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
         for row in inp:
             if "##" not in row:
                 out.write(row)
     comphets_df = pd.read_csv(f"{cache}/temp_{trio_name}.tsv", sep="\t")
-
-    # comphet_chunks = [comphets_df[round(i * len(comphets_df) / num_threads):round((i+1) * len(comphets_df) / num_threads)] for i in range(num_threads)]
 
     # make comphet_cross_df
     comphet_cross_df = pd.DataFrame()
@@ -224,7 +203,9 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, num_threa
     # score all variants
     with ThreadPoolExecutor() as executor:
         dicts_iterator = executor.map(thread_function_AutoCaSc_comp,
-                                          zip(variant_chunks, [assembly] * len(variant_chunks)))
+                                          zip(variant_chunks,
+                                              [assembly] * len(variant_chunks),
+                                              [path_to_request_cache_dir] * len(variant_chunks)))
         instances_dict = {}
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
@@ -719,9 +700,19 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
     else:
         print("Slivar subprocesses successfull, starting scoring!")
-        comphet_variant_instances = score_comphets(vcf_comphet_path, cache, trio_name, assembly, ped_file)
+        comphet_variant_instances = score_comphets(vcf_comphet_path,
+                                                   cache,
+                                                   trio_name,
+                                                   assembly,
+                                                   ped_file,
+                                                   path_to_request_cache_dir)
         print("comphets scored!")
-        non_comphet_variant_instances = score_non_comphets(vcf_non_comphet_path, cache, trio_name, assembly, ped_file)
+        non_comphet_variant_instances = score_non_comphets(vcf_non_comphet_path,
+                                                           cache,
+                                                           trio_name,
+                                                           assembly,
+                                                           ped_file,
+                                                           path_to_request_cache_dir)
         print("de_novos, x_linked & recessive scored!")
 
         merged_instances = pd.concat([non_comphet_variant_instances, comphet_variant_instances], ignore_index=True)
