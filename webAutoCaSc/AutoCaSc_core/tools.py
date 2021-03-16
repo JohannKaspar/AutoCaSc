@@ -2,7 +2,7 @@ import random
 
 import pandas as pd
 
-ROOT_DIR = "/AutoCaSc_maintenance/data/"
+ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 # ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 def get_seq_difference(ref, alt):

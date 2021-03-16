@@ -51,40 +51,41 @@ def mim_map(df, column="gene_symbol", omim_morbid=None):
     return df
 
 def add_ranks(df):
-    df[f"candidate_score"] = pd.to_numeric(df[f"candidate_score"],
-                                                     errors="coerce")
-    df.sort_values(f"candidate_score",
-                   ascending=False,
-                   inplace=True,
-                   ignore_index=True)
-    df.loc[:, f"rank"] = df.index
-    df.loc[:, f"rank"] = df.loc[:, f"rank"].apply(lambda x: int(x+1))
+    for version in ["v1", "v2", "v3"]:
+        df[f"candidate_score_{version}"] = pd.to_numeric(df[f"candidate_score_{version}"],
+                                                         errors="coerce")
+        df.sort_values(f"candidate_score_{version}",
+                       ascending=False,
+                       inplace=True,
+                       ignore_index=True)
+        df.loc[:, f"rank_{version}"] = df.index
+        df.loc[:, f"rank_{version}"] = df.loc[:, f"rank_{version}"].apply(lambda x: int(x+1))
 
-    temp = filter_ac_impact_mim(df)
-    temp.sort_values(f"candidate_score",
-                     ascending=False,
-                     inplace=True,
-                     ignore_index=True)
-    temp.loc[:, f"rank_filtered"] = temp.index
-    temp.loc[:, f"rank_filtered"] = temp.loc[:, f"rank_filtered"].apply(lambda x: int(x+1))
+        temp = filter_ac_impact_mim(df)
+        temp.sort_values(f"candidate_score_{version}",
+                         ascending=False,
+                         inplace=True,
+                         ignore_index=True)
+        temp.loc[:, f"rank_{version}_filtered"] = temp.index
+        temp.loc[:, f"rank_{version}_filtered"] = temp.loc[:, f"rank_{version}_filtered"].apply(lambda x: int(x+1))
 
-    if "autocasc_filter" in temp.columns:
-        merge_columns = [f"rank", f"rank_filtered", "autocasc_filter"]
-    else:
-        merge_columns = [f"rank", f"rank_filtered"]
-    df = df.merge(temp[merge_columns],
-                  on=f"rank",
-                  how="left")
-    df.loc[:, f"rank_filtered"] = pd.to_numeric(df.loc[:, f"rank_filtered"],
-                                                                     downcast="unsigned",
-                                                                     errors="ignore")
+        if "autocasc_filter" not in df.columns:
+            merge_columns = [f"rank_{version}", f"rank_{version}_filtered", "autocasc_filter"]
+        else:
+            merge_columns = [f"rank_{version}", f"rank_{version}_filtered"]
+        df = df.merge(temp[merge_columns],
+                      on=f"rank_{version}",
+                      how="left")
+        df.loc[:, f"rank_{version}_filtered"] = pd.to_numeric(df.loc[:, f"rank_{version}_filtered"],
+                                                                         downcast="unsigned",
+                                                                         errors="ignore")
     return df
 
 def filter_ac_impact_mim(df):
     temp = pd.concat([df.loc[df.sysid != ""], df.loc[df.mim_number == ""]]).drop_duplicates()
     temp = temp.loc[temp.impact.isin(["moderate", "high"])]
     temp.AC = pd.to_numeric(temp.AC, errors="coerce", downcast="unsigned").fillna(1)
-    temp = temp.loc[~(temp.candidate_score == 0)]
+    temp = temp.loc[~((temp.candidate_score_v1 == 0) & (temp.candidate_score_v2 == 0) & (temp.candidate_score_v3 == 0))]
 
     temp = temp.loc[(pd.to_numeric(temp.DP_index, errors="coerce") > 20) & (pd.to_numeric(temp.DP_moth, errors="coerce") > 20) & (pd.to_numeric(temp.DP_father, errors="coerce") > 20)]
 
@@ -154,8 +155,8 @@ def convert_to_int(x):
 blacklist = load_blacklist()
 omim_morbid = load_omim_morbid()
 
-trio_path = "/home/johann/trio_scoring_results/varvis_trios/"
-# trio_path = "/home/johann/trio_scoring_results/modified_trios/"
+# trio_path = "/home/johann/trio_scoring_results/varvis_trios/"
+trio_path = "/home/johann/trio_scoring_results/modified_trios/"
 
 if not os.path.exists(trio_path + "mim_mapped/"):
     os.mkdir(trio_path + "mim_mapped/")
@@ -163,8 +164,6 @@ if not os.path.exists(trio_path + "mim_mapped/"):
 varvis_trio_results = pd.DataFrame()
 for entry in os.scandir(trio_path):
     if entry.is_file() and not "lock" in entry.name:
-        if entry.name == "L19-2235.csv":
-            print("")
         df = pd.read_csv(entry.path,
                          decimal=",",
                          sep="\t")
@@ -211,8 +210,9 @@ for column in varvis_trio_results.columns:
 varvis_trio_results = varvis_trio_results.convert_dtypes()
 varvis_trio_results.autocasc_filter.fillna("FAIL", inplace=True)
 varvis_trio_results = varvis_trio_results[["family_id", 'variant', 'gene_symbol', 'hgvsc', 'hgvsp', 'impact', 'inheritance',
-                                              'candidate_score'
-                                              'rank_v1_filtered', 'literature_score', 'CADD_phred', 'sysid',
+                                              'candidate_score_v1', 'candidate_score_v2', 'candidate_score_v3',
+                                              'rank_v1_filtered', 'rank_v2_filtered',
+                                              'rank_v3_filtered', 'literature_score', 'CADD_phred', 'sysid',
                                               'rank_v1', 'rank_v2', 'rank_v3', 'transcript', 'status_code', 'AC',
                                                              #'AF',
                                               'QUAL', 'GQ_index', 'AD_index', 'AD_father', 'AD_mother', 'DP_index',

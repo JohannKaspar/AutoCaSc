@@ -1,7 +1,7 @@
 import pickle
 
 import pandas as pd
-from webAutoCaSc.AutoCaSc_core import add_categories, rank_genes, lin_rank, negative_product
+from webAutoCaSc.AutoCaSc_core.tools import add_categories, rank_genes, lin_rank, negative_product
 from scipy.stats import spearmanr, mannwhitneyu
 import psutil  # used for counting CPUs
 import random
@@ -1162,7 +1162,7 @@ if __name__ == "__main__":
         princeton_negative
 
     n_cores = psutil.cpu_count()
-    MGI(n_cores, download=False).update()
+    # MGI(n_cores, download=False).update()
     # StringDB(n_cores)
     # PsyMuKB()
     # GTEx()
