@@ -75,8 +75,9 @@ def score_modified_vcfs():
                                        f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
                                        f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
                                        f"-q 100 "
-                                       f"-ssli "
+                                       #f"-ssli "
                                        f"-dbed "
+                                       f"-pass_only "
                                   ))
 
 def score_original_trios():

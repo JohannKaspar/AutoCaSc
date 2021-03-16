@@ -280,6 +280,7 @@ def execute_slivar(slivar_dir,
                    ab_filter,
                    dp_filter,
                    nhomalt,
+                   pass_only,
                    deactivate_bed_filter):
     if not bed_file:
         bed_file = str(sys.path[0]) + f"/data/BED/{assembly}.bed"
@@ -298,7 +299,10 @@ def execute_slivar(slivar_dir,
         else:
             click.echo("There has been a problem filtering for protein coding variants only! Continuing with all variants.")
 
-    javascript_file = edit_java_script_functions(javascript_file, gq_filter=gq_filter, dp_filter=dp_filter)
+    javascript_file = edit_java_script_functions(javascript_file,
+                                                 gq_filter=gq_filter,
+                                                 dp_filter=dp_filter,
+                                                 ab_filter=ab_filter)
 
     if float(x_recessive_af_max) == 0.0:
         x_recessive_af_max = "0.000000001"
@@ -307,10 +311,14 @@ def execute_slivar(slivar_dir,
     if float(comp_af_max) == 0.0:
         comp_af_max = "0.000000001"
 
+    if pass_only:
+        pass_expr = " && variant.FILTER == 'PASS'"
+    else:
+        pass_expr = ""
     if interpret_pedigree(ped_file)[0]:
         slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                  f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                 f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt}" ' \
+                                 f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt}{pass_expr}" '\
                                  f'--trio "homo:recessive(kid, mom, dad)" ' \
                                  f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
                                  f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
@@ -327,7 +335,7 @@ def execute_slivar(slivar_dir,
         slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
                                  f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
                                  f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt} ' \
-                                 f'&& INFO.impactful" ' \
+                                 f'&& INFO.impactful{pass_expr}" ' \
                                  f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
                                  f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
                                  f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
@@ -618,7 +626,7 @@ def main(ctx, verbose):
 @click.option("--dp_filter", "-dp",
               default="10",
               help="Minimum DP (reads) for variants.")
-@click.option("--pass-only", "-pass",
+@click.option("--pass_only", "-pass",
               is_flag=True,
               default=False,
               help="Whether to use vants with VCF-filter 'PASS' only.")
@@ -663,7 +671,7 @@ def main(ctx, verbose):
 # todo change mim flag to path to morbid file
 def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, output_path,
               denovo_af_max, x_recessive_af_max, ar_af_max, comp_af_max, autosomal_af_max, nhomalt,
-              quality, gq_filter, ab_filter, dp_filter, cache, slivar_dir, assembly, deactivate_bed_filter,
+              quality, gq_filter, ab_filter, dp_filter, pass_only, cache, slivar_dir, assembly, deactivate_bed_filter,
               skip_slivar, vcf_comphet_path, vcf_non_comphet_path, path_to_request_cache_dir,
               blacklist_path, omim_morbid_path, sysid_primary_path, sysid_candidates_path):
     trio_name = ped_file.split("/")[-1].split(".")[0]
@@ -698,6 +706,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                    gq_filter,
                                    ab_filter,
                                    dp_filter,
+                                   pass_only,
                                    deactivate_bed_filter)
 
     if not slivar_ok:

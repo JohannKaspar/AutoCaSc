@@ -522,18 +522,20 @@ class AutoCaSc:
             if self.other_autocasc_obj and recursively:
                 self.other_autocasc_obj.calculate_candidate_score(recursively=False)
 
-                if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
-                    self.candidate_score = 0
-                    if self.filter_pass:
-                        self.filter_fail_explanation = \
-                            f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
-                else:
-                    self.candidate_score = round(mean([self.candidate_score,
-                                                       self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)
-                    if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
-                        self.candidate_score += 1
-                        self.impact_score = 3
-                        self.other_autocasc_obj.__dict__["impact"] = 3
+                self.candidate_score = round(mean([self.candidate_score,
+                                                   self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)
+                if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
+                    self.candidate_score += 1
+                    self.impact_score = 3
+                    self.other_autocasc_obj.__dict__["impact"] = 3
+
+                # if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
+                #     self.candidate_score = 0
+                #     if self.filter_pass:
+                #         self.filter_fail_explanation = \
+                #             f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
+                # else:
+
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.
@@ -618,8 +620,9 @@ class AutoCaSc:
                 self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic: 3"
             # for comphets, this is checked seperately later
         else:
-            self.filter_pass = False
-            self.filter_fail_explanation = "low impact"
+            self.impact_score, self.explanation_dict["impact"] = 0, "impact low: 0"
+            # self.filter_pass = False
+            # self.filter_fail_explanation = "low impact"
 
     def rate_in_silico(self):
         """This function scores in silico predictions.
@@ -684,9 +687,9 @@ class AutoCaSc:
         self.frequency_score, self.explanation_dict["frequency"] = 0, "other: 0"
 
         if self.inheritance in ["de_novo", "ad_inherited"]:
-            if self.allele_count != 0:
-                self.filter_pass = False
-                self.filter_fail_explanation = f"{self.allele_count}x in gnomad"
+            # if self.allele_count != 0:
+            #     self.filter_pass = False
+            #     self.filter_fail_explanation = f"{self.allele_count}x in gnomad"
             if self.maf < 0.000005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
                     f"{self.inheritance} & MAF < 0.000005: 1"
@@ -697,9 +700,9 @@ class AutoCaSc:
                 self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002: 0"
 
         if self.inheritance in ["homo", "comphet"]:
-            if self.ac_hom != 0:
-                self.filter_pass = False
-                self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
+            # if self.ac_hom != 0:
+            #     self.filter_pass = False
+            #     self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
             if self.maf < 0.00005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
                     "autosomal recessive & MAF < 0.00005: 1"
@@ -718,11 +721,11 @@ class AutoCaSc:
             else:
                 self.frequency_score = 0
                 self.explanation_dict["frequency"] = f"X linked and {self.n_hemi}x hemizygous in gnomad!"
-                self.filter_pass = False
-                self.filter_fail_explanation = f"{self.n_hemi}x hemizygous in gnomad"
-            if self.ac_hom != 0:
-                self.filter_pass = False
-                self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
+                # self.filter_pass = False
+                # self.filter_fail_explanation = f"{self.n_hemi}x hemizygous in gnomad"
+            # if self.ac_hom != 0:
+            #     self.filter_pass = False
+            #     self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
@@ -810,9 +813,9 @@ def score_variants(ctx, variants, inheritances, corresponding_variants, family_h
             results_df.loc[_variant, "variant_score"] = variant_instance.variant_score
             results_df.loc[_variant, "literature_score"] = variant_instance.literature_score
         results_df.loc[_variant, "inheritance_mode"] = variant_instance.inheritance
-        results_df.loc[_variant, "filter_fail_explanation"] = variant_instance.filter_fail_explanation
+        # results_df.loc[_variant, "filter_fail_explanation"] = variant_instance.filter_fail_explanation
         results_df.loc[_variant, "status_code"] = str(int(variant_instance.status_code))
-        print(variant_instance.factors)
+        # print(variant_instance.factors)
 
     results_df.index.names = ["variant"]
     if output_path:
@@ -891,4 +894,5 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
+    batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
