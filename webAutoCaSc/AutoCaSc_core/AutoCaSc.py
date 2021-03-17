@@ -483,7 +483,7 @@ class AutoCaSc:
 
 
 
-        self.calculate_candidate_score_ml()
+        self.calculate_candidate_score_ml(recursively)
 
 
 
@@ -734,7 +734,7 @@ class AutoCaSc:
 
 
     ##### new approach #####
-    def calculate_candidate_score_ml(self):
+    def calculate_candidate_score_ml(self, recursively):
         """This method calls all the scoring functions and assigns their results to class attributes.
         """
         if self.status_code == 200:
@@ -763,6 +763,18 @@ class AutoCaSc:
             self.candidate_score_ml_1 = round(self.frequency_filter * self.cadd_score * (0.2 + 0.8 * self.ml_gene_score) * 10., 2)
             self.candidate_score_ml_2 = round(self.frequency_filter * self.cadd_score * (0.5 + 0.5 * self.ml_gene_score) * 10., 2)
             self.candidate_score_ml_3 = round(self.frequency_filter * self.cadd_score * self.ml_gene_score * 10., 2)
+
+            if self.inheritance == "comphet":
+                if self.other_autocasc_obj and recursively:
+                    self.other_autocasc_obj.calculate_candidate_score(recursively=False)
+
+                    for _version in ["candidate_score_ml_1", "candidate_score_ml_2", "candidate_score_ml_3"]:
+                        if (self.__dict__.get(_version) == 0) or (self.other_autocasc_obj.__dict__.get(_version) == 0):
+                            self.__dict__[_version] = 0
+                            self.other_autocasc_obj.__dict__[_version] = 0
+                        else:
+                            self.__dict__[_version] = round(mean([self.__dict__.get(_version),
+                                                           self.other_autocasc_obj.__dict__.get(_version)]), 2)
 
 
     def get_cadd_factor(self, cadd_phred=None):
