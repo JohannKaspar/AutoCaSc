@@ -256,7 +256,7 @@ def interpret_pedigree(ped_file):
             else:
                 mother_id = row["individual_id"]
             if row["affected_status"] == 2:
-                print("parent affected")
+                #print("parent affected")
                 parent_affected = True
     return parent_affected, index_id, father_id, mother_id
 
@@ -277,8 +277,8 @@ def execute_slivar(slivar_dir,
                    comp_af_max,
                    ar_af_max,
                    gq_filter,
-                   ab_filter,
                    dp_filter,
+                   ab_filter,
                    nhomalt,
                    pass_only,
                    deactivate_bed_filter):
@@ -381,8 +381,12 @@ def make_spreadsheet(merged_instances):
             result_df.loc[i, "impact"] = _instance.__dict__.get("impact")
             result_df.loc[i, "inheritance"] = _instance.__dict__.get("inheritance")
             result_df.loc[i, "candidate_score"] = _instance.__dict__.get("candidate_score")
+            result_df.loc[i, "candidate_score_ml_1"] = _instance.__dict__.get("candidate_score_ml_1")
+            result_df.loc[i, "candidate_score_ml_2"] = _instance.__dict__.get("candidate_score_ml_2")
+            result_df.loc[i, "candidate_score_ml_3"] = _instance.__dict__.get("candidate_score_ml_3")
             result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
             result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
+            result_df.loc[i, "ml_gene_score"] = _instance.__dict__.get("ml_gene_score")
             result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
             result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
             try:
@@ -528,16 +532,35 @@ def add_ranks(df):
     temp.loc[:, f"rank_filtered"] = temp.index
     temp.loc[:, f"rank_filtered"] = temp.loc[:, f"rank_filtered"].apply(lambda x: int(x+1))
 
+
+    versions = ["_ml_1", "_ml_2", "_ml_3"]
+    for _version in versions:
+        temp.sort_values(f"candidate_score{_version}",
+                         ascending=False,
+                         inplace=True,
+                         ignore_index=True)
+        temp.loc[:, f"rank_filtered{_version}"] = temp.index
+        temp.loc[:, f"rank_filtered{_version}"] = temp.loc[:, f"rank_filtered{_version}"].apply(lambda x: int(x+1))
+
+
+
+
     if "autocasc_filter" in temp.columns:
-        merge_columns = [f"rank", f"rank_filtered", "autocasc_filter"]
+        merge_columns = ["rank", "rank_filtered", "autocasc_filter"] + [f"rank_filtered{_version}" for _version in versions]
     else:
-        merge_columns = [f"rank", f"rank_filtered"]
+        merge_columns = ["rank", "rank_filtered"] + [f"rank_filtered{_version}" for _version in versions]
     df = df.merge(temp[merge_columns],
                   on=f"rank",
                   how="left")
+    df.sort_values("rank_filtered_ml_1",
+                  inplace=True)
     df.loc[:, f"rank_filtered"] = pd.to_numeric(df.loc[:, f"rank_filtered"],
                                                                      downcast="unsigned",
                                                                      errors="ignore")
+    for _version in versions:
+        df.loc[:, f"rank_filtered{_version}"] = pd.to_numeric(df.loc[:, f"rank_filtered{_version}"],
+                                                                         downcast="unsigned",
+                                                                         errors="ignore")
     return df
 
 

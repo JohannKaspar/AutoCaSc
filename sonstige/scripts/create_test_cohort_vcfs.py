@@ -67,7 +67,7 @@ def score_modified_vcfs():
                                        f"-p /home/johann/PEDs/{trio}_a{ped_suffix}.ped "
                                        f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                                        f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                                       f"-o /home/johann/trio_scoring_results/modified_trios/{trio}_{case}.csv "
+                                       f"-o /home/johann/trio_scoring_results/modified_trios/2021-03-17/{trio}_{case}.csv "
                                        f"-a GRCh37 "
                                        f"-s /home/johann/tools/slivar/slivar "
                                        f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt' "
@@ -75,9 +75,10 @@ def score_modified_vcfs():
                                        f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
                                        f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
                                        f"-q 100 "
-                                       #f"-ssli "
+                                       f"-ssli "
                                        f"-dbed "
-                                       f"-pass_only "
+                                       f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
+                                       f"-pass "
                                   ))
 
 def score_original_trios():

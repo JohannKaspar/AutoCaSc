@@ -81,7 +81,7 @@ class AutoCaSc:
         else:
             self.server = "http://rest.ensembl.org"  # API endpoint for GRCh38
 
-        self.cadd_phred = 0
+        self.cadd_phred = None
         self.explanation_dict = {}
         self.inheritance_score = 0
         self.frequency_score = 0
@@ -482,7 +482,7 @@ class AutoCaSc:
         self.explanation_dict = {}
 
 
-        print("")
+
         self.calculate_candidate_score_ml()
 
 
@@ -743,27 +743,35 @@ class AutoCaSc:
 
             if self.gene_id in gene_scores.ensemble_id.to_list():
                 # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-                self.literature_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
+                self.ml_gene_score = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id,
                                                               "prediction_proba"].values[0], 2)
-
-                # self.factors.append((self.literature_score, "precalculated plausibility score"))
+                self.factors.append((self.ml_gene_score, "precalculated plausibility score"))
             else:
                 # If not, the values are set to 0.
-                for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+                for score in ["ml_gene_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
                               "mgi_score", "string_score"]:
                     self.__dict__[score] = 0.
-                mean_weighted = round(gene_scores["weighted_score"].mean(), 2)
-                self.factors.append((mean_weighted, "mean of plausibility scores, not available for this gene"))
+                self.ml_gene_score = round(gene_scores["prediction_proba"].mean(), 2)
+                self.factors.append((self.ml_gene_score, "mean of plausibility scores, not available for this gene"))
 
-            self.factors.append((self.get_cadd_factor(), f"CADD {self.cadd_phred}"))
-            factor_list, explanation_list = [[factor for factor, _ in self.factors],
-                                             [explanation for _, explanation in self.factors]]
+            self.get_cadd_factor()
+            self.update_frequency_filter()
+            self.factors.append((self.cadd_score, f"CADD {self.cadd_phred}"))
+            # factor_list, explanation_list = [[factor for factor, _ in self.factors],
+            #                                  [explanation for _, explanation in self.factors]]
 
-            self.candidate_score_ml = round(float(product(factor_list)) * (0.2 + 0.8 * self.literature_score) * 10., 2)
+            self.candidate_score_ml_1 = round(self.frequency_filter * self.cadd_score * (0.2 + 0.8 * self.ml_gene_score) * 10., 2)
+            self.candidate_score_ml_2 = round(self.frequency_filter * self.cadd_score * (0.5 + 0.5 * self.ml_gene_score) * 10., 2)
+            self.candidate_score_ml_3 = round(self.frequency_filter * self.cadd_score * self.ml_gene_score * 10., 2)
+
 
     def get_cadd_factor(self, cadd_phred=None):
         if not cadd_phred:
-            cadd_phred = self.cadd_phred
+            if self.cadd_phred:
+                cadd_phred = self.cadd_phred
+            else:
+                self.cadd_score = 1.
+                return
         if cadd_phred >= 30:
             cadd_score = 1.
         else:
@@ -775,7 +783,27 @@ class AutoCaSc:
         elif cadd_score > 1.:
             cadd_score = 1.
         self.cadd_score = cadd_score
-        return cadd_score
+
+    def update_frequency_filter(self):
+        if self.inheritance in ["comphet", "homo"]:
+            if self.ac_hom > 1:
+                self.frequency_filter = 0
+                self.frequency_filter_explanation = "homozygous variant found in gnomad"
+        elif self.inheritance in ["ad_inherited", "de_novo", "unknown"]:
+            if self.allele_count > 1:
+                self.frequency_filter = 0
+                self.frequency_filter_explanation = "variant found in gnomad"
+        elif self.inheritance in ["x_linked"]:
+            if (self.male_count > 1) or (self.ac_hom > 1):
+                self.frequency_filter = 0
+                self.frequency_filter_explanation = "variant found in gnomad"
+
+        if not self.__dict__.get("frequency_filter"):
+            self.frequency_filter = 1
+            self.frequency_filter_explanation = "variant not more than once in gnomad"
+        else:
+            self.factors.append((self.frequency_filter, self.frequency_filter_explanation))
+
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
@@ -944,7 +972,7 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    single(["-v", "X:14748582:G:A",
-            "-ih", "x_linked"])
+    # single(["-v", "X:14748582:G:A",
+    #         "-ih", "x_linked"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
