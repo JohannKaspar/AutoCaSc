@@ -38,7 +38,8 @@ class AutoCaSc:
                  transcript_num=None,
                  family_history=False,
                  mode="default",
-                 path_to_request_cache_dir=None):
+                 path_to_request_cache_dir=None,
+                 thread=None):
         """This function assigns basic parameters and initializes the scoring process.
 
         :param variant: the variant including position and alternative sequence
@@ -75,6 +76,7 @@ class AutoCaSc:
         self.data_retrieved = False
         self.path_to_request_cache_dir = path_to_request_cache_dir
         self.filter_pass = True
+        self.thread = thread or ""
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
@@ -271,7 +273,7 @@ class AutoCaSc:
                 raise IOError("There has been an issue with a variant.")
 
     @retry(stop=stop_after_attempt(5),
-           wait=wait_random(0.1, 2))
+           wait=wait_random(0.1, 1))
     def open_pickle_file(self):
         """Method for loading stored VEP requests. Useful if the same variant is analysed multiple times.
         """

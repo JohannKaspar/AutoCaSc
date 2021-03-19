@@ -7,7 +7,7 @@ from io import StringIO
 import click
 from AutoCaSc import AutoCaSc
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 import re
 import shutil
 import pickle
@@ -125,7 +125,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_
     vcf_chunks = [vcf_annotated.loc[round(i * len(vcf_annotated) / num_threads):round((i+1) * len(vcf_annotated) / num_threads),:] for i in range(num_threads)]
 
     # this starts annotation of all variants that are comphet
-    with ThreadPoolExecutor() as executor:
+    with ProcessPoolExecutor() as executor:
         df_iterator = executor.map(thread_function_AutoCaSc_non_comp,
                                    zip(vcf_chunks,
                                        [assembly] * len(vcf_chunks),
@@ -201,7 +201,7 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
     variant_chunks = [all_variants[round(i * len(all_variants) / num_threads):round((i+1) * len(all_variants) / num_threads)] for i in range(num_threads)]
 
     # score all variants
-    with ThreadPoolExecutor() as executor:
+    with ProcessPoolExecutor() as executor:
         dicts_iterator = executor.map(thread_function_AutoCaSc_comp,
                                           zip(variant_chunks,
                                               [assembly] * len(variant_chunks),

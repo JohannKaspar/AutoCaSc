@@ -39,6 +39,8 @@ def score_modified_vcfs():
     variant_df = variant_excel.loc[variant_excel.Use == "yes"][
         ["Case_Number", "Variant_hg19_VCF", "Sex_Index", "GT_Index", "GT_Father", "GT_Mother", "Segregation_Siblings"]]
     for case in variant_df.Case_Number.unique():
+        if not case == "sim48":
+            continue
         for requests_file in ["gnomad_requests_GRCh37",
                               "gnomad_requests_GRCh38",
                               "vep_requests_GRCh37",
@@ -61,22 +63,22 @@ def score_modified_vcfs():
             # has to be denovo --> parents not affected
             ped_suffix = ""
 
-        for trio in ["CEU", "ASH"]:
+        for trio in ["ASH", "CEU"]:
             subprocess.run(shlex.split("python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
                                        f"score_vcf -v /home/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
                                        f"-p /home/johann/PEDs/{trio}_a{ped_suffix}.ped "
                                        f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                                        f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                                       f"-o /home/johann/trio_scoring_results/modified_trios/2021-03-17/{trio}_{case}.csv "
+                                       f"-o /home/johann/trio_scoring_results/modified_trios/2021-03-19/{trio}_{case}.csv "
                                        f"-a GRCh37 "
                                        f"-s /home/johann/tools/slivar/slivar "
                                        f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt' "
                                        f"-omim '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv' "
                                        f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
                                        f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
-                                       f"-q 100 "
+                                       f"-q 500 "
                                        f"-ssli "
-                                       f"-dbed "
+                                       #f"-dbed "
                                        f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
                                        f"-pass "
                                   ))
