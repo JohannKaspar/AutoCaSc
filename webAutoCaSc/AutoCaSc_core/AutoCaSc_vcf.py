@@ -421,6 +421,19 @@ def update_request_cache(path_to_request_cache_dir, assembly="GRCh37"):
             shutil.rmtree(f"{path_to_request_cache_dir}tmp/{api}")
 
 
+def filter_xlinked_frequency(merged_instances, n_hemialt):
+    drop_rows = []
+    for i, row in merged_instances.iterrows():
+        try:
+            _instance = row["instance"]
+            if _instance.inheritance == "x_linked":
+                if _instance.male_count > n_hemialt:
+                    drop_rows.append(i)
+        except AttributeError:
+            continue
+    return merged_instances.drop([drop_rows]).reset_index(drop=True)
+
+
 def filter_blacklist(df, blacklist_path):
     with open(blacklist_path, "r") as file:
         blacklist = [line.strip() for line in file if not line[0] == "#"]
@@ -637,6 +650,9 @@ def main(ctx, verbose):
 @click.option("--nhomalt", "-nh",
               default="0",
               help="Max number of alternative sequence homozygotes in gnomad.")
+@click.option("--n_hemialt", "-nhemi",
+              default=0,
+              help="Max number of alternative sequence hemizygotes in gnomad.")
 @click.option("--quality", "-q",
               default="400",
               help="Minimum quality of variants.")
@@ -691,9 +707,8 @@ def main(ctx, verbose):
 @click.option("--sysid_candidates_path", "-sys_cand",
               type=click.Path(exists=True),
               help="Path to .csv file from SysID containing list of NDD candidates.")
-# todo change mim flag to path to morbid file
 def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, output_path,
-              denovo_af_max, x_recessive_af_max, ar_af_max, comp_af_max, autosomal_af_max, nhomalt,
+              denovo_af_max, x_recessive_af_max, ar_af_max, comp_af_max, autosomal_af_max, nhomalt, n_hemialt,
               quality, gq_filter, ab_filter, dp_filter, pass_only, cache, slivar_dir, assembly, deactivate_bed_filter,
               skip_slivar, vcf_comphet_path, vcf_non_comphet_path, path_to_request_cache_dir,
               blacklist_path, omim_morbid_path, sysid_primary_path, sysid_candidates_path):
@@ -756,6 +771,9 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
         if merged_instances.empty:
             raise IOError("No variants left after filtering.")
+
+        if n_hemialt:
+            merged_instances = filter_xlinked_frequency(merged_instances, n_hemialt)
 
         autocasc_df = make_spreadsheet(merged_instances)
         autocasc_df.fillna("-", inplace=True)
