@@ -538,25 +538,25 @@ def add_ranks(df):
     df.loc[:, f"rank"] = df.loc[:, f"rank"].apply(lambda x: int(x+1))
 
     temp = filter_ac_impact_mim(df)
-    temp.sort_values(f"candidate_score",
-                     ascending=False,
-                     inplace=True,
-                     ignore_index=True)
-    temp.loc[:, f"rank_filtered"] = temp.index
-    temp.loc[:, f"rank_filtered"] = temp.loc[:, f"rank_filtered"].apply(lambda x: int(x+1))
 
-
-    versions = ["_ml_1", "_ml_2", "_ml_3"]
+    versions = ["", "_ml_1", "_ml_2", "_ml_3"]
     for _version in versions:
         temp.sort_values(f"candidate_score{_version}",
                          ascending=False,
                          inplace=True,
                          ignore_index=True)
-        temp.loc[:, f"rank_filtered{_version}"] = temp.index
-        temp.loc[:, f"rank_filtered{_version}"] = temp.loc[:, f"rank_filtered{_version}"].apply(lambda x: int(x+1))
-
-
-
+        if not "other_variant" in temp.columns:
+            temp.loc[:, f"rank_filtered{_version}"] = temp.index + 1
+        else:
+            for i, row in temp.iterrows():
+                if row["variant"] in temp.other_variant.to_list():
+                    if pd.isnull(temp.loc[temp.other_variant == row["variant"], f"rank_filtered{_version}"]):
+                        temp.loc[i, f"rank_filtered{_version}"] = temp[f"rank_filtered{_version}"].nunique() + 1
+                    else:
+                        temp.loc[i, f"rank_filtered{_version}"] = temp.loc[temp.other_variant == row["variant"],
+                                                                           f"rank_filtered{_version}"]
+                else:
+                    temp.loc[i, f"rank_filtered{_version}"] = temp[f"rank_filtered{_version}"].nunique() + 1
 
     if "autocasc_filter" in temp.columns:
         merge_columns = ["rank", "rank_filtered", "autocasc_filter"] + [f"rank_filtered{_version}" for _version in versions]
