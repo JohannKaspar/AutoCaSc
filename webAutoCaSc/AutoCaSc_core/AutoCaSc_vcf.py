@@ -110,7 +110,7 @@ def thread_function_AutoCaSc_comp(params):
 
 
 def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=5):
-    # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
+    # this loads the vcf containing all variants but compound heterozygous ones and converts the data into a DataFrame
     with open(filtered_vcf, "r") as inp, open(
             f"{cache}/temp_{trio_name}.tsv",
             "w") as out:
@@ -119,10 +119,9 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_
                 out.write(row)
 
     vcf_annotated = pd.read_csv(f"{cache}/temp_{trio_name}.tsv", sep="\t")
-    # vcf_annotated = vcf_annotated.loc[vcf_annotated["#CHROM"] == "chr1"]
 
-
-    vcf_chunks = [vcf_annotated.loc[round(i * len(vcf_annotated) / num_threads):round((i+1) * len(vcf_annotated) / num_threads),:] for i in range(num_threads)]
+    vcf_chunks = [vcf_annotated.loc[round(i * len(vcf_annotated) / num_threads):
+                                    round((i+1) * len(vcf_annotated) / num_threads), :] for i in range(num_threads)]
 
     # this starts annotation of all variants that are comphet
     with ThreadPoolExecutor() as executor:
@@ -133,13 +132,13 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_
                                        [path_to_request_cache_dir] * len(vcf_chunks)))
         variant_df = pd.DataFrame()
         for _df in df_iterator:
-        # instances_iterator = executor.map(thread_function_AutoCaSc_classic, vcf_chunks)
             variant_df = pd.concat([variant_df, _df], ignore_index=True)
-
     return variant_df
 
 
 def extract_quality_parameters(row, ped_file):
+    """This function reads a ped_file, interprets it and extracts quality parameters from a row of a VCF file.
+    """
     _, index_id, father_id, mother_id = interpret_pedigree(ped_file)
     quality_parameters = []
     if not re.findall(r"AC=[\w?]+(?=;)", row["INFO"]) == []:
@@ -160,11 +159,12 @@ def extract_quality_parameters(row, ped_file):
         quality_parameters.append(f'DP_index={row[index_id].split(":")[dp_position]}')
         quality_parameters.append(f'DP_father={row[father_id].split(":")[dp_position]}')
         quality_parameters.append(f'DP_moth={row[mother_id].split(":")[dp_position]}')
-
     return ";".join(quality_parameters)
 
+
 def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=5):
-    #this loads the vcf containing all compound heterozygous variants and converts it to a DataFrame
+    """This loads the vcf containing all compound heterozygous variants and converts it to a DataFrame.
+    """
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
         for row in inp:
             if "##" not in row:
@@ -222,10 +222,14 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
             _instance.calculate_candidate_score()
             comphet_cross_df.loc[i, "instance"] = _instance
 
-    comphet_cross_df = comphet_cross_df.rename(columns={"var_1":"variant", "var_2":"other_variant"})
+    comphet_cross_df = comphet_cross_df.rename(columns={"var_1": "variant", "var_2": "other_variant"})
     return comphet_cross_df
 
+
 def edit_java_script_functions(js_file, dp_filter=20, ab_filter=0.2, gq_filter=20):
+    """This function reads the original slivar javascript file and edits the first line of code containing quality
+    criteria.
+    """
     with open(js_file, "r") as original_file, open(js_file + ".temp", "w") as new_file:
         new_file.write(f"var config = {{min_GQ: {gq_filter}, min_AB: {ab_filter}, min_DP: {dp_filter}}}")
         for line in original_file:
@@ -235,12 +239,16 @@ def edit_java_script_functions(js_file, dp_filter=20, ab_filter=0.2, gq_filter=2
     js_file += ".temp"
     return js_file
 
+
 def clean_up_duplicates(df):
     df = df.sort_values(by="variant", ascending=True)
     df = df.drop_duplicates(subset=list(df.columns)[1:], keep="first")
     return df
 
+
 def interpret_pedigree(ped_file):
+    """This function is used to check if parents are affected by the given phenotype and to extract the identifiers for
+    both parents and the index."""
     pedigree = pd.read_csv(ped_file, sep="\t", header=None)
     # affected status = 2 means the individual is affected
     pedigree.columns = ["family_id", "individual_id", "paternal_id", "maternal_id", "sex", "affected_status"]
@@ -282,6 +290,9 @@ def execute_slivar(slivar_dir,
                    nhomalt,
                    pass_only,
                    deactivate_bed_filter):
+    """This is a wrapper for slivar. It takes in different quality parameters and file locations and alters the command
+    executing slivar accordingly.
+    """
     if not bed_file:
         bed_file = str(sys.path[0]) + f"/data/BED/{assembly}.bed"
         # todo debug this line to see if it works
@@ -315,37 +326,23 @@ def execute_slivar(slivar_dir,
         pass_expr = " && variant.FILTER == 'PASS'"
     else:
         pass_expr = ""
+    slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
+                             f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
+                             f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt} ' \
+                             f'&& INFO.impactful{pass_expr}" ' \
+                             f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
+                             f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
+                             f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
+                             f'&& x_recessive(kid, mom, dad)" ' \
+                             f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
+                             '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
+                             '|| variant.CHROM==\'chrX\') ' \
+                             f'&& x_denovo(kid, mom, dad)))" ' \
+                             f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
+                             f'&& INFO.gnomad_popmax_af <= {comp_af_max}"'
     if interpret_pedigree(ped_file)[0]:
-        slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                                 f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                 f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt}{pass_expr}" '\
-                                 f'--trio "homo:recessive(kid, mom, dad)" ' \
-                                 f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
-                                 f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                                 f'&& x_recessive(kid, mom, dad)" ' \
-                                 f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                 '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
-                                 '|| variant.CHROM==\'chrX\') ' \
-                                 f'&& x_denovo(kid, mom, dad)))" ' \
-                                 f'--trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
-                                 '&& trio_autosomal_dominant(kid, mom, dad)" ' \
-                                 f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
-                                 f'&& INFO.gnomad_popmax_af <= {comp_af_max}"'
-    else:
-        slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                                 f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                 f'--info "variant.QUAL >= {quality} && INFO.gnomad_nhomalt <= {nhomalt} ' \
-                                 f'&& INFO.impactful{pass_expr}" ' \
-                                 f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
-                                 f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
-                                 f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                                 f'&& x_recessive(kid, mom, dad)" ' \
-                                 f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                 '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
-                                 '|| variant.CHROM==\'chrX\') ' \
-                                 f'&& x_denovo(kid, mom, dad)))" ' \
-                                 f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
-                                 f'&& INFO.gnomad_popmax_af <= {comp_af_max}"'
+        slivar_noncomp_command += f' --trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
+                                 '&& trio_autosomal_dominant(kid, mom, dad)" '
 
     slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
                                             stdout=subprocess.PIPE,
@@ -362,6 +359,8 @@ def execute_slivar(slivar_dir,
 
 
 def make_spreadsheet(merged_instances):
+    """This function extracts informations from the scored variant instances and converts them to a clean dataframe.
+    """
     result_df = pd.DataFrame()
     if not "other_variant" in merged_instances.columns:
         merged_instances.loc[:, "other_variant"] = ""
@@ -369,13 +368,12 @@ def make_spreadsheet(merged_instances):
         _instance = row["instance"]
         if not _instance == "":
             result_df.loc[i, "variant"] = row["variant"]
-            if row.other_variant != "":  # if it is not np.nan
+            if row.other_variant != "":  # change this to not pd.isnull()?
                 try:
                     result_df.loc[i, "other_variant"] = _instance.other_autocasc_obj.__dict__.get("variant")
                 except AttributeError:
                     print("stop")
             result_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
-
             result_df.loc[i, "hgvsc"] = _instance.__dict__.get("hgvsc_change")
             result_df.loc[i, "hgvsp"] = _instance.__dict__.get("hgvsp_change")
             result_df.loc[i, "impact"] = _instance.__dict__.get("impact")
@@ -536,6 +534,7 @@ def add_ranks(df):
                      ascending=False,
                      inplace=True,
                      ignore_index=True)
+
     temp.loc[:, f"rank_filtered"] = temp.index
     temp.loc[:, f"rank_filtered"] = temp.loc[:, f"rank_filtered"].apply(lambda x: int(x+1))
 
