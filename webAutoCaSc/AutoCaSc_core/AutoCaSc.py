@@ -526,42 +526,33 @@ class AutoCaSc:
                                                    self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)
                 if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
                     self.candidate_score += 1
-                    self.impact_score = 3
-                    self.other_autocasc_obj.__dict__["impact"] = 3
-
-                # if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
-                #     self.candidate_score = 0
-                #     if self.filter_pass:
-                #         self.filter_fail_explanation = \
-                #             f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
-                # else:
-
+                    self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic: 3"
+                    self.other_autocasc_obj.__dict__["impact_score"], self.other_autocasc_obj.__dict__["impact"] = 3, "impact high, biallelic: 3"
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.
         """
         if self.inheritance == "de_novo":
-            # ToDo weniger auf de_novo geben wenn family_history positiv?
             self.inheritance_score, self.explanation_dict["inheritance"] = 2, "de novo: 2"
         if self.inheritance == "other":
             self.inheritance_score, self.explanation_dict["inheritance"] = 0, "other: 0"
         if self.inheritance == "ad_inherited":
             self.inheritance_score, self.explanation_dict["inheritance"] = 0, "inherited autosomal dominant: 0"
         if self.inheritance == "comphet":
-            if self.family_history in [False, "no"]:
-                self.inheritance_score, self.explanation_dict["inheritance"] = 1, \
-                    "compound heterozygous, one affected child: 1"
-            elif self.family_history in [True, "yes"]:
+            if self.family_history in [True, "yes"]:
                 self.inheritance_score, self.explanation_dict["inheritance"] = 3, \
                     "compound heterozygous, multiple affected children: 3"
+            else:
+                self.inheritance_score, self.explanation_dict["inheritance"] = 1, \
+                    "compound heterozygous, one affected child: 1"
         if self.inheritance == "homo":
-            if self.family_history is True:
+            if self.family_history in [True, "yes"]:
                 self.inheritance_score, self.explanation_dict["inheritance"] = 3, \
                     "homo, multiple affected children: 3"
             else:
                 self.inheritance_score, self.explanation_dict["inheritance"] = 2, "homo, one affected child: 2"
         if self.inheritance == "x_linked":
-            if self.family_history is True:
+            if self.family_history in [True, "yes"]:
                 self.inheritance_score, self.explanation_dict["inheritance"] = 2, \
                     "x_linked and another maternal male relative: 2"
             else:
@@ -605,7 +596,7 @@ class AutoCaSc:
                 else:
                     self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on Z score: 0"
             else:
-                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "low impact or no data on impact: 0"
+                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "impact low or unknown: 0"
 
     def rate_impact(self):
         """This function scores the variants predicted impact.
@@ -619,16 +610,11 @@ class AutoCaSc:
             if self.inheritance == "homo":
                 self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic: 3"
             # for comphets, this is checked seperately later
-        else:
-            self.impact_score, self.explanation_dict["impact"] = 0, "impact low: 0"
-            # self.filter_pass = False
-            # self.filter_fail_explanation = "low impact"
 
     def rate_in_silico(self):
         """This function scores in silico predictions.
         """
         score_list = []
-        affected_splice_counter = []
 
         self.in_silico_score, self.explanation_dict["in_silico"] = 0, f"{self.impact} and no prediction values: 0"
 
@@ -643,29 +629,30 @@ class AutoCaSc:
         if score_list:
             self.in_silico_score, self.explanation_dict["in_silico"] = round(mean(score_list), 2),\
                     f"mean in silico score: {round(mean(score_list), 2)}"
-        elif self.impact == "high":
+        if self.impact == "high":
             # If there are no in silico scores for the variant and its impact is high, we assume a score of 1 point.
             self.in_silico_score, self.explanation_dict["in_silico"] = 1, "LoF: 1"
 
         # In case of absent in silico values and a moderate or low impact: consider splice site predictions, if existing
         else:
+            affected_splice_counter = 0
             if self.rf_score is not None:
                 if self.rf_score >= 0.6:  # cutoff from "Leipzig guidelines for use of Alamut splice site prediction tools"
-                    affected_splice_counter.append(1)
+                    affected_splice_counter += 1
             if self.ada_score is not None:
                 if self.ada_score >= 0.6:
-                    affected_splice_counter.append(1)
+                    affected_splice_counter += 1
             if self.maxentscan_decrease is not None:
                 if self.maxentscan_decrease <= -0.15:
-                    affected_splice_counter.append(1)
+                    affected_splice_counter += 1
 
-            if not affected_splice_counter and self.impact == "moderate":
+            if (affected_splice_counter == 0) and (self.impact == "moderate"):  # todo talk to Rami about absent insilico in synonymous variant
                 self.in_silico_score = 0.5
                 self.explanation_dict["in_silico"] = "missense, no available in silico values: 0.5"
-            if sum(affected_splice_counter) == 1:
+            if affected_splice_counter == 1:
                 self.in_silico_score = 0.5
                 self.explanation_dict["in_silico"] = "splicing affected in one program: 0.5"
-            if sum(affected_splice_counter) >= 2:
+            if affected_splice_counter >= 2:
                 self.in_silico_score = 1
                 self.explanation_dict["in_silico"] = "splicing affected in two or more programs: 1"
 
@@ -687,9 +674,6 @@ class AutoCaSc:
         self.frequency_score, self.explanation_dict["frequency"] = 0, "other: 0"
 
         if self.inheritance in ["de_novo", "ad_inherited"]:
-            # if self.allele_count != 0:
-            #     self.filter_pass = False
-            #     self.filter_fail_explanation = f"{self.allele_count}x in gnomad"
             if self.maf < 0.000005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
                     f"{self.inheritance} & MAF < 0.000005: 1"
@@ -700,9 +684,6 @@ class AutoCaSc:
                 self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002: 0"
 
         if self.inheritance in ["homo", "comphet"]:
-            # if self.ac_hom != 0:
-            #     self.filter_pass = False
-            #     self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
             if self.maf < 0.00005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
                     "autosomal recessive & MAF < 0.00005: 1"
@@ -717,15 +698,10 @@ class AutoCaSc:
                     "X linked and discrepancy of MAF in gnomAD between males and females (max.1/min.5): 2"
             elif self.n_hemi == 0:
                 self.frequency_score = 1
-                self.explanation_dict["frequency"] = "X linked no hemizygote in gnomAD: 1"
+                self.explanation_dict["frequency"] = "X linked 0x hemizygous in gnomAD: 1"
             else:
                 self.frequency_score = 0
                 self.explanation_dict["frequency"] = f"X linked and {self.n_hemi}x hemizygous in gnomad!"
-                # self.filter_pass = False
-                # self.filter_fail_explanation = f"{self.n_hemi}x hemizygous in gnomad"
-            # if self.ac_hom != 0:
-            #     self.filter_pass = False
-            #     self.filter_fail_explanation = f"{self.ac_hom}x homozygous in gnomad"
 
 
 @click.group(invoke_without_command=True)  # Allow users to call our app without a command
@@ -782,24 +758,6 @@ def score_variants(ctx, variants, inheritances, corresponding_variants, family_h
             else:
                 _instance.calculate_candidate_score()
         variant_dict[_variant] = _instance
-
-    # comphet_genes_dict = {}
-    # for _variant, _inheritance in zip(variants, inheritances):
-    #     if _inheritance == "comphet":
-    #         gene_id = variant_dict.get(_variant).gene_id
-    #         if gene_id:
-    #             comphet_genes_dict[_variant] = gene_id
-    #     else:
-    #         variant_dict.get(_variant).calculate_candidate_score()
-    #
-    # for _variant in comphet_genes_dict.keys():
-    #     try:
-    #         variant_gene = comphet_genes_dict.get(_variant)
-    #         other_variant = list(filterTheDict(comphet_genes_dict, variant_gene, _variant).keys())[0]
-    #         variant_dict.get(_variant).other_autocasc_obj = variant_dict.get(other_variant)
-    #         variant_dict.get(_variant).calculate_candidate_score()
-    #     except IndexError:
-    #         pass
 
     # create the final result_df containing scoring results
     for _variant, _inheritance in zip(variants, inheritances):
