@@ -616,18 +616,15 @@ def main(ctx, verbose):
               type=click.Path(exists=True),
               help="Path to called vcf file.")
 @click.option("--ped_file", "-p",
-              required=True,
               type=click.Path(exists=True),
               help="Path to pedigree file.")
 @click.option("--bed_file", "-b",
               type=click.Path(exists=True),
               help="Path to BED file.")
 @click.option("--gnotate_file", "-g",
-              required=False,
               type=click.Path(exists=True),
               help="Path to slivar gnotate file.")
 @click.option("--javascript_file", "-j",
-              required=True,
               type=click.Path(exists=True),
               help="Path to slivar javascript file.")
 @click.option("--output_path", "-o",
@@ -751,20 +748,27 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         click.echo("There has some error with the slivar subprocess! Discontinuing further actions!")
     else:
         print("Slivar subprocesses successfull, starting scoring!")
-        comphet_variant_instances = score_comphets(vcf_comphet_path,
-                                                   cache,
-                                                   trio_name,
-                                                   assembly,
-                                                   ped_file,
-                                                   path_to_request_cache_dir)
-        print("comphets scored!")
-        non_comphet_variant_instances = score_non_comphets(vcf_non_comphet_path,
-                                                           cache,
-                                                           trio_name,
-                                                           assembly,
-                                                           ped_file,
-                                                           path_to_request_cache_dir)
-        print("de_novos, x_linked & recessive scored!")
+        if vcf_comphet_path:
+            comphet_variant_instances = score_comphets(vcf_comphet_path,
+                                                       cache,
+                                                       trio_name,
+                                                       assembly,
+                                                       ped_file,
+                                                       path_to_request_cache_dir)
+            print("comphets scored!")
+        else:
+            comphet_variant_instances = pd.DataFrame()
+
+        if vcf_non_comphet_path:
+            non_comphet_variant_instances = score_non_comphets(vcf_non_comphet_path,
+                                                               cache,
+                                                               trio_name,
+                                                               assembly,
+                                                               ped_file,
+                                                               path_to_request_cache_dir)
+            print("non-comphet scored!")
+        else:
+            non_comphet_variant_instances = pd.DataFrame()
 
         merged_instances = pd.concat([non_comphet_variant_instances, comphet_variant_instances], ignore_index=True)
         merged_instances.fillna("", inplace=True)
