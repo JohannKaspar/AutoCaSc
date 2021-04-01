@@ -505,11 +505,11 @@ def filter_ac_impact_mim(df):
     temp = pd.concat(
         [
             temp.loc[(temp.inheritance == "de_novo") & (temp.AC == 1)],
-            temp.loc[(temp.inheritance == "de_novo") & (temp.AC == 2) & (temp.variant.str[0] == "X")],
+            temp.loc[(temp.inheritance == "de_novo") & (temp.AC == 2) & ((temp.variant.str[0] == "X") or (temp.variant.str[0] == "Y"))],
             temp.loc[(temp.inheritance == "homo") & (temp.AC <= 6)],  # homo --> AC == 4, +2 for being recessive
             temp.loc[(temp.inheritance == "comphet") & (temp.AC <= 4)],  # comphet --> AC == 2, +2 for being recessive
             temp.loc[(temp.inheritance == "x_linked") & (temp.AC <= 5)],  # x_linked --> AC == 3, +2 for being recessive
-            temp.loc[(temp.inheritance == "ad_inherited") & (temp.AC == 1)],
+            temp.loc[(temp.inheritance == "ad_inherited") & (temp.AC == 2)],
         ],
         ignore_index=True)
     try:
