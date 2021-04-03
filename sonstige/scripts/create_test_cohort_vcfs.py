@@ -39,8 +39,6 @@ def score_modified_vcfs():
     variant_df = variant_excel.loc[variant_excel.Use == "yes"][
         ["Case_Number", "Variant_hg19_VCF", "Sex_Index", "GT_Index", "GT_Father", "GT_Mother", "Segregation_Siblings"]]
     for case in variant_df.Case_Number.unique():
-        if not case == "sim48":
-            continue
         for requests_file in ["gnomad_requests_GRCh37",
                               "gnomad_requests_GRCh38",
                               "vep_requests_GRCh37",
@@ -64,36 +62,43 @@ def score_modified_vcfs():
             ped_suffix = ""
 
         for trio in ["ASH", "CEU"]:
+            os.makedirs(f'/home/johann/trio_scoring_results/synthetic_trios/2021-04-01/cache/{trio}_{case}/',
+                        exist_ok=True)
             subprocess.run(shlex.split("python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
-                                       f"score_vcf -v /home/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
+                                       f"score_vcf -v /mnt/raid/users/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
                                        f"-p /home/johann/PEDs/{trio}_a{ped_suffix}.ped "
                                        f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                                        f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                                       f"-o /home/johann/trio_scoring_results/modified_trios/2021-03-19/{trio}_{case}.csv "
+                                       f"-o /home/johann/trio_scoring_results/synthetic_trios/{date}/{trio}_{case}.csv "
                                        f"-a GRCh37 "
                                        f"-s /home/johann/tools/slivar/slivar "
                                        f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt' "
                                        f"-omim '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv' "
                                        f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
                                        f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
-                                       f"-q 500 "
-                                       f"-ssli "
+                                       #f"-q 500 "
+                                       #f"-ssli "
                                        #f"-dbed "
                                        f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
-                                       f"-pass "
+                                       f"--cache '/home/johann/trio_scoring_results/synthetic_trios/{date}/cache/{trio}_{case}/' "
+                                       #f"-pass "
+                                       f"-dp 20 "
+                                       f"-ab 0.3 "
                                   ))
 
 def score_original_trios():
     for entry in os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files"):
         if entry.is_file():
             print(f"working on family {entry.name}")
+            os.makedirs(f"/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/",
+                      exist_ok=True)
             subprocess.run(shlex.split(
                 "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
-                f"score_vcf -v /home/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered.AC_filtered.impact_filtered.vcf.gz "
+                f"score_vcf -v /mnt/raid/users/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered.AC_filtered.impact_filtered.vcf.gz "
                 f"-p {entry.path} "
                 f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                 f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                f"-o /home/johann/trio_scoring_results/varvis_trios/new_script_test/{entry.name}.csv "
+                f"-o /home/johann/trio_scoring_results/varvis_trios/{date}/{entry.name}.csv "
                 f"-a GRCh37 "
                 f"-s /home/johann/tools/slivar/slivar "
                 f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt' "
@@ -101,7 +106,12 @@ def score_original_trios():
                 f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
                 f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
                 f"-dbed "
-                f"-ssli"
+                #f"-ssli "
+                f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
+                f"--cache '/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/' "
+                #f"-pass "
+                f"-dp 20 "
+                f"-ab 0.3 "
             ))
 
 def concat_results(path="/home/johann/trio_scoring_results/varvis_trios/new_script_test/"):
@@ -143,10 +153,25 @@ def get_seq_difference(ref, alt):
 
     return f"{ref_new}>{alt_new}"
 
+def score_clinvar():
+    subprocess.run(shlex.split(
+        "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
+        f"score_vcf -vcf_non_ch '/home/johann/VCFs/clinvar/clinvar.vcf' "
+        f"--cache '/home/johann/VCFs/clinvar/tmp/' "
+        f"-o /home/johann/trio_scoring_results/clinvar/2021-03-20/clinvar.csv "
+        f"-a GRCh37 "
+        f"-dbed "
+        f"-ssli "
+        f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
+        f"--trio_name clinvar"
+    ))
 
 
+date = "2021-04-01"
 
-
-# score_original_trios()
 score_modified_vcfs()
+# score_original_trios()
+# score_clinvar()
+
+# score_modified_vcfs()
 # concat_results()

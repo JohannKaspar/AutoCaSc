@@ -748,7 +748,6 @@ def process_diseases_helper(param_tuple):
 def bootstrap_helper(process_id_list, df, process_id_total_counts_dict, process_id_series_dict):
     ratio_list = []
     for i, process_id in enumerate(process_id_list):
-        # ToDo sollte man auch Gene mit einbeziehen, über de gar nix publiziert wurde?
         pos_series, neg_series = process_id_series_dict.get(process_id)
         pos_pmid_total, neg_pmid_total = process_id_total_counts_dict.get(process_id)
 
