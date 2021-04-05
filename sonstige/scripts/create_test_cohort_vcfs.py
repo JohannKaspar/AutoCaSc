@@ -62,7 +62,7 @@ def score_modified_vcfs():
             ped_suffix = ""
 
         for trio in ["ASH", "CEU"]:
-            os.makedirs(f'/home/johann/trio_scoring_results/synthetic_trios/2021-04-01/cache/{trio}_{case}/',
+            os.makedirs(f'/home/johann/trio_scoring_results/synthetic_trios/{date}/cache/{trio}_{case}/',
                         exist_ok=True)
             subprocess.run(shlex.split("python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
                                        f"score_vcf -v /mnt/raid/users/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
@@ -158,7 +158,7 @@ def score_clinvar():
         "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
         f"score_vcf -vcf_non_ch '/home/johann/VCFs/clinvar/clinvar.vcf' "
         f"--cache '/home/johann/VCFs/clinvar/tmp/' "
-        f"-o /home/johann/trio_scoring_results/clinvar/2021-03-20/clinvar.csv "
+        f"-o /home/johann/trio_scoring_results/clinvar/{date}/clinvar.csv "
         f"-a GRCh37 "
         f"-dbed "
         f"-ssli "
@@ -167,10 +167,10 @@ def score_clinvar():
     ))
 
 
-date = "2021-04-01"
+date = "2021-04-05"
 
 score_modified_vcfs()
-# score_original_trios()
+score_original_trios()
 # score_clinvar()
 
 # score_modified_vcfs()

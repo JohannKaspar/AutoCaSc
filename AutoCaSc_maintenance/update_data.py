@@ -1118,7 +1118,7 @@ def evaluate_mgi_parameters():
     """
 
 if __name__ == "__main__":
-    ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+    ROOT_DIR = "/mnt/raid/users/johann/AutoCaSc_maintenance_data/"
 
     validation_run = False
     # HGNC()
