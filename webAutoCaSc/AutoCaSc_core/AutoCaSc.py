@@ -526,23 +526,35 @@ class AutoCaSc:
                 self.literature_score]]
             self.candidate_score = round(sum(candidate_score_list), 2)
 
+
+
+
+
+            # check if old algorithm performs better with ML values
+            self.candidate_score_ml_4 = self.candidate_score - self.literature_score + self.ml_gene_score
+
+
+
+
+
+
         if self.inheritance == "comphet":
             if self.other_autocasc_obj and recursively:
                 self.other_autocasc_obj.calculate_candidate_score(recursively=False)
 
                 self.candidate_score = round(mean([self.candidate_score,
                                                    self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)
+
+                self.candidate_score_ml_4 = round(mean([self.candidate_score_ml_4,
+                                                   self.other_autocasc_obj.__dict__.get("candidate_score_ml_4")]), 2)
+
+
                 if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
                     self.candidate_score += 1
                     self.impact_score = 3
                     self.other_autocasc_obj.__dict__["impact"] = 3
 
-                # if not self.filter_pass or not self.other_autocasc_obj.__dict__.get("filter_pass"):
-                #     self.candidate_score = 0
-                #     if self.filter_pass:
-                #         self.filter_fail_explanation = \
-                #             f"corresponding variant: {self.other_autocasc_obj.__dict__.get('filter_fail_explanation')}"
-                # else:
+
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.

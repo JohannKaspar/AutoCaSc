@@ -389,7 +389,13 @@ def make_spreadsheet(merged_instances):
             result_df.loc[i, "candidate_score"] = _instance.__dict__.get("candidate_score")
             result_df.loc[i, "candidate_score_ml_1"] = _instance.__dict__.get("candidate_score_ml_1")
             result_df.loc[i, "candidate_score_ml_2"] = _instance.__dict__.get("candidate_score_ml_2")
-            result_df.loc[i, "candidate_score_ml_3"] = _instance.__dict__.get("candidate_score_ml_3")
+            result_df.loc[i, "candidate_score_ml_3"] = _instance.__dict__.get("candidate_score_ml_4")
+
+
+            result_df.loc[i, "candidate_score_ml_4"] = _instance.__dict__.get("candidate_score_ml_4")
+
+
+
             result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
             result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
             result_df.loc[i, "ml_gene_score"] = _instance.__dict__.get("ml_gene_score")
@@ -547,7 +553,7 @@ def add_ranks(df, dp):
 
     temp = filter_ac_mim(df, dp)
 
-    versions = ["", "_ml_1", "_ml_2", "_ml_3"]
+    versions = ["", "_ml_1", "_ml_2", "_ml_3", "_ml_4"]
     for _version in versions:
         temp.sort_values(f"candidate_score{_version}",
                          ascending=False,
