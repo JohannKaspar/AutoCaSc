@@ -81,7 +81,7 @@ class AutoCaSc:
         else:
             self.server = "http://rest.ensembl.org"  # API endpoint for GRCh38
 
-        self.cadd_phred = 0
+        self.cadd_phred = None
         self.explanation_dict = {}
         self.inheritance_score = 0
         self.frequency_score = 0
@@ -271,7 +271,7 @@ class AutoCaSc:
                 raise IOError("There has been an issue with a variant.")
 
     @retry(stop=stop_after_attempt(5),
-           wait=wait_random(0.1, 2))
+           wait=wait_random(0.1, 1))
     def open_pickle_file(self):
         """Method for loading stored VEP requests. Useful if the same variant is analysed multiple times.
         """
@@ -440,7 +440,7 @@ class AutoCaSc:
         :param response_dec: VEP response dictionary with a list of transcripts
         :return: transcript index to consider for further calculations
         """
-        impact_severity_dict = {"MODIFIER": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3}
+        impact_severity_dict = {"MODIFIER": 1, "LOW": 1, "MODERATE": 2, "HIGH": 3}
         transcript_df = pd.DataFrame()
         try:
             for i, transcript in enumerate(response_dec["transcript_consequences"]):
@@ -527,7 +527,7 @@ class AutoCaSc:
                 if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
                     self.candidate_score += 1
                     self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic: 3"
-                    self.other_autocasc_obj.__dict__["impact_score"], self.other_autocasc_obj.__dict__["impact"] = 3, "impact high, biallelic: 3"
+                    self.other_autocasc_obj.__dict__["impact_score"], self.other_autocasc_obj.__dict__["explanation_dict"]["impact"] = 3, "impact high, biallelic: 3"
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.
@@ -596,7 +596,7 @@ class AutoCaSc:
                 else:
                     self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on Z score: 0"
             else:
-                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "impact low or unknown: 0"
+                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "low impact or no data on impact: 0"
 
     def rate_impact(self):
         """This function scores the variants predicted impact.
@@ -852,5 +852,5 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
+    #batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
