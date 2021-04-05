@@ -442,7 +442,7 @@ class AutoCaSc:
         :param response_dec: VEP response dictionary with a list of transcripts
         :return: transcript index to consider for further calculations
         """
-        impact_severity_dict = {"MODIFIER": 0, "LOW": 1, "MODERATE": 2, "HIGH": 3}
+        impact_severity_dict = {"MODIFIER": 1, "LOW": 1, "MODERATE": 2, "HIGH": 3}
         transcript_df = pd.DataFrame()
         try:
             for i, transcript in enumerate(response_dec["transcript_consequences"]):
