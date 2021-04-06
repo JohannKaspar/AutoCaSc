@@ -389,7 +389,7 @@ def make_spreadsheet(merged_instances):
             result_df.loc[i, "candidate_score"] = _instance.__dict__.get("candidate_score")
             result_df.loc[i, "candidate_score_ml_1"] = _instance.__dict__.get("candidate_score_ml_1")
             result_df.loc[i, "candidate_score_ml_2"] = _instance.__dict__.get("candidate_score_ml_2")
-            result_df.loc[i, "candidate_score_ml_3"] = _instance.__dict__.get("candidate_score_ml_4")
+            result_df.loc[i, "candidate_score_ml_3"] = _instance.__dict__.get("candidate_score_ml_3")
 
 
             result_df.loc[i, "candidate_score_ml_4"] = _instance.__dict__.get("candidate_score_ml_4")
