@@ -324,7 +324,7 @@ faq_ger = dcc.Markdown("""
 
             __Wofür stehen die 4 Unterscores?__  
             - __Variant Attributes (6 Punkte max):__ Dazu gehören Konservierung (GERP++), "in silico"-Vorhersagen (MutationAssessor, MutationTaster, Sift), Spleißstellenvorhersagen (MaxEntScan, AdaBoost, RandomForest) und erwartete Auswirkungen (VEP).
-            - __Gene Attributes (1 Punkte max):__ Es handelt sich dabei um gene-constraint Parameter aus gnomAD; LOUEF für Loss-of-Function-Varianten, Z für Missense-Varianten.
+            - __Gene Constraints (1 Punkte max):__ Es handelt sich dabei um gene-constraint Parameter aus gnomAD; LOUEF für Loss-of-Function-Varianten, Z für Missense-Varianten.
             - __Inheritance (2 Punkte max):__ Diese Punkte hängen von der Vererbung und der Segregation der Variante in der Familie ab.
             - __Gene Plausibility (6 Punkte max):__ Diese Punkte werden auf der Grundlage des Expressionsmusters des Gens, der Protein-Protein-Interaktionen, der Phänotypen in Tiermodellen, der in PubMed veröffentlichten Artikel zum Gen, de novo-Varianten im Gen die mit NDD in Verbindung gebacht wurden, und anderer Quellen berechnet.
 
@@ -355,7 +355,7 @@ faq_eng = dcc.Markdown("""
             
             __What do the 4 subscores stand for?__  
             - __Variant Attributes (6 points max):__ These include conservation (GERP++), "in silico" predictions (MutationAssessor, MutationTaster, Sift), splice site predictions (MaxEntScan, AdaBoost, RandomForest) and expected impact (VEP).
-            - __Gene Attributes (1 point max):__ These are gene constraint parameters from gnomAD; LOUEF for loss of function variants, Z for missense variants.
+            - __Gene Constraints (1 point max):__ These are gene constraint parameters from gnomAD; LOUEF for loss of function variants, Z for missense variants.
             - __Inheritance (2 points max):__ These points depend on inheritance of the variant of interest and segregation of the variant in the family.
             - __Gene Plausibility (6 points max):__ These points are calculated based on the gene's expression pattern, protein-protein interactions, animal model phenotypes, published articles on PubMed, de novo variants in the gene linked to NDD and other sources.
 
@@ -887,7 +887,7 @@ def get_tab_card(active_tab, results_memory):
         if status_code == 200:
             scoring_results = {
                 "inheritance_score": "Inheritance",
-                "gene_attribute_score": "Gene Attributes",
+                "gene_constraint_score": "Gene Constraint",
                 "variant_score": "Variant Attributes",
                 "literature_score": "Literature Plausibility",
             }
@@ -928,7 +928,7 @@ def get_tab_card(active_tab, results_memory):
 
             explanation_tooltips = [
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('pli_z')}",
-                            target="gene_attribute_score_explanation"),
+                            target="gene_constraint_score_explanation"),
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('impact')}, "
                             f"insilico: {_instance_attributes.get('explanation_dict').get('in_silico')}, "
                             f"conservation: {_instance_attributes.get('explanation_dict').get('conservation')}, "
@@ -942,7 +942,7 @@ def get_tab_card(active_tab, results_memory):
                 dbc.Tooltip("Points attributed for inheritance & segregation",
                             target="inheritance_score_description"),
                 dbc.Tooltip("Points attributed for gene constraint parameters.",
-                            target="gene_attribute_score_description"),
+                            target="gene_constraint_score_description"),
                 dbc.Tooltip("Points attributed for insilico predictions, conservation and allele frequency",
                             target="variant_score_description"),
                 dbc.Tooltip("Points attributed for data in literature databases, animal models, expression pattern, "
@@ -1229,7 +1229,7 @@ def download_button_click(n_cklicks, results_memory):
                                                                _other_instance.get("variant_score")]), 2)
         else:
             df.loc[i, "variant_attribute_score"] = _instance.get("variant_score")
-        df.loc[i, "gene_attribute_score"] = _instance.get("gene_attribute_score")
+        df.loc[i, "gene_constraint_score"] = _instance.get("gene_constraint_score")
 
     data = io.StringIO()
     df.to_csv(data, sep="\t", decimal=",")

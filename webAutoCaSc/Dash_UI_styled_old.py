@@ -550,7 +550,7 @@ def get_casc_batch_table(variant_results):
     table_columns = [{"name": "Variant", "id": "variant", "type": "text", "presentation": "markdown"},
                      {"name": "Candidate Score", "id": "candidate_score"},
                      {"name": "Inheritance Score", "id": "inheritance_score"},
-                     {"name": "Gene Attribute Score", "id": "gene_attribute_score"},
+                     {"name": "Gene Constraint Score", "id": "gene_constraint_score"},
                      {"name": "Variant Score", "id": "variant_score"},
                      {"name": "Literature Score", "id": "literature_score"}]
 
@@ -564,14 +564,14 @@ def get_casc_batch_table(variant_results):
             table_data.append({"variant": f"[{variant}](http://autocasc.pythonanywhere.com/{quote(variant)})",
                                "candidate_score": variant_results.get(variant).candidate_score,
                                "inheritance_score": variant_results.get(variant).inheritance_score,
-                               "gene_attribute_score": variant_results.get(variant).gene_attribute_score,
+                               "gene_constraint_score": variant_results.get(variant).gene_constraint_score,
                                "variant_score": variant_results.get(variant).variant_score,
                                "literature_score": variant_results.get(variant).literature_score})
         else:
             table_data.append({"variant": "-",
                                "candidate_score": "-",
                                "inheritance_score": "-",
-                               "gene_attribute_score": "-",
+                               "gene_constraint_score": "-",
                                "variant_score": "-",
                                "literature_score": "-"})
         table = dash_table.DataTable(
@@ -591,7 +591,7 @@ def get_casc_batch_table(variant_results):
                     "backgroundColor": colors["light_blue"]
                 },
                 {
-                    "if": {"column_id": "gene_attribute_score"},
+                    "if": {"column_id": "gene_constraint_score"},
                     "backgroundColor": colors["light_red"]
                 },
                 {
@@ -669,7 +669,7 @@ def get_clipboard_format_single(annotation_results):
         "gene_symbol",
         "candidate_score",
         "inheritance_score",
-        "gene_attribute_score",
+        "gene_constraint_score",
         "variant_score",
         "literature_score",
         "mgi_score",
@@ -700,7 +700,7 @@ def get_clipboard_format_single(annotation_results):
 #         "gene_symbol",
 #         "candidate_score",
 #         "inheritance_score",
-#         "gene_attribute_score",
+#         "gene_constraint_score",
 #         "variant_score",
 #         "literature_score",
 #         "mgi_score",
@@ -744,7 +744,7 @@ def get_output_elements(instance):
 
     casc_results_children = get_casc_card(get_casc_table("calculation_results_table",
                                                          instance.__dict__,
-                                                         ["inheritance_score", "gene_attribute_score", "variant_score",
+                                                         ["inheritance_score", "gene_constraint_score", "variant_score",
                                                           "literature_score"],
                                                          editable=True),
                                           get_explanation_button(instance))

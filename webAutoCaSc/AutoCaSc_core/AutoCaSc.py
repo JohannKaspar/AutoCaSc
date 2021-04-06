@@ -87,7 +87,7 @@ class AutoCaSc:
         self.frequency_score = 0
         self.variant_score = 0
         self.literature_score = 0
-        self.gene_attribute_score = 0
+        self.gene_constraint_score = 0
         self.candidate_score = 0
 
         self.check_for_other_variant()
@@ -460,6 +460,7 @@ class AutoCaSc:
                     if len(transcript_df) > 1:
                         if not self.transcript_num:
                             self.multiple_transcripts = len(transcript_df)
+                            print(f"multiple transcripts found for variants {self.variant}")
                         else:
                             return int(transcript_df.loc[self.transcript_num, "transcript_id"])
                     transcript_df.reset_index(inplace=True, drop=True)
@@ -513,7 +514,7 @@ class AutoCaSc:
         else:
             candidate_score_list = [i if i is not None else 0 for i in [
                 self.inheritance_score,
-                self.gene_attribute_score,
+                self.gene_constraint_score,
                 self.variant_score,
                 self.literature_score]]
             self.candidate_score = round(sum(candidate_score_list), 2)
@@ -562,41 +563,41 @@ class AutoCaSc:
         """This function scores gnomAD constraints (pLI/Z).
         """
         if self.inheritance in ["homo", "comphet"]:
-            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "recessive: 0"
+            self.gene_constraint_score, self.explanation_dict["pli_z"] = 0, "recessive: 0"
         else:
             # if impact is not None:
             if self.impact == "high":
                 if self.pLI is not None:
                     if self.pLI < 0.5:
                         if self.inheritance == "de_novo":
-                            self.gene_attribute_score, self.explanation_dict[
+                            self.gene_constraint_score, self.explanation_dict[
                                 "pli_z"] = -2, "de novo LoF & pLI < 0.5: -2"
                         else:
-                            self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "LoF & pLI < 0.5: 0"
+                            self.gene_constraint_score, self.explanation_dict["pli_z"] = 0, "LoF & pLI < 0.5: 0"
                     elif self.pLI < 0.9:
                         if self.inheritance == "de_novo":
-                            self.gene_attribute_score, self.explanation_dict[
+                            self.gene_constraint_score, self.explanation_dict[
                                 "pli_z"] = 0, "de novo LoF & 0.5 <= pLI < 0.9: 0"
                         else:
-                            self.gene_attribute_score, self.explanation_dict[
+                            self.gene_constraint_score, self.explanation_dict[
                                 "pli_z"] = 0.5, "LoF & pLI <= 0.5 pLI < 0.9: 0.5"
                     else:
-                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "LoF & pLI >= 0.9: 1"
+                        self.gene_constraint_score, self.explanation_dict["pli_z"] = 1, "LoF & pLI >= 0.9: 1"
                 else:
-                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on pLI: 0"
+                    self.gene_constraint_score, self.explanation_dict["pli_z"] = 0, "no data on pLI: 0"
             elif self.impact == "moderate":
                 if self.mis_z is not None:
                     if self.mis_z < 0:
-                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "missense & Z < 0: 0"
+                        self.gene_constraint_score, self.explanation_dict["pli_z"] = 0, "missense & Z < 0: 0"
                     elif self.mis_z >= 0 and self.mis_z < 2.5:
-                        self.gene_attribute_score, self.explanation_dict[
+                        self.gene_constraint_score, self.explanation_dict[
                             "pli_z"] = 0.5, "missense & 0 <= Z < 2.5: 0.5"
                     elif self.mis_z >= 2.5:
-                        self.gene_attribute_score, self.explanation_dict["pli_z"] = 1, "missense & Z >= 2.5: 1"
+                        self.gene_constraint_score, self.explanation_dict["pli_z"] = 1, "missense & Z >= 2.5: 1"
                 else:
-                    self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "no data on Z score: 0"
+                    self.gene_constraint_score, self.explanation_dict["pli_z"] = 0, "no data on Z score: 0"
             else:
-                self.gene_attribute_score, self.explanation_dict["pli_z"] = 0, "low impact or no data on impact: 0"
+                self.gene_constraint_score, self.explanation_dict["pli_z"] = 0, "low impact or no data on impact: 0"
 
     def rate_impact(self):
         """This function scores the variants predicted impact.
@@ -767,7 +768,7 @@ def score_variants(ctx, variants, inheritances, corresponding_variants, family_h
         results_df.loc[_variant, "other_variant"] = variant_instance.other_variant
         if verbose:
             results_df.loc[_variant, "inheritance_score"] = variant_instance.inheritance_score
-            results_df.loc[_variant, "gene_score"] = variant_instance.gene_attribute_score
+            results_df.loc[_variant, "gene_score"] = variant_instance.gene_constraint_score
             results_df.loc[_variant, "variant_score"] = variant_instance.variant_score
             results_df.loc[_variant, "literature_score"] = variant_instance.literature_score
         results_df.loc[_variant, "inheritance_mode"] = variant_instance.inheritance
@@ -852,5 +853,5 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    #batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
+    batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
