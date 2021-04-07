@@ -36,7 +36,7 @@ class AutoCaSc:
                  other_impact="unknown",
                  other_variant=None,
                  assembly="GRCh37",
-                 transcript_num=None,
+                 transcript_id=None,
                  family_history=False,
                  mode="default",
                  path_to_request_cache_dir=None):
@@ -71,7 +71,7 @@ class AutoCaSc:
         self.status_code = 200  # initial value is set to 200 = all good
         self.family_history = family_history
         self.num_transcripts = False
-        self.transcript_num = transcript_num
+        self.transcript = transcript_id
         self.mode = mode
         self.data_retrieved = False
         self.path_to_request_cache_dir = path_to_request_cache_dir
@@ -110,16 +110,17 @@ class AutoCaSc:
             else:
                 self.other_variant = self.other_autocasc_obj.variant
 
+    def update_inheritance(self, inheritance):
+        self.inheritance = inheritance
+        for transcript, instance in self.transcript_instances.items():
+            instance["inheritance"] = inheritance
 
     def retrieve_data(self, gnomad=True):
         """Method for collecting data from VEP and gnomad. If used on a local machine it is possible to check,
         if the variant of interest has already been requested and saved before in order to increase analysis speed.
         """
-        start = time.time()
         self.get_vep_data()  # this method call initiates the annotation of the given variant
         self.data_retrieved = True
-        end = time.time()
-        print(f"VEP execution time {round(end - start, 2)}")
         if self.status_code == 200 and gnomad is True:
             # 498 = no matching transcript index has been found (e.g. variant is intergenic)
             self.get_gnomad_constraint()
@@ -131,22 +132,18 @@ class AutoCaSc:
                 other_instance = AutoCaSc(variant=self.other_variant,
                                           inheritance=self.inheritance,
                                           assembly=self.assembly,
-                                          transcript_num=self.transcript_num,
+                                          transcript_id=self.transcript,
                                           mode=self.mode)
                 self.other_autocasc_obj = other_instance
                 self.status_code = other_instance.status_code
+            for _transcript in self.affected_transcripts:
+                transcript_instance = copy.deepcopy(self)
+                transcript_instance.__dict__.pop("transcript_instances")
+                transcript_instance.assign_results(_transcript)
+                self.transcript_instances[_transcript] = transcript_instance
+
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
-        if self.status_code == 200 and not self.transcript_num:
-            self.transcript_instances[self.transcript] = self
-            if self.num_transcripts:
-                for transcript_df_index in range(1, self.num_transcripts):
-                    transcript_instance = copy.deepcopy(self)
-                    transcript_instance.transcript_num = transcript_df_index
-                    transcript_instance.retrieve_data()
-                    self.transcript_instances[transcript_instance.transcript] = transcript_instance
-            for _transcript in self.transcript_instances.keys():
-                self.transcript_instances.get(_transcript).calculate_candidate_score()
 
 
     def hgvs_strand_shift(self, gnomad=True):
@@ -160,9 +157,9 @@ class AutoCaSc:
                                  mode=self.mode,
                                  other_variant=self.other_variant,
                                  other_autocasc_obj=self.other_autocasc_obj,
-                                 transcript_num = self.transcript_num,
-                                 family_history = self.family_history,
-                                 path_to_request_cache_dir = self.path_to_request_cache_dir
+                                 transcript_id=self.transcript,
+                                 family_history=self.family_history,
+                                 path_to_request_cache_dir=self.path_to_request_cache_dir
                                  )
         if not test_instance.data_retrieved:
             test_instance.retrieve_data(gnomad=gnomad)
@@ -297,6 +294,7 @@ class AutoCaSc:
         VEP. It then calls assign_results to select relevant parameters and do some formatting.
         """
         if not self.data_retrieved:
+            start = time.time()
             if self.path_to_request_cache_dir is not None:
                 try:
                     self.open_pickle_file()
@@ -318,19 +316,28 @@ class AutoCaSc:
                         new_vep_request = {self.variant: self.response_decoded}
                         write_new_api_request(f"{self.path_to_request_cache_dir}tmp/vep", new_vep_request)
 
+            end = time.time()
+            print(f"VEP execution time {round(end - start, 2)}")
+
         if self.status_code == 200:
-            transcript_index = self.get_transcript_index()
+            self.get_transcript_index()
             # get the index of the transcript to consider for further annotations
             if self.status_code == 200:
-                self.assign_results(transcript_index)
+                self.assign_results()
 
-    def assign_results(self, transcript_index):
+
+    def assign_results(self, transcript_id=None):
         """This function filters and formats the received annotation results.
 
         :param self.response_decoded: received annotation data
         :param transcript_index: index of the transcript to work with from transcript_consequences
         """
-        selected_transcript_consequences = self.response_decoded["transcript_consequences"][transcript_index]
+        if not transcript_id:
+            transcript_id = self.transcript
+        selected_transcript_consequences = None
+        for result in self.response_decoded["transcript_consequences"]:
+            if result.get("transcript_id") == transcript_id:
+                selected_transcript_consequences = result
 
         if self.response_decoded.get("vcf_string") is not None:
             self.vcf_string = re.sub(r"-", ":", self.response_decoded.get("vcf_string"))
@@ -383,7 +390,7 @@ class AutoCaSc:
                 if selected_transcript_consequences.get("consequence_terms") is not None:
                     self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
                 if selected_transcript_consequences.get("hgvsc") is not None:
-                    self.transcript, self.hgvsc_change = selected_transcript_consequences.get("hgvsc").split(":")
+                    self.hgvsc_transcript, self.hgvsc_change = selected_transcript_consequences.get("hgvsc").split(":")
 
                 if selected_transcript_consequences.get("consequence_terms") is not None:
                     self.consequence = re.sub(r"_", " ", safe_get(selected_transcript_consequences.get("consequence_terms"), 0))
@@ -457,38 +464,46 @@ class AutoCaSc:
         transcript_df = pd.DataFrame()
         try:
             for i, transcript in enumerate(self.response_decoded["transcript_consequences"]):
-                transcript_df.loc[i, "transcript_id"] = i
+                # transcript_df.loc[i, "transcript_id"] = i
+                transcript_df.loc[i, "transcript_id"] = transcript.get("transcript_id")
                 transcript_df.loc[i, "impact_level"] = impact_severity_dict.get(transcript.get("impact"))
                 transcript_df.loc[i, "biotype"] = transcript.get("biotype")
                 transcript_df.loc[i, "canonical"] = transcript.get("canonical") or 0
-            transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
-                                                      ascending=[False, False])
 
-            if len(transcript_df) > 1:
-                if "protein_coding" in transcript_df.biotype.unique() and len(transcript_df.biotype.unique()) > 1:
-                    transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"].reset_index()
-                if len(transcript_df) > 1:
-                    self.num_transcripts = len(transcript_df)
-                    if self.transcript_num:
-                        return int(transcript_df.loc[self.transcript_num, "transcript_id"])
-                    prioritize_transcript_df = transcript_df.loc[
-                        transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
-                    prioritize_transcript_df = prioritize_transcript_df.loc[
-                        prioritize_transcript_df.canonical == prioritize_transcript_df.loc[0, "canonical"]]
-                    self.high_priority_transcripts = prioritize_transcript_df.index.to_list()
-            return int(transcript_df.loc[0, "transcript_id"])
+            if "protein_coding" in transcript_df.biotype.unique() and len(transcript_df.biotype.unique()) > 1:
+                transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"].reset_index()
+            transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
+                                                      ascending=[False, False],
+                                                      ignore_index=True)
+
+            self.affected_transcripts = transcript_df.transcript_id.to_list()
+            self.num_transcripts = len(transcript_df)
+            transcript_df = transcript_df.loc[
+                transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
+            transcript_df = transcript_df.loc[
+                transcript_df.canonical == transcript_df.loc[0, "canonical"]]
+            self.high_priority_transcripts = transcript_df.transcript_id.to_list()
+            self.transcript = self.high_priority_transcripts[0]
 
         except AttributeError:
             self.status_code = 499
-            return None
         except KeyError:
             self.status_code = 498  # intergenic variant
-            return None
         except TypeError:
             self.status_code = 497
-            return None
 
-    def calculate_candidate_score(self, recursively=True):
+    def calculate_candidate_score(self, transcript_instances=True):
+        if transcript_instances and self.status_code == 200 and not self.inheritance == "comphet":
+            for _transcript, transcript_instance in self.transcript_instances.items():
+                _instance = AutoCaSc(transcript_instance.get("variant"),
+                                     mode="web")
+                _instance.__dict__ = transcript_instance
+                _instance.calculate_candidate_score_func()
+                self.transcript_instances[_transcript] = _instance
+        else:
+            self.calculate_candidate_score_func()
+
+    def calculate_candidate_score_func(self, recursively=True):
         """This method calls all the scoring functions and assigns their results to class attributes.
         """
         self.check_for_other_variant()
@@ -533,7 +548,7 @@ class AutoCaSc:
 
         if self.inheritance == "comphet":
             if self.other_autocasc_obj and recursively:
-                self.other_autocasc_obj.calculate_candidate_score(recursively=False)
+                self.other_autocasc_obj.calculate_candidate_score_func(recursively=False)
 
                 self.candidate_score = round(mean([self.candidate_score,
                                                    self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)

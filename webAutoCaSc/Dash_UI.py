@@ -747,11 +747,15 @@ def update_transcripts_to_use(selected_transcript,
                               transcript_dict,
                               active_tab,
                               results_memory):
-    tab_num = int(active_tab.split("_")[-1])
-    _variant = list(results_memory.get("instances").keys())[tab_num]
     if not transcript_dict:
         transcript_dict = {}
+    tab_num = int(active_tab.split("_")[-1])
+    _variant = list(results_memory.get("instances").keys())[tab_num]
     transcript_dict[_variant] = selected_transcript
+
+    if results_memory.get("instances").get(_variant).get("inheritance") == "comphet":
+        _other_variant = results_memory.get("instances").get(_variant).get("other_variant")
+        transcript_dict[_other_variant] = selected_transcript
     return transcript_dict
 
 
@@ -1032,18 +1036,23 @@ def get_tab_card(active_tab,
                         #         className="col-12 col-md-6"),
                         dbc.Col(dbc.Row(
                             [dbc.Col(dcc.Markdown("**Transcript:**"),
-                                     width="auto"),
+                                     width="auto",
+                                     style={"margin-top": "6px"}
+                                     ),
                             dbc.Col(dcc.Dropdown(
                                 options=[{"label": f"{_transcript}", "value": f"{_transcript}"} for _transcript in results_memory.get("instances").get(_variant).get("transcript_instances").keys()],
                                 value=_transcript,
                                 clearable=False,
                                 style={
-                                    "padding-left": "10px",
+                                    "padding-left": "5px",
+                                    "margin-top": "1px",
+                                    "padding-top": "0px"
                                 },
                                 id="transcript_dropdown"
                             ))
                             ],
-                            no_gutters=True
+                            no_gutters=True,
+                            align="start"
                         ),
                         className="col-12 col-md-6")
                     ],
@@ -1145,32 +1154,49 @@ def get_faq_text(n_clicks, language):
 def score_variants(instances, inheritance):
     instances_processed = []
     if inheritance == "comphet":
-        variant_gene_df = pd.DataFrame()
-        for i, _instance in enumerate(instances):
-            _instance.inheritance = inheritance
-            if _instance.__dict__.get("status_code") == 200:
-                variant_gene_df.loc[i, "variant"] = _instance.__dict__.get("variant")
-                variant_gene_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
-                variant_gene_df.loc[i, "instance"] = _instance
+        variant_transcript_df = pd.DataFrame()
+        for _variant_instance in instances:
+            _variant_instance.inheritance = "comphet"
+            if _variant_instance.__dict__.get("status_code") == 200:
+                for _transcript in _variant_instance.__dict__.get("affected_transcripts"):
+                    variant_transcript_df.loc[len(variant_transcript_df), "variant"] = _variant_instance.__dict__.get("variant")
+                    variant_transcript_df.loc[len(variant_transcript_df) - 1, "transcript"] = _transcript
+                    variant_transcript_df.loc[len(variant_transcript_df) - 1, "instance"] = _variant_instance
             else:
-                instances_processed.append(_instance)
-        for _gene in variant_gene_df.gene_symbol.unique():
-            df_chunk = variant_gene_df.loc[variant_gene_df.gene_symbol == _gene].reset_index(drop=True)
-            if len(df_chunk) == 2:
-                for i in range(2):
-                    _instance = copy.deepcopy(df_chunk.loc[abs(1-i), "instance"])
-                    _instance.other_autocasc_obj = df_chunk.loc[abs(0-i), "instance"]
-                    _instance.calculate_candidate_score()
-                    instances_processed.append(_instance)
+                instances_processed.append(_variant_instance)
+
+        for _variant in variant_transcript_df.variant.unique():
+            match_found = False
+            _variant_instance = variant_transcript_df.loc[variant_transcript_df.variant == _variant, "instance"].values[0]
+            for _transcript in variant_transcript_df.loc[variant_transcript_df.variant == _variant].transcript.unique():
+                df_chunk = variant_transcript_df.loc[variant_transcript_df.transcript == _transcript].reset_index(drop=True)
+                if len(df_chunk) == 2:
+                    transcript_instance_1 = copy.deepcopy(_variant_instance)
+                    transcript_instance_1.__dict__.pop("transcript_instances")
+                    transcript_instance_1.assign_results(_transcript.split(".")[0])
+
+                    variant_instance_2 = df_chunk.loc[(df_chunk.transcript == _transcript)
+                                                      & (df_chunk.variant != _variant), "instance"].values[0]
+                    transcript_instance_2 = copy.deepcopy(variant_instance_2)
+                    transcript_instance_2.__dict__.pop("transcript_instances")
+                    transcript_instance_2.assign_results(_transcript.split(".")[0])
+
+                    transcript_instance_1.other_autocasc_obj = transcript_instance_2
+                    transcript_instance_1.calculate_candidate_score()
+
+                    _variant_instance.transcript_instances[_transcript] = copy.deepcopy(transcript_instance_1)
+                    match_found = True
+            if not match_found:
+                _variant_instance.status_code = 301
             else:
-                for i in range(len(df_chunk)):
-                    lonely_instance = df_chunk.loc[i, "instance"]
-                    lonely_instance.__dict__["status_code"] = 301
-                    instances_processed.append(lonely_instance)
-                    # raise IOError(f"combination of comphet variants unclear for {_gene}")
+                for _attribute in ["candidate_score", "other_variant", "other_autocasc_obj"]:
+                    _variant_instance.__dict__[_attribute] = \
+                        list(_variant_instance.transcript_instances.values())[0].__dict__.get(_attribute)
+            instances_processed.append(_variant_instance)
+
     else:
         for _instance in instances:
-            _instance.inheritance = inheritance
+            _instance.update_inheritance(inheritance=inheritance)
             if _instance.__dict__.get("status_code") == 200:
                 _instance.calculate_candidate_score()
             instances_processed.append(_instance)
@@ -1323,6 +1349,6 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
 
 if __name__ == '__main__':
     app.run_server(debug=True,
-                   dev_tools_hot_reload=False,
+                   dev_tools_hot_reload=True,
                    host='0.0.0.0',
                    port=5000)
