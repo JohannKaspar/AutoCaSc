@@ -125,6 +125,7 @@ url_bar_and_content_div = html.Div([
     dcc.Store(id="variant_queue_url"),
     dcc.Store(id="variant_memory"),
     dcc.Store(id="results_memory"),
+    dcc.Store(id="transcripts_to_use_memory"),
     Download(id="download"),
     navbar,
     html.Div(id='page-content'),
@@ -499,6 +500,7 @@ app.validation_layout = html.Div([
             ])
         ]),
     html.Div(id="loading_output"),
+    dcc.Dropdown(id="transcript_dropdown"),
     impressum_page,
     faq_page
 ])
@@ -734,14 +736,34 @@ def show_other_variant_column(results_memory):
     else:
         return False
 
+@app.callback(
+    Output("transcripts_to_use_memory", "data"),
+    Input("transcript_dropdown", "value"),
+    State("transcripts_to_use_memory", "data"),
+    State("card_tabs", "active_tab"),
+    State("results_memory", "data")
+)
+def update_transcripts_to_use(selected_transcript,
+                              transcript_dict,
+                              active_tab,
+                              results_memory):
+    tab_num = int(active_tab.split("_")[-1])
+    _variant = list(results_memory.get("instances").keys())[tab_num]
+    if not transcript_dict:
+        transcript_dict = {}
+    transcript_dict[_variant] = selected_transcript
+    return transcript_dict
+
 
 @app.callback(
     Output("card_content", "children"),
     Input("card_tabs", "active_tab"),
-    Input("card_tabs", "active_tab"),
+    Input("transcripts_to_use_memory", "data"),
     State("results_memory", "data"),
 )
-def get_tab_card(active_tab, results_memory):
+def get_tab_card(active_tab,
+                 transcripts_to_use,
+                 results_memory):
     cell_style = {
         "padding": "5px",
         "padding-left": "12px"
@@ -766,7 +788,20 @@ def get_tab_card(active_tab, results_memory):
         tooltips = []
 
         for i, _variant in enumerate(results_memory.get("instances").keys()):
-            _instance_attributes = results_memory.get('instances').get(_variant)
+
+            try:
+                if _variant in transcripts_to_use.keys():
+                    _transcript = transcripts_to_use.get(_variant)
+                else:
+                    _transcript = \
+                    list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+            except AttributeError:
+                _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+            except IndexError:
+                print("")
+
+            _instance_attributes = \
+                results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
             if _instance_attributes.get("gene_symbol"):
                 _hgvs = _instance_attributes.get("gene_symbol")
                 if _instance_attributes.get("hgvsc_change") is not None:
@@ -845,7 +880,16 @@ def get_tab_card(active_tab, results_memory):
     else:
         tab_num = int(active_tab.split("_")[-1])
         _variant = list(results_memory.get("instances").keys())[tab_num]
-        _instance_attributes = results_memory.get("instances").get(_variant)
+
+        try:
+            if _variant in transcripts_to_use.keys():
+                _transcript = transcripts_to_use.get(_variant)
+            else:
+                _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+        except AttributeError:
+            _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+
+        _instance_attributes = results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
         status_code = _instance_attributes.get("status_code")
 
         if len(results_memory.get("instances")) == 1:
@@ -989,13 +1033,14 @@ def get_tab_card(active_tab, results_memory):
                         dbc.Col(dbc.Row(
                             [dbc.Col(dcc.Markdown("**Transcript:**"),
                                      width="auto"),
-                            dbc.Col(dbc.DropdownMenu(
-                                [dbc.DropdownMenuItem(f"{_transcript}", id=f"dd_{_transcript}") for _transcript in _instance_attributes.get("transcript_instances").keys()],
-                                label=f"{list(_instance_attributes.get('transcript_instances').keys())[0]}",
-                                bs_size="sm",
+                            dbc.Col(dcc.Dropdown(
+                                options=[{"label": f"{_transcript}", "value": f"{_transcript}"} for _transcript in results_memory.get("instances").get(_variant).get("transcript_instances").keys()],
+                                value=_transcript,
+                                clearable=False,
                                 style={
                                     "padding-left": "10px",
-                                }
+                                },
+                                id="transcript_dropdown"
                             ))
                             ],
                             no_gutters=True
@@ -1157,18 +1202,17 @@ def instances_to_dict(instance, recursion_level=0):
         if any([x in type(value).__name__ for x in ["int", "float", "bool", "NoneType", "str", "list"]]):
             instance_dict[key] = value
         else:
-            if type(instance).__name__ == "AutoCaSc":
+            if type(value).__name__ == "AutoCaSc":
                 if recursion_level < 1:
                     instance_dict[key] = instances_to_dict(value, recursion_level + 1)
             else:
                 instance_dict[key] = instances_to_dict(value, recursion_level)
-
     return instance_dict
 
 
 def store_instances(instance_list, code_key="variant"):
     instance_dicts = [instances_to_dict(_instance) for _instance in instance_list]
-    return {"instances":{_instance_dict.get(code_key): _instance_dict for _instance_dict in instance_dicts}}
+    return {"instances": {_instance_dict.get(code_key): _instance_dict for _instance_dict in instance_dicts}}
 
 
 @app.callback(
@@ -1212,49 +1256,64 @@ def calculate_results(variant_memory, query_memory):
 @app.callback(
     Output("download", "data"),
     Input("download_button", "n_clicks"),
-    State("results_memory", "data")
+    State("results_memory", "data"),
+    State("transcripts_to_use_memory", "data")
 )
-def download_button_click(n_cklicks, results_memory):
+def download_button_click(n_cklicks, results_memory, transcripts_to_use):
     # todo check comphet behavior
     if not n_cklicks:
         raise PreventUpdate
     df = pd.DataFrame()
     for i, _variant in enumerate(results_memory.get("instances").keys()):
-        _instance = results_memory.get("instances").get(_variant)
         try:
-            if _instance.get("vcf_string") in df["vcf_format_2"].to_list():
+            if _variant in transcripts_to_use.keys():
+                _transcript = transcripts_to_use.get(_variant)
+            else:
+                _transcript = \
+                    list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+        except AttributeError:
+            _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+        except IndexError:
+            print("")
+
+        _instance_attributes = \
+            results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
+
+        # _instance = results_memory.get("instances").get(_variant)
+        try:
+            if _instance_attributes.get("vcf_string") in df["vcf_format_2"].to_list():
                 continue
         except KeyError:
             pass
-        if _instance.get("inheritance") == "comphet":
+        if _instance_attributes.get("inheritance") == "comphet":
             comphet = True
-            _other_instance = _instance.get("other_autocasc_obj")
+            _other_instance_attributes = _instance_attributes.get("other_autocasc_obj")
         else:
             comphet = False
-            _other_instance = {}
-        df.loc[i, "hgnc_symbol"] = _instance.get("gene_symbol")
-        df.loc[i, "transcript"] = _instance.get("transcript")
-        df.loc[i, "vcf_format_1"] = _instance.get("vcf_string")
-        df.loc[i, "vcf_format_2"] = _other_instance.get("vcf_string")
-        df.loc[i, "cDNA_1"] = _instance.get("hgvsc_change")
-        df.loc[i, "cDNA_2"] = _other_instance.get("hgvsc_change")
-        df.loc[i, "amino_acid_1"] = _instance.get("hgvsp_change")
-        df.loc[i, "amino_acid_2"] = _other_instance.get("hgvsp_change")
-        df.loc[i, "var_1_full_name"] = f"{_instance.get('transcript')}:{_instance.get('hgvsc_change')} {_instance.get('hgvsp_change')}"
+            _other_instance_attributes = {}
+        df.loc[i, "hgnc_symbol"] = _instance_attributes.get("gene_symbol")
+        df.loc[i, "transcript"] = _instance_attributes.get("transcript")
+        df.loc[i, "vcf_format_1"] = _instance_attributes.get("vcf_string")
+        df.loc[i, "vcf_format_2"] = _other_instance_attributes.get("vcf_string")
+        df.loc[i, "cDNA_1"] = _instance_attributes.get("hgvsc_change")
+        df.loc[i, "cDNA_2"] = _other_instance_attributes.get("hgvsc_change")
+        df.loc[i, "amino_acid_1"] = _instance_attributes.get("hgvsp_change")
+        df.loc[i, "amino_acid_2"] = _other_instance_attributes.get("hgvsp_change")
+        df.loc[i, "var_1_full_name"] = f"{_instance_attributes.get('transcript')}:{_instance_attributes.get('hgvsc_change')} {_instance_attributes.get('hgvsp_change')}"
         if comphet:
-            df.loc[i, "var_2_full_name"] = f"{_other_instance.get('transcript')}:{_other_instance.get('hgvsc_change')} {_other_instance.get('hgvsp_change')}"
+            df.loc[i, "var_2_full_name"] = f"{_other_instance_attributes.get('transcript')}:{_other_instance_attributes.get('hgvsc_change')} {_other_instance_attributes.get('hgvsp_change')}"
         else:
             df.loc[i, "var_2_full_name"] = ""
-        df.loc[i, "inheritance"] = _instance.get("inheritance")
-        df.loc[i, "candidate_score"] = _instance.get("candidate_score")
-        df.loc[i, "literature_plausibility"] = _instance.get("literature_score")
-        df.loc[i, "inheritance_score"] = _instance.get("inheritance_score")
+        df.loc[i, "inheritance"] = _instance_attributes.get("inheritance")
+        df.loc[i, "candidate_score"] = _instance_attributes.get("candidate_score")
+        df.loc[i, "literature_plausibility"] = _instance_attributes.get("literature_score")
+        df.loc[i, "inheritance_score"] = _instance_attributes.get("inheritance_score")
         if comphet:
-            df.loc[i, "variant_attribute_score"] = round(mean([_instance.get("variant_score"),
-                                                               _other_instance.get("variant_score")]), 2)
+            df.loc[i, "variant_attribute_score"] = round(mean([_instance_attributes.get("variant_score"),
+                                                               _other_instance_attributes.get("variant_score")]), 2)
         else:
-            df.loc[i, "variant_attribute_score"] = _instance.get("variant_score")
-        df.loc[i, "gene_constraint_score"] = _instance.get("gene_constraint_score")
+            df.loc[i, "variant_attribute_score"] = _instance_attributes.get("variant_score")
+        df.loc[i, "gene_constraint_score"] = _instance_attributes.get("gene_constraint_score")
 
     data = io.StringIO()
     df.to_csv(data, sep="\t", decimal=",")

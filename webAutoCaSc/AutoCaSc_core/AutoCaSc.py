@@ -70,7 +70,7 @@ class AutoCaSc:
         self.assembly = assembly
         self.status_code = 200  # initial value is set to 200 = all good
         self.family_history = family_history
-        self.multiple_transcripts = False
+        self.num_transcripts = False
         self.transcript_num = transcript_num
         self.mode = mode
         self.data_retrieved = False
@@ -137,15 +137,16 @@ class AutoCaSc:
                 self.status_code = other_instance.status_code
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
-        if not self.transcript_num:
+        if self.status_code == 200 and not self.transcript_num:
             self.transcript_instances[self.transcript] = self
-            if self.multiple_transcripts:
-                for transcript_df_index in range(1, self.multiple_transcripts):
+            if self.num_transcripts:
+                for transcript_df_index in range(1, self.num_transcripts):
                     transcript_instance = copy.deepcopy(self)
                     transcript_instance.transcript_num = transcript_df_index
                     transcript_instance.retrieve_data()
-                    transcript_instance.calculate_candidate_score()
                     self.transcript_instances[transcript_instance.transcript] = transcript_instance
+            for _transcript in self.transcript_instances.keys():
+                self.transcript_instances.get(_transcript).calculate_candidate_score()
 
 
     def hgvs_strand_shift(self, gnomad=True):
@@ -462,20 +463,19 @@ class AutoCaSc:
                 transcript_df.loc[i, "canonical"] = transcript.get("canonical") or 0
             transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
                                                       ascending=[False, False])
-            transcript_df = transcript_df.reset_index(drop=True)
-            if len(transcript_df) > 1 and transcript_df.loc[0, "impact_level"] == transcript_df.loc[1, "impact_level"] \
-                    and transcript_df.loc[0, "canonical"] == transcript_df.loc[1, "canonical"]:
-                transcript_df = transcript_df.loc[transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
-                transcript_df = transcript_df.loc[transcript_df.canonical == transcript_df.loc[0, "canonical"]]
-                if "protein_coding" in transcript_df.biotype.unique():
-                    transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"]
-                    if len(transcript_df) > 1:
-                        if not self.transcript_num:
-                            self.multiple_transcripts = len(transcript_df)
-                            print(f"multiple transcripts found for variants {self.variant}")
-                        else:
-                            return int(transcript_df.loc[self.transcript_num, "transcript_id"])
-                    transcript_df.reset_index(inplace=True, drop=True)
+
+            if len(transcript_df) > 1:
+                if "protein_coding" in transcript_df.biotype.unique() and len(transcript_df.biotype.unique()) > 1:
+                    transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"].reset_index()
+                if len(transcript_df) > 1:
+                    self.num_transcripts = len(transcript_df)
+                    if self.transcript_num:
+                        return int(transcript_df.loc[self.transcript_num, "transcript_id"])
+                    prioritize_transcript_df = transcript_df.loc[
+                        transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
+                    prioritize_transcript_df = prioritize_transcript_df.loc[
+                        prioritize_transcript_df.canonical == prioritize_transcript_df.loc[0, "canonical"]]
+                    self.high_priority_transcripts = prioritize_transcript_df.index.to_list()
             return int(transcript_df.loc[0, "transcript_id"])
 
         except AttributeError:
@@ -865,6 +865,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    single(["-v", "22:45255644:G:T"])
+    #single(["-v", "22:45255644:G:T"])
     #batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
