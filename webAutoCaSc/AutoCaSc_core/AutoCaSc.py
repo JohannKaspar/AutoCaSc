@@ -17,6 +17,7 @@ import requests
 from numpy import isnan, poly1d, product
 from gnomAD import GnomADQuery
 from tools import safe_get, filterTheDict, get_seq_difference, write_new_api_request
+import copy
 
 
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
@@ -75,6 +76,8 @@ class AutoCaSc:
         self.data_retrieved = False
         self.path_to_request_cache_dir = path_to_request_cache_dir
         self.filter_pass = True
+        self.transcript_instances = {}
+        self.response_decoded = None
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
@@ -112,9 +115,9 @@ class AutoCaSc:
         """Method for collecting data from VEP and gnomad. If used on a local machine it is possible to check,
         if the variant of interest has already been requested and saved before in order to increase analysis speed.
         """
-        self.data_retrieved = True
         start = time.time()
         self.get_vep_data()  # this method call initiates the annotation of the given variant
+        self.data_retrieved = True
         end = time.time()
         print(f"VEP execution time {round(end - start, 2)}")
         if self.status_code == 200 and gnomad is True:
@@ -134,6 +137,15 @@ class AutoCaSc:
                 self.status_code = other_instance.status_code
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
+        if not self.transcript_num:
+            self.transcript_instances[self.transcript] = self
+            if self.multiple_transcripts:
+                for transcript_df_index in range(1, self.multiple_transcripts):
+                    transcript_instance = copy.deepcopy(self)
+                    transcript_instance.transcript_num = transcript_df_index
+                    transcript_instance.retrieve_data()
+                    transcript_instance.calculate_candidate_score()
+                    self.transcript_instances[transcript_instance.transcript] = transcript_instance
 
 
     def hgvs_strand_shift(self, gnomad=True):
@@ -283,51 +295,51 @@ class AutoCaSc:
         """This function retrieves VEP data either by loading from stored VEP requests or addressing the REST API of
         VEP. It then calls assign_results to select relevant parameters and do some formatting.
         """
-        response_decoded = None
-        if self.path_to_request_cache_dir is not None:
-            try:
-                self.open_pickle_file()
-                if self.vep_requests.get(self.variant):
-                    response_decoded = self.vep_requests.get(self.variant)
-            except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
-                print("could not open vep pickle")
+        if not self.data_retrieved:
+            if self.path_to_request_cache_dir is not None:
+                try:
+                    self.open_pickle_file()
+                    if self.vep_requests.get(self.variant):
+                        self.response_decoded = self.vep_requests.get(self.variant)
+                except (pickle.UnpicklingError, EOFError, tenacity.RetryError):
+                    print("could not open vep pickle")
 
-        if response_decoded is None:
-            self.create_url()
-            try:
-                response_decoded, self.status_code = self.vep_api_request()
-            except IOError:
-                response_decoded = None
-                self.status_code = 400
+            if self.response_decoded is None:
+                self.create_url()
+                try:
+                    self.response_decoded, self.status_code = self.vep_api_request()
+                except IOError:
+                    self.response_decoded = None
+                    self.status_code = 400
 
-            if self.status_code == 200:
-                if self.path_to_request_cache_dir is not None:
-                    new_vep_request = {self.variant: response_decoded}
-                    write_new_api_request(f"{self.path_to_request_cache_dir}tmp/vep", new_vep_request)
+                if self.status_code == 200:
+                    if self.path_to_request_cache_dir is not None:
+                        new_vep_request = {self.variant: self.response_decoded}
+                        write_new_api_request(f"{self.path_to_request_cache_dir}tmp/vep", new_vep_request)
 
         if self.status_code == 200:
-            transcript_index = self.get_transcript_index(response_decoded)
+            transcript_index = self.get_transcript_index()
             # get the index of the transcript to consider for further annotations
             if self.status_code == 200:
-                self.assign_results(response_decoded, transcript_index)
+                self.assign_results(transcript_index)
 
-    def assign_results(self, variant_anno_data, transcript_index):
+    def assign_results(self, transcript_index):
         """This function filters and formats the received annotation results.
 
-        :param variant_anno_data: received annotation data
+        :param self.response_decoded: received annotation data
         :param transcript_index: index of the transcript to work with from transcript_consequences
         """
-        selected_transcript_consequences = variant_anno_data["transcript_consequences"][transcript_index]
+        selected_transcript_consequences = self.response_decoded["transcript_consequences"][transcript_index]
 
-        if variant_anno_data.get("vcf_string") is not None:
-            self.vcf_string = re.sub(r"-", ":", variant_anno_data.get("vcf_string"))
+        if self.response_decoded.get("vcf_string") is not None:
+            self.vcf_string = re.sub(r"-", ":", self.response_decoded.get("vcf_string"))
             # extracts reference sequence from variant id in vcf format
             self.ref_seq_vep = safe_get(self.vcf_string.split(":"), 2)
             self.alt_seq_vep = safe_get(self.vcf_string.split(":"), 3)
             if self.ref_seq is None:
-                self.ref_seq = variant_anno_data.get("vcf_string").split("-")[2]
-                self.alt_seq = variant_anno_data.get("vcf_string").split("-")[3]
-        self.id = variant_anno_data.get("id")
+                self.ref_seq = self.response_decoded.get("vcf_string").split("-")[2]
+                self.alt_seq = self.response_decoded.get("vcf_string").split("-")[3]
+        self.id = self.response_decoded.get("id")
         if self.variant_format == "vcf":
             self.id = re.sub(r"[^a-zA-Z^0-9-]", ":", self.id)
 
@@ -340,7 +352,7 @@ class AutoCaSc:
                 self.status_code = 201
             else:
                 # gets variant gnomad exome frequency and MAF
-                self.gnomad_frequency, self.maf = self.get_frequencies(variant_anno_data.get("colocated_variants"))
+                self.gnomad_frequency, self.maf = self.get_frequencies(self.response_decoded.get("colocated_variants"))
                 # This list of parameters is assigned to corresponding class attributes.
                 key_list = ["gene_symbol",
                             "amino_acids",
@@ -428,7 +440,7 @@ class AutoCaSc:
                 maf = gnomad_frequency
             return gnomad_frequency, maf
 
-    def get_transcript_index(self, response_dec):
+    def get_transcript_index(self):
         """This function selects the transcript index to consider for further calculations, based on
         1) the transcript with the most severe consequence
         2) the canonical transcript (if existing if existing and equally severe consequence)
@@ -437,13 +449,13 @@ class AutoCaSc:
         equally important transcripts stored to the class. Depending on the usecase, the other transcripts can be
         scored afterwards.
 
-        :param response_dec: VEP response dictionary with a list of transcripts
+        :param self.response_decoded: VEP response dictionary with a list of transcripts
         :return: transcript index to consider for further calculations
         """
         impact_severity_dict = {"MODIFIER": 1, "LOW": 1, "MODERATE": 2, "HIGH": 3}
         transcript_df = pd.DataFrame()
         try:
-            for i, transcript in enumerate(response_dec["transcript_consequences"]):
+            for i, transcript in enumerate(self.response_decoded["transcript_consequences"]):
                 transcript_df.loc[i, "transcript_id"] = i
                 transcript_df.loc[i, "impact_level"] = impact_severity_dict.get(transcript.get("impact"))
                 transcript_df.loc[i, "biotype"] = transcript.get("biotype")
@@ -853,5 +865,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
+    single(["-v", "22:45255644:G:T"])
+    #batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})

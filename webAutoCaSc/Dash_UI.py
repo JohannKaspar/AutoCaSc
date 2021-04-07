@@ -738,6 +738,7 @@ def show_other_variant_column(results_memory):
 @app.callback(
     Output("card_content", "children"),
     Input("card_tabs", "active_tab"),
+    Input("card_tabs", "active_tab"),
     State("results_memory", "data"),
 )
 def get_tab_card(active_tab, results_memory):
@@ -983,8 +984,23 @@ def get_tab_card(active_tab, results_memory):
                     [
                         dbc.Col(dcc.Markdown(f"**Gene symbol:** {_instance_attributes.get('gene_symbol')}"),
                                 className="col-12 col-md-6"),
-                        dbc.Col(dcc.Markdown(f"**Transcript:** {_instance_attributes.get('transcript')}"),
-                                className="col-12 col-md-6")
+                        # dbc.Col(dcc.Markdown(f"**Transcript:** {_instance_attributes.get('transcript')}"),
+                        #         className="col-12 col-md-6"),
+                        dbc.Col(dbc.Row(
+                            [dbc.Col(dcc.Markdown("**Transcript:**"),
+                                     width="auto"),
+                            dbc.Col(dbc.DropdownMenu(
+                                [dbc.DropdownMenuItem(f"{_transcript}", id=f"dd_{_transcript}") for _transcript in _instance_attributes.get("transcript_instances").keys()],
+                                label=f"{list(_instance_attributes.get('transcript_instances').keys())[0]}",
+                                bs_size="sm",
+                                style={
+                                    "padding-left": "10px",
+                                }
+                            ))
+                            ],
+                            no_gutters=True
+                        ),
+                        className="col-12 col-md-6")
                     ],
                 ),
                 dbc.Row(
@@ -1131,13 +1147,22 @@ def dict_to_instances(dict):
         return None
 
 
-def instances_to_dict(instance):
+def instances_to_dict(instance, recursion_level=0):
     instance_dict = {}
-    for key, value in instance.__dict__.items():
-        if any([x in type(value).__name__ for x in ["int", "float", "bool", "NoneType", "str", "dict", "list"]]):
+    if isinstance(instance, dict):
+        items = instance.items()
+    else:
+        items = instance.__dict__.items()
+    for key, value in items:
+        if any([x in type(value).__name__ for x in ["int", "float", "bool", "NoneType", "str", "list"]]):
             instance_dict[key] = value
         else:
-            instance_dict[key] = instances_to_dict(value)
+            if type(instance).__name__ == "AutoCaSc":
+                if recursion_level < 1:
+                    instance_dict[key] = instances_to_dict(value, recursion_level + 1)
+            else:
+                instance_dict[key] = instances_to_dict(value, recursion_level)
+
     return instance_dict
 
 
