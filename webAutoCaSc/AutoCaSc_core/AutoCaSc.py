@@ -474,7 +474,7 @@ class AutoCaSc:
 
             if "protein_coding" in transcript_df.biotype.unique() and len(transcript_df.biotype.unique()) > 1:
                 transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"].reset_index()
-            transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
+            transcript_df = transcript_df.sort_values(by=["canonical", "impact_level"],
                                                       ascending=[False, False],
                                                       ignore_index=True)
 

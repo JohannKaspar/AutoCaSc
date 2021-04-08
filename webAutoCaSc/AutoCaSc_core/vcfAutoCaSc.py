@@ -226,60 +226,36 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
         instance_2 = instances_dict.get(var_2)
 
         if instance_1.status_code == 200 and instance_2.status_code == 200:
-            _instance = copy.deepcopy(instance_1)
+            _instance = instance_1
             _instance.inheritance = "comphet"
-            _other_instance = copy.deepcopy(instance_2)
+            _other_instance = instance_2
             _other_instance.inheritance = "comphet"
 
-            instances_processed = []
-            variant_transcript_df = pd.DataFrame()
-            for _variant_instance in [_instance, _other_instance]:
-                _variant_instance.inheritance = "comphet"
-                if _variant_instance.__dict__.get("status_code") == 200:
-                    for _transcript in _variant_instance.__dict__.get("affected_transcripts"):
-                        variant_transcript_df.loc[
-                            len(variant_transcript_df), "variant"] = _variant_instance.__dict__.get("variant")
-                        variant_transcript_df.loc[len(variant_transcript_df) - 1, "transcript"] = _transcript
-                        variant_transcript_df.loc[len(variant_transcript_df) - 1, "instance"] = _variant_instance
-                else:
-                    instances_processed.append(_variant_instance)
+            if _instance.transcript == _other_instance.transcript:
+                pass
+            elif _instance.transcript in _other_instance.affected_transcripts:
+                _other_instance.transcript = _instance.transcript
+            elif _other_instance.transcript in _instance.affected_transcripts:
+                _instance.transcript = _other_instance.transcript
+            else:
+                for _transcript in _instance.affected_transcripts:
+                    if _transcript in _other_instance.affected_transcripts:
+                        _instance.transcript = _transcript
+                        _other_instance.transcript = _transcript
+                        break
+                if _instance.transcript != _other_instance.transcript:
+                    for _transcript in _other_instance.affected_transcripts:
+                        if _transcript in _instance.affected_transcripts:
+                            _instance.transcript = _transcript
+                            _other_instance.transcript = _transcript
+                            break
 
-            for _variant in variant_transcript_df.variant.unique():
-                match_found = False
-                _variant_instance = \
-                    variant_transcript_df.loc[variant_transcript_df.variant == _variant, "instance"].values[0]
-                for _transcript in variant_transcript_df.loc[
-                    variant_transcript_df.variant == _variant].transcript.unique():
-                    df_chunk = variant_transcript_df.loc[
-                        variant_transcript_df.transcript == _transcript].reset_index(drop=True)
-                    if len(df_chunk) == 2:
-                        transcript_instance_1 = copy.deepcopy(_variant_instance)
-                        transcript_instance_1.__dict__.pop("transcript_instances")
-                        transcript_instance_1.assign_results(_transcript)
-
-                        variant_instance_2 = df_chunk.loc[(df_chunk.transcript == _transcript)
-                                                          & (df_chunk.variant != _variant), "instance"].values[0]
-                        transcript_instance_2 = copy.deepcopy(variant_instance_2)
-                        transcript_instance_2.__dict__.pop("transcript_instances")
-                        transcript_instance_2.assign_results(_transcript.split(".")[0])
-
-                        transcript_instance_1.other_autocasc_obj = transcript_instance_2
-                        transcript_instance_1.calculate_candidate_score()
-                        _variant_instance.transcript_instances[_transcript] = copy.deepcopy(transcript_instance_1)
-                        match_found = True
-                    else:
-                        _variant_instance.transcript_instances.pop(_transcript)
-                        _variant_instance.affected_transcripts.remove(_transcript)
-                if not match_found:
-                    _variant_instance.status_code = 301
-                else:
-                    for _attribute in ["candidate_score", "other_variant", "other_autocasc_obj"]:
-                        _variant_instance.__dict__[_attribute] = \
-                            list(_variant_instance.transcript_instances.values())[0].__dict__.get(_attribute)
-                instances_processed.append(_variant_instance)
-
-        # _instance.other_autocasc_obj = _other_instance
-        # _instance.calculate_candidate_score()
+            _instance = copy.deepcopy(_instance)
+            _other_instance = copy.deepcopy(_other_instance)
+            _instance.other_autocasc_obj = _other_instance
+            _instance.calculate_candidate_score()
+        else:
+            _instance = None
         comphet_cross_df.loc[i, "instance"] = _instance
 
     comphet_cross_df = comphet_cross_df.rename(columns={"var_1": "variant", "var_2": "other_variant"})
