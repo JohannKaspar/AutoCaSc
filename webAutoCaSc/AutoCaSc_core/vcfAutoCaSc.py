@@ -99,17 +99,18 @@ def thread_function_AutoCaSc_non_comp(params):
 
 
 def thread_function_AutoCaSc_comp(params):
+    # function that retrieves data
     variants, assembly, path_to_request_cache_dir = params
     return_dict = {}
     # iterrating through the variants
     for i, variant_vcf in enumerate(variants):
         print(f"comphet {i + 1} of {len(variants)}: {variant_vcf}")
         autocasc_instance = AutoCaSc(variant=variant_vcf,
-                                     inheritance="comphet",
+                                     # inheritance="comphet",
                                      assembly=assembly,
                                      path_to_request_cache_dir=path_to_request_cache_dir)
         return_dict[variant_vcf] = autocasc_instance
-    # multiple transcripts will be ignored for compound heterozygous variants
+    # multiple transcripts will be ignored by vcfAutoCaSc for compound heterozygous variants
     return return_dict
 
 
@@ -208,8 +209,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
     all_variants = list(list(set(comphet_cross_df.var_1.to_list())) + list(set(comphet_cross_df.var_2.to_list())))
     variant_chunks = [all_variants[round(i * len(all_variants) / num_threads):round((i+1) * len(all_variants) / num_threads)] for i in range(num_threads)]
 
-    # score all variants
     with ProcessPoolExecutor() as executor:
+        # retrieve data and inititate instances
         dicts_iterator = executor.map(thread_function_AutoCaSc_comp,
                                           zip(variant_chunks,
                                               [assembly] * len(variant_chunks),
@@ -226,9 +227,60 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
 
         if instance_1.status_code == 200 and instance_2.status_code == 200:
             _instance = copy.deepcopy(instance_1)
-            _instance.other_autocasc_obj = copy.deepcopy(instance_2)
-            _instance.calculate_candidate_score()
-            comphet_cross_df.loc[i, "instance"] = _instance
+            _instance.inheritance = "comphet"
+            _other_instance = copy.deepcopy(instance_2)
+            _other_instance.inheritance = "comphet"
+
+            instances_processed = []
+            variant_transcript_df = pd.DataFrame()
+            for _variant_instance in [_instance, _other_instance]:
+                _variant_instance.inheritance = "comphet"
+                if _variant_instance.__dict__.get("status_code") == 200:
+                    for _transcript in _variant_instance.__dict__.get("affected_transcripts"):
+                        variant_transcript_df.loc[
+                            len(variant_transcript_df), "variant"] = _variant_instance.__dict__.get("variant")
+                        variant_transcript_df.loc[len(variant_transcript_df) - 1, "transcript"] = _transcript
+                        variant_transcript_df.loc[len(variant_transcript_df) - 1, "instance"] = _variant_instance
+                else:
+                    instances_processed.append(_variant_instance)
+
+            for _variant in variant_transcript_df.variant.unique():
+                match_found = False
+                _variant_instance = \
+                    variant_transcript_df.loc[variant_transcript_df.variant == _variant, "instance"].values[0]
+                for _transcript in variant_transcript_df.loc[
+                    variant_transcript_df.variant == _variant].transcript.unique():
+                    df_chunk = variant_transcript_df.loc[
+                        variant_transcript_df.transcript == _transcript].reset_index(drop=True)
+                    if len(df_chunk) == 2:
+                        transcript_instance_1 = copy.deepcopy(_variant_instance)
+                        transcript_instance_1.__dict__.pop("transcript_instances")
+                        transcript_instance_1.assign_results(_transcript)
+
+                        variant_instance_2 = df_chunk.loc[(df_chunk.transcript == _transcript)
+                                                          & (df_chunk.variant != _variant), "instance"].values[0]
+                        transcript_instance_2 = copy.deepcopy(variant_instance_2)
+                        transcript_instance_2.__dict__.pop("transcript_instances")
+                        transcript_instance_2.assign_results(_transcript.split(".")[0])
+
+                        transcript_instance_1.other_autocasc_obj = transcript_instance_2
+                        transcript_instance_1.calculate_candidate_score()
+                        _variant_instance.transcript_instances[_transcript] = copy.deepcopy(transcript_instance_1)
+                        match_found = True
+                    else:
+                        _variant_instance.transcript_instances.pop(_transcript)
+                        _variant_instance.affected_transcripts.remove(_transcript)
+                if not match_found:
+                    _variant_instance.status_code = 301
+                else:
+                    for _attribute in ["candidate_score", "other_variant", "other_autocasc_obj"]:
+                        _variant_instance.__dict__[_attribute] = \
+                            list(_variant_instance.transcript_instances.values())[0].__dict__.get(_attribute)
+                instances_processed.append(_variant_instance)
+
+        # _instance.other_autocasc_obj = _other_instance
+        # _instance.calculate_candidate_score()
+        comphet_cross_df.loc[i, "instance"] = _instance
 
     comphet_cross_df = comphet_cross_df.rename(columns={"var_1": "variant", "var_2": "other_variant"})
     return comphet_cross_df

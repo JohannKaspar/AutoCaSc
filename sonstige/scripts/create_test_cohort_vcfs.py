@@ -64,7 +64,7 @@ def score_modified_vcfs():
         for trio in ["ASH", "CEU"]:
             os.makedirs(f'/home/johann/trio_scoring_results/synthetic_trios/{date}/cache/{trio}_{case}/',
                         exist_ok=True)
-            subprocess.run(shlex.split("python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
+            subprocess.run(shlex.split("python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/vcfAutoCaSc.py "
                                        f"score_vcf -v /mnt/raid/users/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
                                        f"-p /home/johann/PEDs/{trio}_a{ped_suffix}.ped "
                                        f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
@@ -93,7 +93,7 @@ def score_original_trios():
             os.makedirs(f"/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/",
                       exist_ok=True)
             subprocess.run(shlex.split(
-                "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
+                "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/vcfAutoCaSc.py "
                 f"score_vcf -v /mnt/raid/users/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered.AC_filtered.impact_filtered.vcf.gz "
                 f"-p {entry.path} "
                 f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
@@ -155,7 +155,7 @@ def get_seq_difference(ref, alt):
 
 def score_clinvar():
     subprocess.run(shlex.split(
-        "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/AutoCaSc_vcf.py "
+        "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/vcfAutoCaSc.py "
         f"score_vcf -vcf_non_ch '/home/johann/VCFs/clinvar/clinvar.vcf' "
         f"--cache '/home/johann/VCFs/clinvar/tmp/' "
         f"-o /home/johann/trio_scoring_results/clinvar/{date}/clinvar.csv "

@@ -1,5 +1,5 @@
 from AutoCaSc_core.AutoCaSc import AutoCaSc
-from AutoCaSc_core.AutoCaSc_vcf import mim_map, get_mim_number
+from AutoCaSc_core.vcfAutoCaSc import mim_map, get_mim_number
 import pandas as pd
 
 

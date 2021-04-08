@@ -1173,7 +1173,7 @@ def score_variants(instances, inheritance):
                 if len(df_chunk) == 2:
                     transcript_instance_1 = copy.deepcopy(_variant_instance)
                     transcript_instance_1.__dict__.pop("transcript_instances")
-                    transcript_instance_1.assign_results(_transcript.split(".")[0])
+                    transcript_instance_1.assign_results(_transcript)
 
                     variant_instance_2 = df_chunk.loc[(df_chunk.transcript == _transcript)
                                                       & (df_chunk.variant != _variant), "instance"].values[0]
@@ -1183,7 +1183,6 @@ def score_variants(instances, inheritance):
 
                     transcript_instance_1.other_autocasc_obj = transcript_instance_2
                     transcript_instance_1.calculate_candidate_score()
-
                     _variant_instance.transcript_instances[_transcript] = copy.deepcopy(transcript_instance_1)
                     match_found = True
                 else:
