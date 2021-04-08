@@ -77,8 +77,8 @@ def score_modified_vcfs():
                                        f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
                                        f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
                                        #f"-q 500 "
-                                       #f"-ssli "
-                                       #f"-dbed "
+                                       f"-ssli "
+                                       f"-dbed "
                                        f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
                                        f"--cache '/home/johann/trio_scoring_results/synthetic_trios/{date}/cache/{trio}_{case}/' "
                                        #f"-pass "
@@ -167,7 +167,7 @@ def score_clinvar():
     ))
 
 
-date = "2021-04-05"
+date = "2021-04-08"
 
 score_modified_vcfs()
 score_original_trios()

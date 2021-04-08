@@ -80,21 +80,20 @@ def thread_function_AutoCaSc_non_comp(params):
         return_df.loc[i, "transcript_num"] = 0
 
         # if there are multiple transcripts of same significance, calculate CaSc for all of them
-        if autocasc_instance.multiple_transcripts:
-            for j in range(autocasc_instance.multiple_transcripts - 1):
-                transcript_num = j + 1
+        if len(autocasc_instance.high_priority_transcripts) > 1:
+            for _transcript in autocasc_instance.high_priority_transcripts:
                 alternative_instance = AutoCaSc(variant=variant_vcf,
                                                 inheritance=inheritance,
                                                 assembly=assembly,
-                                                transcript_num=transcript_num,
+                                                transcript=_transcript,
                                                 path_to_request_cache_dir=path_to_request_cache_dir)
                 if alternative_instance.status_code == 200:
                     alternative_instance.calculate_candidate_score()
 
                 ix = len(return_df)
-                return_df.loc[ix, "variant"] = variant_vcf + f" ({transcript_num})"
+                return_df.loc[ix, "variant"] = variant_vcf + f" ({_transcript})"
                 return_df.loc[ix, "instance"] = alternative_instance
-                return_df.loc[ix, "transcript_num"] = transcript_num
+                return_df.loc[ix, "transcript"] = _transcript
     return return_df
 
 
@@ -167,7 +166,7 @@ def extract_quality_parameters(row, ped_file):
     return ";".join(quality_parameters)
 
 
-def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=5):
+def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=3):
     """This loads the vcf containing all compound heterozygous variants and converts it to a DataFrame.
     """
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
@@ -218,6 +217,7 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
         instances_dict = {}
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
+        print("all comphet data retrieved")
 
     for i, row in comphet_cross_df.iterrows():
         var_1 = row["var_1"]
@@ -231,27 +231,29 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
             _other_instance = instance_2
             _other_instance.inheritance = "comphet"
 
-            if _instance.transcript == _other_instance.transcript:
-                pass
-            elif _instance.transcript in _other_instance.affected_transcripts:
-                _other_instance.transcript = _instance.transcript
-            elif _other_instance.transcript in _instance.affected_transcripts:
-                _instance.transcript = _other_instance.transcript
-            else:
-                for _transcript in _instance.affected_transcripts:
-                    if _transcript in _other_instance.affected_transcripts:
-                        _instance.transcript = _transcript
-                        _other_instance.transcript = _transcript
-                        break
-                if _instance.transcript != _other_instance.transcript:
-                    for _transcript in _other_instance.affected_transcripts:
-                        if _transcript in _instance.affected_transcripts:
-                            _instance.transcript = _transcript
-                            _other_instance.transcript = _transcript
-                            break
+            # if _instance.transcript == _other_instance.transcript:
+            #     pass
+            # elif _instance.transcript in _other_instance.affected_transcripts:
+            #     _other_instance.transcript = _instance.transcript
+            # elif _other_instance.transcript in _instance.affected_transcripts:
+            #     _instance.transcript = _other_instance.transcript
+            # else:
+            #     for _transcript in _instance.affected_transcripts:
+            #         if _transcript in _other_instance.affected_transcripts:
+            #             _instance.transcript = _transcript
+            #             _other_instance.transcript = _transcript
+            #             break
+            #     if _instance.transcript != _other_instance.transcript:
+            #         for _transcript in _other_instance.affected_transcripts:
+            #             if _transcript in _instance.affected_transcripts:
+            #                 _instance.transcript = _transcript
+            #                 _other_instance.transcript = _transcript
+            #                 break
 
             _instance = copy.deepcopy(_instance)
+            _instance.__dict__.pop("transcript_instances")
             _other_instance = copy.deepcopy(_other_instance)
+            _other_instance.__dict__.pop("transcript_instances")
             _instance.other_autocasc_obj = _other_instance
             _instance.calculate_candidate_score()
         else:
@@ -828,4 +830,5 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
 
 if __name__ == "__main__":
+    score_vcf(['-vcf_non_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_non_comphets', '-vcf_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_comphets', '-p', '/home/johann/PEDs/ASH_a.ped', '-g', '/home/johann/tools/slivar/gnotate/gnomad.hg37.zip', '-j', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js', '-o', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/ASH_sim01.csv', '-a', 'GRCh37', '-s', '/home/johann/tools/slivar/slivar', '-blp', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '-req_cache', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/', '--cache', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/', '-dp', '20', '-ab', '0.3', '-ssli']    )
     main(obj={})

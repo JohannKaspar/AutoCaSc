@@ -36,7 +36,7 @@ class AutoCaSc:
                  other_impact="unknown",
                  other_variant=None,
                  assembly="GRCh37",
-                 transcript_id=None,
+                 transcript=None,
                  family_history=False,
                  mode="default",
                  path_to_request_cache_dir=None):
@@ -71,12 +71,13 @@ class AutoCaSc:
         self.status_code = 200  # initial value is set to 200 = all good
         self.family_history = family_history
         self.num_transcripts = False
-        self.transcript = transcript_id
+        self.transcript = transcript
         self.mode = mode
         self.data_retrieved = False
         self.path_to_request_cache_dir = path_to_request_cache_dir
         self.filter_pass = True
         self.transcript_instances = {}
+        self.affected_transcripts = None
         self.response_decoded = None
 
         if self.assembly == "GRCh37":
@@ -134,11 +135,12 @@ class AutoCaSc:
                 other_instance = AutoCaSc(variant=self.other_variant,
                                           inheritance=self.inheritance,
                                           assembly=self.assembly,
-                                          transcript_id=self.transcript,
+                                          transcript=self.transcript,
                                           mode=self.mode)
                 self.other_autocasc_obj = other_instance
                 self.status_code = other_instance.status_code
             for _transcript in self.affected_transcripts:
+                print("deepcopying")
                 transcript_instance = copy.deepcopy(self)
                 transcript_instance.__dict__.pop("transcript_instances")
                 transcript_instance.assign_results(_transcript)
@@ -159,7 +161,7 @@ class AutoCaSc:
                                  mode=self.mode,
                                  other_variant=self.other_variant,
                                  other_autocasc_obj=self.other_autocasc_obj,
-                                 transcript_id=self.transcript,
+                                 transcript=self.transcript,
                                  family_history=self.family_history,
                                  path_to_request_cache_dir=self.path_to_request_cache_dir
                                  )
@@ -464,35 +466,36 @@ class AutoCaSc:
         """
         impact_severity_dict = {"MODIFIER": 1, "LOW": 1, "MODERATE": 2, "HIGH": 3}
         transcript_df = pd.DataFrame()
-        try:
-            for i, transcript in enumerate(self.response_decoded["transcript_consequences"]):
-                # transcript_df.loc[i, "transcript_id"] = i
-                transcript_df.loc[i, "transcript_id"] = transcript.get("transcript_id")
-                transcript_df.loc[i, "impact_level"] = impact_severity_dict.get(transcript.get("impact"))
-                transcript_df.loc[i, "biotype"] = transcript.get("biotype")
-                transcript_df.loc[i, "canonical"] = transcript.get("canonical") or 0
+        if not self.transcript:
+            try:
+                for i, transcript in enumerate(self.response_decoded["transcript_consequences"]):
+                    # transcript_df.loc[i, "transcript_id"] = i
+                    transcript_df.loc[i, "transcript_id"] = transcript.get("transcript_id")
+                    transcript_df.loc[i, "impact_level"] = impact_severity_dict.get(transcript.get("impact"))
+                    transcript_df.loc[i, "biotype"] = transcript.get("biotype")
+                    transcript_df.loc[i, "canonical"] = transcript.get("canonical") or 0
 
-            if "protein_coding" in transcript_df.biotype.unique() and len(transcript_df.biotype.unique()) > 1:
-                transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"].reset_index()
-            transcript_df = transcript_df.sort_values(by=["canonical", "impact_level"],
-                                                      ascending=[False, False],
-                                                      ignore_index=True)
+                if "protein_coding" in transcript_df.biotype.unique() and len(transcript_df.biotype.unique()) > 1:
+                    transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"].reset_index()
+                transcript_df = transcript_df.sort_values(by=["canonical", "impact_level"],
+                                                          ascending=[False, False],
+                                                          ignore_index=True)
 
-            self.affected_transcripts = transcript_df.transcript_id.to_list()
-            self.num_transcripts = len(transcript_df)
-            transcript_df = transcript_df.loc[
-                transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
-            transcript_df = transcript_df.loc[
-                transcript_df.canonical == transcript_df.loc[0, "canonical"]]
-            self.high_priority_transcripts = transcript_df.transcript_id.to_list()
-            self.transcript = self.high_priority_transcripts[0]
+                self.affected_transcripts = transcript_df.transcript_id.to_list()
+                self.num_transcripts = len(transcript_df)
+                transcript_df = transcript_df.loc[
+                    transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
+                transcript_df = transcript_df.loc[
+                    transcript_df.canonical == transcript_df.loc[0, "canonical"]]
+                self.high_priority_transcripts = transcript_df.transcript_id.to_list()
+                self.transcript = self.high_priority_transcripts[0]
 
-        except AttributeError:
-            self.status_code = 499
-        except KeyError:
-            self.status_code = 498  # intergenic variant
-        except TypeError:
-            self.status_code = 497
+            except AttributeError:
+                self.status_code = 499
+            except KeyError:
+                self.status_code = 498  # intergenic variant
+            except TypeError:
+                self.status_code = 497
 
     def calculate_candidate_score(self, transcript_instances=True):
         if transcript_instances and self.status_code == 200 and not self.inheritance == "comphet":
@@ -882,6 +885,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    single(["-v", "22:45255644:G:T"])
+    # single(["-v", "22:45255644:G:T"])
     #batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
