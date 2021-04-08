@@ -31,7 +31,7 @@ class AutoCaSc:
     Class attributes correspond to variant parameters ranging from position to candidate score.
     """
     def __init__(self, variant,
-                 inheritance="other",
+                 inheritance="unknown",
                  other_autocasc_obj=None,
                  other_impact="unknown",
                  other_variant=None,
@@ -477,7 +477,7 @@ class AutoCaSc:
 
                 if "protein_coding" in transcript_df.biotype.unique() and len(transcript_df.biotype.unique()) > 1:
                     transcript_df = transcript_df.loc[transcript_df.biotype == "protein_coding"].reset_index()
-                transcript_df = transcript_df.sort_values(by=["canonical", "impact_level"],
+                transcript_df = transcript_df.sort_values(by=["impact_level", "canonical"],
                                                           ascending=[False, False],
                                                           ignore_index=True)
 
@@ -557,7 +557,7 @@ class AutoCaSc:
         """
         if self.inheritance == "de_novo":
             self.inheritance_score, self.explanation_dict["inheritance"] = 2, "de novo: 2"
-        if self.inheritance == "other":
+        if self.inheritance == "unknown":
             self.inheritance_score, self.explanation_dict["inheritance"] = 0, "other: 0"
         if self.inheritance == "ad_inherited":
             self.inheritance_score, self.explanation_dict["inheritance"] = 0, "inherited autosomal dominant: 0"
@@ -876,5 +876,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # single(["-v", "22:45255644:G:T"])
-    batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
+    single(["-v", "X:137793134:C:G"])
+    # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
