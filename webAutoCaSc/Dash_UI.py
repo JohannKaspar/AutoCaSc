@@ -125,6 +125,7 @@ url_bar_and_content_div = html.Div([
     dcc.Store(id="variant_queue_url"),
     dcc.Store(id="variant_memory"),
     dcc.Store(id="results_memory"),
+    dcc.Store(id="transcripts_to_use_memory"),
     Download(id="download"),
     navbar,
     html.Div(id='page-content'),
@@ -324,7 +325,7 @@ faq_ger = dcc.Markdown("""
 
             __Wofür stehen die 4 Unterscores?__  
             - __Variant Attributes (6 Punkte max):__ Dazu gehören Konservierung (GERP++), "in silico"-Vorhersagen (MutationAssessor, MutationTaster, Sift), Spleißstellenvorhersagen (MaxEntScan, AdaBoost, RandomForest) und erwartete Auswirkungen (VEP).
-            - __Gene Attributes (1 Punkte max):__ Es handelt sich dabei um gene-constraint Parameter aus gnomAD; LOUEF für Loss-of-Function-Varianten, Z für Missense-Varianten.
+            - __Gene Constraints (1 Punkte max):__ Es handelt sich dabei um gene-constraint Parameter aus gnomAD; LOUEF für Loss-of-Function-Varianten, Z für Missense-Varianten.
             - __Inheritance (2 Punkte max):__ Diese Punkte hängen von der Vererbung und der Segregation der Variante in der Familie ab.
             - __Gene Plausibility (6 Punkte max):__ Diese Punkte werden auf der Grundlage des Expressionsmusters des Gens, der Protein-Protein-Interaktionen, der Phänotypen in Tiermodellen, der in PubMed veröffentlichten Artikel zum Gen, de novo-Varianten im Gen die mit NDD in Verbindung gebacht wurden, und anderer Quellen berechnet.
 
@@ -355,7 +356,7 @@ faq_eng = dcc.Markdown("""
             
             __What do the 4 subscores stand for?__  
             - __Variant Attributes (6 points max):__ These include conservation (GERP++), "in silico" predictions (MutationAssessor, MutationTaster, Sift), splice site predictions (MaxEntScan, AdaBoost, RandomForest) and expected impact (VEP).
-            - __Gene Attributes (1 point max):__ These are gene constraint parameters from gnomAD; LOUEF for loss of function variants, Z for missense variants.
+            - __Gene Constraints (1 point max):__ These are gene constraint parameters from gnomAD; LOUEF for loss of function variants, Z for missense variants.
             - __Inheritance (2 points max):__ These points depend on inheritance of the variant of interest and segregation of the variant in the family.
             - __Gene Plausibility (6 points max):__ These points are calculated based on the gene's expression pattern, protein-protein interactions, animal model phenotypes, published articles on PubMed, de novo variants in the gene linked to NDD and other sources.
 
@@ -499,6 +500,7 @@ app.validation_layout = html.Div([
             ])
         ]),
     html.Div(id="loading_output"),
+    dcc.Dropdown(id="transcript_dropdown"),
     impressum_page,
     faq_page
 ])
@@ -734,13 +736,38 @@ def show_other_variant_column(results_memory):
     else:
         return False
 
+@app.callback(
+    Output("transcripts_to_use_memory", "data"),
+    Input("transcript_dropdown", "value"),
+    State("transcripts_to_use_memory", "data"),
+    State("card_tabs", "active_tab"),
+    State("results_memory", "data")
+)
+def update_transcripts_to_use(selected_transcript,
+                              transcript_dict,
+                              active_tab,
+                              results_memory):
+    if not transcript_dict:
+        transcript_dict = {}
+    tab_num = int(active_tab.split("_")[-1])
+    _variant = list(results_memory.get("instances").keys())[tab_num]
+    transcript_dict[_variant] = selected_transcript
+
+    if results_memory.get("instances").get(_variant).get("inheritance") == "comphet":
+        _other_variant = results_memory.get("instances").get(_variant).get("other_variant")
+        transcript_dict[_other_variant] = selected_transcript
+    return transcript_dict
+
 
 @app.callback(
     Output("card_content", "children"),
     Input("card_tabs", "active_tab"),
+    Input("transcripts_to_use_memory", "data"),
     State("results_memory", "data"),
 )
-def get_tab_card(active_tab, results_memory):
+def get_tab_card(active_tab,
+                 transcripts_to_use,
+                 results_memory):
     cell_style = {
         "padding": "5px",
         "padding-left": "12px"
@@ -765,7 +792,20 @@ def get_tab_card(active_tab, results_memory):
         tooltips = []
 
         for i, _variant in enumerate(results_memory.get("instances").keys()):
-            _instance_attributes = results_memory.get('instances').get(_variant)
+
+            try:
+                if _variant in transcripts_to_use.keys():
+                    _transcript = transcripts_to_use.get(_variant)
+                else:
+                    _transcript = \
+                    list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+            except AttributeError:
+                _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+            except IndexError:
+                print("")
+
+            _instance_attributes = \
+                results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
             if _instance_attributes.get("gene_symbol"):
                 _hgvs = _instance_attributes.get("gene_symbol")
                 if _instance_attributes.get("hgvsc_change") is not None:
@@ -844,7 +884,16 @@ def get_tab_card(active_tab, results_memory):
     else:
         tab_num = int(active_tab.split("_")[-1])
         _variant = list(results_memory.get("instances").keys())[tab_num]
-        _instance_attributes = results_memory.get("instances").get(_variant)
+
+        try:
+            if _variant in transcripts_to_use.keys():
+                _transcript = transcripts_to_use.get(_variant)
+            else:
+                _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+        except AttributeError:
+            _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+
+        _instance_attributes = results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
         status_code = _instance_attributes.get("status_code")
 
         if len(results_memory.get("instances")) == 1:
@@ -887,7 +936,7 @@ def get_tab_card(active_tab, results_memory):
         if status_code == 200:
             scoring_results = {
                 "inheritance_score": "Inheritance",
-                "gene_attribute_score": "Gene Attributes",
+                "gene_constraint_score": "Gene Constraint",
                 "variant_score": "Variant Attributes",
                 "literature_score": "Literature Plausibility",
             }
@@ -928,7 +977,7 @@ def get_tab_card(active_tab, results_memory):
 
             explanation_tooltips = [
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('pli_z')}",
-                            target="gene_attribute_score_explanation"),
+                            target="gene_constraint_score_explanation"),
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('impact')}, "
                             f"insilico: {_instance_attributes.get('explanation_dict').get('in_silico')}, "
                             f"conservation: {_instance_attributes.get('explanation_dict').get('conservation')}, "
@@ -942,7 +991,7 @@ def get_tab_card(active_tab, results_memory):
                 dbc.Tooltip("Points attributed for inheritance & segregation",
                             target="inheritance_score_description"),
                 dbc.Tooltip("Points attributed for gene constraint parameters.",
-                            target="gene_attribute_score_description"),
+                            target="gene_constraint_score_description"),
                 dbc.Tooltip("Points attributed for insilico predictions, conservation and allele frequency",
                             target="variant_score_description"),
                 dbc.Tooltip("Points attributed for data in literature databases, animal models, expression pattern, "
@@ -983,8 +1032,29 @@ def get_tab_card(active_tab, results_memory):
                     [
                         dbc.Col(dcc.Markdown(f"**Gene symbol:** {_instance_attributes.get('gene_symbol')}"),
                                 className="col-12 col-md-6"),
-                        dbc.Col(dcc.Markdown(f"**Transcript:** {_instance_attributes.get('transcript')}"),
-                                className="col-12 col-md-6")
+                        # dbc.Col(dcc.Markdown(f"**Transcript:** {_instance_attributes.get('transcript')}"),
+                        #         className="col-12 col-md-6"),
+                        dbc.Col(dbc.Row(
+                            [dbc.Col(dcc.Markdown("**Transcript:**"),
+                                     width="auto",
+                                     style={"margin-top": "6px"}
+                                     ),
+                            dbc.Col(dcc.Dropdown(
+                                options=[{"label": f"{_transcript}", "value": f"{_transcript}"} for _transcript in results_memory.get("instances").get(_variant).get("transcript_instances").keys()],
+                                value=_transcript,
+                                clearable=False,
+                                style={
+                                    "padding-left": "5px",
+                                    "margin-top": "1px",
+                                    "padding-top": "0px"
+                                },
+                                id="transcript_dropdown"
+                            ))
+                            ],
+                            no_gutters=True,
+                            align="start"
+                        ),
+                        className="col-12 col-md-6")
                     ],
                 ),
                 dbc.Row(
@@ -1084,32 +1154,51 @@ def get_faq_text(n_clicks, language):
 def score_variants(instances, inheritance):
     instances_processed = []
     if inheritance == "comphet":
-        variant_gene_df = pd.DataFrame()
-        for i, _instance in enumerate(instances):
-            _instance.inheritance = inheritance
-            if _instance.__dict__.get("status_code") == 200:
-                variant_gene_df.loc[i, "variant"] = _instance.__dict__.get("variant")
-                variant_gene_df.loc[i, "gene_symbol"] = _instance.__dict__.get("gene_symbol")
-                variant_gene_df.loc[i, "instance"] = _instance
+        variant_transcript_df = pd.DataFrame()
+        for _variant_instance in instances:
+            _variant_instance.inheritance = "comphet"
+            if _variant_instance.__dict__.get("status_code") == 200:
+                for _transcript in _variant_instance.__dict__.get("affected_transcripts"):
+                    variant_transcript_df.loc[len(variant_transcript_df), "variant"] = _variant_instance.__dict__.get("variant")
+                    variant_transcript_df.loc[len(variant_transcript_df) - 1, "transcript"] = _transcript
+                    variant_transcript_df.loc[len(variant_transcript_df) - 1, "instance"] = _variant_instance
             else:
-                instances_processed.append(_instance)
-        for _gene in variant_gene_df.gene_symbol.unique():
-            df_chunk = variant_gene_df.loc[variant_gene_df.gene_symbol == _gene].reset_index(drop=True)
-            if len(df_chunk) == 2:
-                for i in range(2):
-                    _instance = copy.deepcopy(df_chunk.loc[abs(1-i), "instance"])
-                    _instance.other_autocasc_obj = df_chunk.loc[abs(0-i), "instance"]
-                    _instance.calculate_candidate_score()
-                    instances_processed.append(_instance)
+                instances_processed.append(_variant_instance)
+
+        for _variant in variant_transcript_df.variant.unique():
+            match_found = False
+            _variant_instance = variant_transcript_df.loc[variant_transcript_df.variant == _variant, "instance"].values[0]
+            for _transcript in variant_transcript_df.loc[variant_transcript_df.variant == _variant].transcript.unique():
+                df_chunk = variant_transcript_df.loc[variant_transcript_df.transcript == _transcript].reset_index(drop=True)
+                if len(df_chunk) == 2:
+                    transcript_instance_1 = copy.deepcopy(_variant_instance)
+                    transcript_instance_1.__dict__.pop("transcript_instances")
+                    transcript_instance_1.assign_results(_transcript)
+
+                    variant_instance_2 = df_chunk.loc[(df_chunk.transcript == _transcript)
+                                                      & (df_chunk.variant != _variant), "instance"].values[0]
+                    transcript_instance_2 = copy.deepcopy(variant_instance_2)
+                    transcript_instance_2.__dict__.pop("transcript_instances")
+                    transcript_instance_2.assign_results(_transcript.split(".")[0])
+
+                    transcript_instance_1.other_autocasc_obj = transcript_instance_2
+                    transcript_instance_1.calculate_candidate_score()
+                    _variant_instance.transcript_instances[_transcript] = copy.deepcopy(transcript_instance_1)
+                    match_found = True
+                else:
+                    _variant_instance.transcript_instances.pop(_transcript)
+                    _variant_instance.affected_transcripts.remove(_transcript)
+            if not match_found:
+                _variant_instance.status_code = 301
             else:
-                for i in range(len(df_chunk)):
-                    lonely_instance = df_chunk.loc[i, "instance"]
-                    lonely_instance.__dict__["status_code"] = 301
-                    instances_processed.append(lonely_instance)
-                    # raise IOError(f"combination of comphet variants unclear for {_gene}")
+                for _attribute in ["candidate_score", "other_variant", "other_autocasc_obj"]:
+                    _variant_instance.__dict__[_attribute] = \
+                        list(_variant_instance.transcript_instances.values())[0].__dict__.get(_attribute)
+            instances_processed.append(_variant_instance)
+
     else:
         for _instance in instances:
-            _instance.inheritance = inheritance
+            _instance.update_inheritance(inheritance=inheritance)
             if _instance.__dict__.get("status_code") == 200:
                 _instance.calculate_candidate_score()
             instances_processed.append(_instance)
@@ -1131,19 +1220,27 @@ def dict_to_instances(dict):
         return None
 
 
-def instances_to_dict(instance):
+def instances_to_dict(instance, recursion_level=0):
     instance_dict = {}
-    for key, value in instance.__dict__.items():
-        if any([x in type(value).__name__ for x in ["int", "float", "bool", "NoneType", "str", "dict", "list"]]):
+    if isinstance(instance, dict):
+        items = instance.items()
+    else:
+        items = instance.__dict__.items()
+    for key, value in items:
+        if any([x in type(value).__name__ for x in ["int", "float", "bool", "NoneType", "str", "list"]]):
             instance_dict[key] = value
         else:
-            instance_dict[key] = instances_to_dict(value)
+            if type(value).__name__ == "AutoCaSc":
+                if recursion_level < 1:
+                    instance_dict[key] = instances_to_dict(value, recursion_level + 1)
+            else:
+                instance_dict[key] = instances_to_dict(value, recursion_level)
     return instance_dict
 
 
 def store_instances(instance_list, code_key="variant"):
     instance_dicts = [instances_to_dict(_instance) for _instance in instance_list]
-    return {"instances":{_instance_dict.get(code_key): _instance_dict for _instance_dict in instance_dicts}}
+    return {"instances": {_instance_dict.get(code_key): _instance_dict for _instance_dict in instance_dicts}}
 
 
 @app.callback(
@@ -1187,49 +1284,65 @@ def calculate_results(variant_memory, query_memory):
 @app.callback(
     Output("download", "data"),
     Input("download_button", "n_clicks"),
-    State("results_memory", "data")
+    State("results_memory", "data"),
+    State("transcripts_to_use_memory", "data")
 )
-def download_button_click(n_cklicks, results_memory):
+def download_button_click(n_cklicks, results_memory, transcripts_to_use):
     # todo check comphet behavior
     if not n_cklicks:
         raise PreventUpdate
     df = pd.DataFrame()
     for i, _variant in enumerate(results_memory.get("instances").keys()):
-        _instance = results_memory.get("instances").get(_variant)
         try:
-            if _instance.get("vcf_string") in df["vcf_format_2"].to_list():
+            if _variant in transcripts_to_use.keys():
+                _transcript = transcripts_to_use.get(_variant)
+            else:
+                _transcript = \
+                    list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+        except AttributeError:
+            _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+        except IndexError:
+            print("")
+
+        _instance_attributes = \
+            results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
+
+        # _instance = results_memory.get("instances").get(_variant)
+        try:
+            if _instance_attributes.get("vcf_string") in df["vcf_format_2"].to_list():
                 continue
         except KeyError:
             pass
-        if _instance.get("inheritance") == "comphet":
+        if _instance_attributes.get("inheritance") == "comphet":
             comphet = True
-            _other_instance = _instance.get("other_autocasc_obj")
+            _other_variant = _instance_attributes.get("other_variant")
+            _other_instance_attributes = results_memory.get("instances").get(_other_variant).get("transcript_instances").get(_transcript)
         else:
             comphet = False
-            _other_instance = {}
-        df.loc[i, "hgnc_symbol"] = _instance.get("gene_symbol")
-        df.loc[i, "transcript"] = _instance.get("transcript")
-        df.loc[i, "vcf_format_1"] = _instance.get("vcf_string")
-        df.loc[i, "vcf_format_2"] = _other_instance.get("vcf_string")
-        df.loc[i, "cDNA_1"] = _instance.get("hgvsc_change")
-        df.loc[i, "cDNA_2"] = _other_instance.get("hgvsc_change")
-        df.loc[i, "amino_acid_1"] = _instance.get("hgvsp_change")
-        df.loc[i, "amino_acid_2"] = _other_instance.get("hgvsp_change")
-        df.loc[i, "var_1_full_name"] = f"{_instance.get('transcript')}:{_instance.get('hgvsc_change')} {_instance.get('hgvsp_change')}"
+            _other_instance_attributes = {}
+        df.loc[i, "hgnc_symbol"] = _instance_attributes.get("gene_symbol")
+        df.loc[i, "transcript"] = _instance_attributes.get("transcript_hgvsc")
+        df.loc[i, "vcf_format_1"] = _instance_attributes.get("vcf_string")
+        df.loc[i, "vcf_format_2"] = _other_instance_attributes.get("vcf_string")
+        df.loc[i, "cDNA_1"] = _instance_attributes.get("hgvsc_change")
+        df.loc[i, "cDNA_2"] = _other_instance_attributes.get("hgvsc_change")
+        df.loc[i, "amino_acid_1"] = _instance_attributes.get("hgvsp_change")
+        df.loc[i, "amino_acid_2"] = _other_instance_attributes.get("hgvsp_change")
+        df.loc[i, "var_1_full_name"] = f"{_instance_attributes.get('transcript')}:{_instance_attributes.get('hgvsc_change')} {_instance_attributes.get('hgvsp_change')}"
         if comphet:
-            df.loc[i, "var_2_full_name"] = f"{_other_instance.get('transcript')}:{_other_instance.get('hgvsc_change')} {_other_instance.get('hgvsp_change')}"
+            df.loc[i, "var_2_full_name"] = f"{_other_instance_attributes.get('transcript')}:{_other_instance_attributes.get('hgvsc_change')} {_other_instance_attributes.get('hgvsp_change')}"
         else:
             df.loc[i, "var_2_full_name"] = ""
-        df.loc[i, "inheritance"] = _instance.get("inheritance")
-        df.loc[i, "candidate_score"] = _instance.get("candidate_score")
-        df.loc[i, "literature_plausibility"] = _instance.get("literature_score")
-        df.loc[i, "inheritance_score"] = _instance.get("inheritance_score")
+        df.loc[i, "inheritance"] = _instance_attributes.get("inheritance")
+        df.loc[i, "candidate_score"] = _instance_attributes.get("candidate_score")
+        df.loc[i, "literature_plausibility"] = _instance_attributes.get("literature_score")
+        df.loc[i, "inheritance_score"] = _instance_attributes.get("inheritance_score")
         if comphet:
-            df.loc[i, "variant_attribute_score"] = round(mean([_instance.get("variant_score"),
-                                                               _other_instance.get("variant_score")]), 2)
+            df.loc[i, "variant_attribute_score"] = round(mean([_instance_attributes.get("variant_score"),
+                                                               _other_instance_attributes.get("variant_score")]), 2)
         else:
-            df.loc[i, "variant_attribute_score"] = _instance.get("variant_score")
-        df.loc[i, "gene_attribute_score"] = _instance.get("gene_attribute_score")
+            df.loc[i, "variant_attribute_score"] = _instance_attributes.get("variant_score")
+        df.loc[i, "gene_constraint_score"] = _instance_attributes.get("gene_constraint_score")
 
     data = io.StringIO()
     df.to_csv(data, sep="\t", decimal=",")
@@ -1239,6 +1352,6 @@ def download_button_click(n_cklicks, results_memory):
 
 if __name__ == '__main__':
     app.run_server(debug=True,
-                   dev_tools_hot_reload=False,
+                   dev_tools_hot_reload=True,
                    host='0.0.0.0',
                    port=5000)

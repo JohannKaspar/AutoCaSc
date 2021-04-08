@@ -99,17 +99,18 @@ def thread_function_AutoCaSc_non_comp(params):
 
 
 def thread_function_AutoCaSc_comp(params):
+    # function that retrieves data
     variants, assembly, path_to_request_cache_dir = params
     return_dict = {}
     # iterrating through the variants
     for i, variant_vcf in enumerate(variants):
         print(f"comphet {i + 1} of {len(variants)}: {variant_vcf}")
         autocasc_instance = AutoCaSc(variant=variant_vcf,
-                                     inheritance="comphet",
+                                     # inheritance="comphet",
                                      assembly=assembly,
                                      path_to_request_cache_dir=path_to_request_cache_dir)
         return_dict[variant_vcf] = autocasc_instance
-    # multiple transcripts will be ignored for compound heterozygous variants
+    # multiple transcripts will be ignored by vcfAutoCaSc for compound heterozygous variants
     return return_dict
 
 
@@ -208,8 +209,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
     all_variants = list(list(set(comphet_cross_df.var_1.to_list())) + list(set(comphet_cross_df.var_2.to_list())))
     variant_chunks = [all_variants[round(i * len(all_variants) / num_threads):round((i+1) * len(all_variants) / num_threads)] for i in range(num_threads)]
 
-    # score all variants
     with ProcessPoolExecutor() as executor:
+        # retrieve data and inititate instances
         dicts_iterator = executor.map(thread_function_AutoCaSc_comp,
                                           zip(variant_chunks,
                                               [assembly] * len(variant_chunks),
@@ -225,10 +226,37 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
         instance_2 = instances_dict.get(var_2)
 
         if instance_1.status_code == 200 and instance_2.status_code == 200:
-            _instance = copy.deepcopy(instance_1)
-            _instance.other_autocasc_obj = copy.deepcopy(instance_2)
+            _instance = instance_1
+            _instance.inheritance = "comphet"
+            _other_instance = instance_2
+            _other_instance.inheritance = "comphet"
+
+            if _instance.transcript == _other_instance.transcript:
+                pass
+            elif _instance.transcript in _other_instance.affected_transcripts:
+                _other_instance.transcript = _instance.transcript
+            elif _other_instance.transcript in _instance.affected_transcripts:
+                _instance.transcript = _other_instance.transcript
+            else:
+                for _transcript in _instance.affected_transcripts:
+                    if _transcript in _other_instance.affected_transcripts:
+                        _instance.transcript = _transcript
+                        _other_instance.transcript = _transcript
+                        break
+                if _instance.transcript != _other_instance.transcript:
+                    for _transcript in _other_instance.affected_transcripts:
+                        if _transcript in _instance.affected_transcripts:
+                            _instance.transcript = _transcript
+                            _other_instance.transcript = _transcript
+                            break
+
+            _instance = copy.deepcopy(_instance)
+            _other_instance = copy.deepcopy(_other_instance)
+            _instance.other_autocasc_obj = _other_instance
             _instance.calculate_candidate_score()
-            comphet_cross_df.loc[i, "instance"] = _instance
+        else:
+            _instance = None
+        comphet_cross_df.loc[i, "instance"] = _instance
 
     comphet_cross_df = comphet_cross_df.rename(columns={"var_1": "variant", "var_2": "other_variant"})
     return comphet_cross_df

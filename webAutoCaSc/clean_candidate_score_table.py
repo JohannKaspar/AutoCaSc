@@ -4,7 +4,7 @@ import xlrd
 import os
 import re
 from AutoCaSc_core.AutoCaSc import AutoCaSc
-from AutoCaSc_core.AutoCaSc_vcf import update_request_cache
+from AutoCaSc_core.vcfAutoCaSc import update_request_cache
 
 def load_manual_candidate_table(path_to_excel="/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/data/candidate-scores.xlsx"):
     candidate_table = pd.read_excel(path_to_excel)
