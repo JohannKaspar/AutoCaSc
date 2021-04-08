@@ -99,7 +99,7 @@ footer = html.Div(
                                     height="30px"),
                            href="https://creativecommons.org/licenses/by-nc-sa/4.0/",
                            target="_blank"),
-                    dbc.NavLink("Github", href='https://github.com', target="_blank", style={"color": "#ffffff"}),
+                    dbc.NavLink("Github", href='https://github.com/JohannKaspar/AutoCaSc', target="_blank", style={"color": "#ffffff"}),
                     dbc.NavLink("Human Genetics Leipzig",
                                 href='https://www.uniklinikum-leipzig.de/einrichtungen/humangenetik',
                                 target="_blank",
