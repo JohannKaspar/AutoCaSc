@@ -100,6 +100,8 @@ class AutoCaSc:
         elif not self.mode == "web":
             self.retrieve_data()
 
+    def get(self, attribute):
+        return self.__dict__.get(attribute)
 
     def check_for_other_variant(self):
         """Check if a corresponding autocasc objet exists. If so set other_variant to its variant.
@@ -495,13 +497,15 @@ class AutoCaSc:
     def calculate_candidate_score(self, transcript_instances=True):
         if transcript_instances and self.status_code == 200 and not self.inheritance == "comphet":
             for _transcript, transcript_instance in self.transcript_instances.items():
-                _instance = AutoCaSc(transcript_instance.get("variant"),
-                                     mode="web")
-                _instance.__dict__ = transcript_instance
+                if type(transcript_instance).__name__ == "dict":
+                    _instance = AutoCaSc(transcript_instance.get("variant"),
+                                        mode="web")
+                    _instance.__dict__ = transcript_instance
+                else:
+                    _instance = transcript_instance
                 _instance.calculate_candidate_score_func()
                 self.transcript_instances[_transcript] = _instance
-        else:
-            self.calculate_candidate_score_func()
+        self.calculate_candidate_score_func()
 
     def calculate_candidate_score_func(self, recursively=True):
         """This method calls all the scoring functions and assigns their results to class attributes.
@@ -553,7 +557,7 @@ class AutoCaSc:
                 self.candidate_score = round(mean([self.candidate_score,
                                                    self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)
                 if self.impact == "high" and self.other_autocasc_obj.__dict__.get("impact") == "high":
-                    self.candidate_score += 1
+                    self.candidate_score = round(self.candidate_score + 1., 2)
                     self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic: 3"
                     self.other_autocasc_obj.__dict__["impact_score"], self.other_autocasc_obj.__dict__["explanation_dict"]["impact"] = 3, "impact high, biallelic: 3"
 
@@ -799,9 +803,7 @@ def score_variants(ctx, variants, inheritances, corresponding_variants, family_h
             results_df.loc[_variant, "variant_score"] = variant_instance.variant_score
             results_df.loc[_variant, "literature_score"] = variant_instance.literature_score
         results_df.loc[_variant, "inheritance_mode"] = variant_instance.inheritance
-        # results_df.loc[_variant, "filter_fail_explanation"] = variant_instance.filter_fail_explanation
         results_df.loc[_variant, "status_code"] = str(int(variant_instance.status_code))
-        # print(variant_instance.factors)
 
     results_df.index.names = ["variant"]
     if output_path:
@@ -880,6 +882,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 
 if __name__ == "__main__":
-    #single(["-v", "22:45255644:G:T"])
+    single(["-v", "22:45255644:G:T"])
     #batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})

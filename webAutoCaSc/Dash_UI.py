@@ -1186,6 +1186,9 @@ def score_variants(instances, inheritance):
 
                     _variant_instance.transcript_instances[_transcript] = copy.deepcopy(transcript_instance_1)
                     match_found = True
+                else:
+                    _variant_instance.transcript_instances.pop(_transcript)
+                    _variant_instance.affected_transcripts.remove(_transcript)
             if not match_found:
                 _variant_instance.status_code = 301
             else:
@@ -1313,12 +1316,13 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
             pass
         if _instance_attributes.get("inheritance") == "comphet":
             comphet = True
-            _other_instance_attributes = _instance_attributes.get("other_autocasc_obj")
+            _other_variant = _instance_attributes.get("other_variant")
+            _other_instance_attributes = results_memory.get("instances").get(_other_variant).get("transcript_instances").get(_transcript)
         else:
             comphet = False
             _other_instance_attributes = {}
         df.loc[i, "hgnc_symbol"] = _instance_attributes.get("gene_symbol")
-        df.loc[i, "transcript"] = _instance_attributes.get("transcript")
+        df.loc[i, "transcript"] = _instance_attributes.get("transcript_hgvsc")
         df.loc[i, "vcf_format_1"] = _instance_attributes.get("vcf_string")
         df.loc[i, "vcf_format_2"] = _other_instance_attributes.get("vcf_string")
         df.loc[i, "cDNA_1"] = _instance_attributes.get("hgvsc_change")
