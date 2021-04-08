@@ -793,18 +793,19 @@ def get_tab_card(active_tab,
 
         for i, _variant in enumerate(results_memory.get("instances").keys()):
 
-            try:
-                if _variant in transcripts_to_use.keys():
-                    _transcript = transcripts_to_use.get(_variant)
-                else:
+            if results_memory.get("instances").get(_variant).get("status_code") == 200:
+                try:
+                    if _variant in transcripts_to_use.keys():
+                        _transcript = transcripts_to_use.get(_variant)
+                    else:
+                        _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
+                except AttributeError:
                     _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
-            except AttributeError:
-                _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
-            except IndexError:
-                print("")
+                _instance_attributes = results_memory.get("instances").get(_variant).get("transcript_instances").get(
+                    _transcript)
+            else:
+                _instance_attributes = results_memory.get("instances").get(_variant)
 
-            _instance_attributes = \
-                results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
             if _instance_attributes.get("gene_symbol"):
                 _hgvs = _instance_attributes.get("gene_symbol")
                 if _instance_attributes.get("hgvsc_change") is not None:
@@ -884,15 +885,18 @@ def get_tab_card(active_tab,
         tab_num = int(active_tab.split("_")[-1])
         _variant = list(results_memory.get("instances").keys())[tab_num]
 
-        try:
-            if _variant in transcripts_to_use.keys():
-                _transcript = transcripts_to_use.get(_variant)
-            else:
+        if results_memory.get("instances").get(_variant).get("status_code") == 200:
+            try:
+                if _variant in transcripts_to_use.keys():
+                    _transcript = transcripts_to_use.get(_variant)
+                else:
+                    _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
+            except AttributeError:
                 _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
-        except AttributeError:
-            _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
+            _instance_attributes = results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
+        else:
+            _instance_attributes = results_memory.get("instances").get(_variant)
 
-        _instance_attributes = results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
         status_code = _instance_attributes.get("status_code")
 
         if len(results_memory.get("instances")) == 1:
