@@ -231,24 +231,28 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
             _other_instance = instance_2
             _other_instance.inheritance = "comphet"
 
-            # if _instance.transcript == _other_instance.transcript:
-            #     pass
-            # elif _instance.transcript in _other_instance.affected_transcripts:
-            #     _other_instance.transcript = _instance.transcript
-            # elif _other_instance.transcript in _instance.affected_transcripts:
-            #     _instance.transcript = _other_instance.transcript
-            # else:
-            #     for _transcript in _instance.affected_transcripts:
-            #         if _transcript in _other_instance.affected_transcripts:
-            #             _instance.transcript = _transcript
-            #             _other_instance.transcript = _transcript
-            #             break
-            #     if _instance.transcript != _other_instance.transcript:
-            #         for _transcript in _other_instance.affected_transcripts:
-            #             if _transcript in _instance.affected_transcripts:
-            #                 _instance.transcript = _transcript
-            #                 _other_instance.transcript = _transcript
-            #                 break
+            if _instance.transcript == _other_instance.transcript:
+                pass
+            elif _instance.transcript in _other_instance.affected_transcripts:
+                _other_instance.transcript = _instance.transcript
+            elif _other_instance.transcript in _instance.affected_transcripts:
+                _instance.transcript = _other_instance.transcript
+            else:
+                for j in range(max([len(_instance.affected_transcripts), len(_other_instance.affected_transcripts)])):
+                    try:
+                        if _instance.affected_transcripts[j] in _other_instance.affected_transcripts:
+                            _instance.transcript = _instance.affected_transcripts[j]
+                            _other_instance.transcript = _instance.affected_transcripts[j]
+                            break
+                    except IndexError:
+                        pass
+                    try:
+                        if _other_instance.affected_transcripts[j] in _instance.affected_transcripts:
+                            _instance.transcript = _other_instance.affected_transcripts[j]
+                            _other_instance.transcript = _other_instance.affected_transcripts[j]
+                            break
+                    except IndexError:
+                        pass
 
             _instance = copy.deepcopy(_instance)
             _instance.__dict__.pop("transcript_instances")
@@ -830,6 +834,6 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
 
 if __name__ == "__main__":
-    # score_vcf(['-vcf_non_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_non_comphets', '-vcf_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_comphets', '-p', '/home/johann/PEDs/ASH_a.ped', '-g', '/home/johann/tools/slivar/gnotate/gnomad.hg37.zip', '-j', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js', '-o', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/ASH_sim01.csv', '-a', 'GRCh37', '-s', '/home/johann/tools/slivar/slivar', '-blp', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '-req_cache', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/', '--cache', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/', '-dp', '20', '-ab', '0.3', '-ssli']    )
-    score_vcf(['-vcf_non_ch', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a_non_comphets', '-vcf_ch', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a_comphets', '-p', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a.ped', '-o', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_sim01.csv', '-a', 'GRCh37', '-blp', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '--cache', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/', '-dp', '20', '-ab', '0.3', '-ssli']    )
+    score_vcf(['-vcf_non_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_non_comphets', '-vcf_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_comphets', '-p', '/home/johann/PEDs/ASH_a.ped', '-g', '/home/johann/tools/slivar/gnotate/gnomad.hg37.zip', '-j', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js', '-o', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/ASH_sim01.csv', '-a', 'GRCh37', '-s', '/home/johann/tools/slivar/slivar', '-blp', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '-req_cache', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/', '--cache', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/', '-dp', '20', '-ab', '0.3', '-ssli']    )
+    # score_vcf(['-vcf_non_ch', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a_non_comphets', '-vcf_ch', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a_comphets', '-p', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a.ped', '-o', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_sim01.csv', '-a', 'GRCh37', '-blp', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '--cache', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/', '-dp', '20', '-ab', '0.3', '-ssli']    )
     main(obj={})
