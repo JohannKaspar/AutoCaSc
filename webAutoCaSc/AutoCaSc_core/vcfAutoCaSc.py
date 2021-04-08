@@ -113,7 +113,7 @@ def thread_function_AutoCaSc_comp(params):
     return return_dict
 
 
-def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=3):
+def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=2):
     # this loads the vcf containing all variants but compound heterozygous ones and converts it to a DataFrame
     with open(filtered_vcf, "r") as inp, open(
             f"{cache}/temp_{trio_name}.tsv",
@@ -166,7 +166,7 @@ def extract_quality_parameters(row, ped_file):
     return ";".join(quality_parameters)
 
 
-def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=3):
+def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_request_cache_dir, num_threads=2):
     """This loads the vcf containing all compound heterozygous variants and converts it to a DataFrame.
     """
     with open(comphets_vcf, "r") as inp, open(f"{cache}/temp_{trio_name}.tsv", "w") as out:
@@ -830,5 +830,6 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
 
 if __name__ == "__main__":
-    score_vcf(['-vcf_non_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_non_comphets', '-vcf_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_comphets', '-p', '/home/johann/PEDs/ASH_a.ped', '-g', '/home/johann/tools/slivar/gnotate/gnomad.hg37.zip', '-j', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js', '-o', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/ASH_sim01.csv', '-a', 'GRCh37', '-s', '/home/johann/tools/slivar/slivar', '-blp', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '-req_cache', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/', '--cache', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/', '-dp', '20', '-ab', '0.3', '-ssli']    )
+    # score_vcf(['-vcf_non_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_non_comphets', '-vcf_ch', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/ASH_a_comphets', '-p', '/home/johann/PEDs/ASH_a.ped', '-g', '/home/johann/tools/slivar/gnotate/gnomad.hg37.zip', '-j', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js', '-o', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/ASH_sim01.csv', '-a', 'GRCh37', '-s', '/home/johann/tools/slivar/slivar', '-blp', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '-req_cache', '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/', '--cache', '/home/johann/trio_scoring_results/synthetic_trios/2021-04-08/cache/ASH_sim01/', '-dp', '20', '-ab', '0.3', '-ssli']    )
+    score_vcf(['-vcf_non_ch', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a_non_comphets', '-vcf_ch', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a_comphets', '-p', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_a.ped', '-o', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/ASH_sim01.csv', '-a', 'GRCh37', '-blp', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt', '-omim', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv', '-sys_prim', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv', '-sys_cand', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv', '-ssli', '-dbed', '--cache', '/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/tmp/', '-dp', '20', '-ab', '0.3', '-ssli']    )
     main(obj={})

@@ -139,12 +139,12 @@ class AutoCaSc:
                                           mode=self.mode)
                 self.other_autocasc_obj = other_instance
                 self.status_code = other_instance.status_code
-            for _transcript in self.affected_transcripts:
-                print("deepcopying")
-                transcript_instance = copy.deepcopy(self)
-                transcript_instance.__dict__.pop("transcript_instances")
-                transcript_instance.assign_results(_transcript)
-                self.transcript_instances[_transcript] = transcript_instance
+            # for _transcript in self.affected_transcripts:
+            #     print("deepcopying")
+            #     transcript_instance = copy.deepcopy(self)
+            #     transcript_instance.__dict__.pop("transcript_instances")
+            #     transcript_instance.assign_results(_transcript)
+            #     self.transcript_instances[_transcript] = transcript_instance
 
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
@@ -497,20 +497,20 @@ class AutoCaSc:
             except TypeError:
                 self.status_code = 497
 
-    def calculate_candidate_score(self, transcript_instances=True):
-        if transcript_instances and self.status_code == 200 and not self.inheritance == "comphet":
-            for _transcript, transcript_instance in self.transcript_instances.items():
-                if type(transcript_instance).__name__ == "dict":
-                    _instance = AutoCaSc(transcript_instance.get("variant"),
-                                        mode="web")
-                    _instance.__dict__ = transcript_instance
-                else:
-                    _instance = transcript_instance
-                _instance.calculate_candidate_score_func()
-                self.transcript_instances[_transcript] = _instance
-        self.calculate_candidate_score_func()
+    # def calculate_candidate_score(self, transcript_instances=True):
+    #     # if transcript_instances and self.status_code == 200 and self.inheritance != "comphet":
+    #     #     for _transcript, transcript_instance in self.transcript_instances.items():
+    #     #         if type(transcript_instance).__name__ == "dict":
+    #     #             _instance = AutoCaSc(transcript_instance.get("variant"),
+    #     #                                 mode="web")
+    #     #             _instance.__dict__ = transcript_instance
+    #     #         else:
+    #     #             _instance = transcript_instance
+    #     #         _instance.calculate_candidate_score_func()
+    #     #         self.transcript_instances[_transcript] = _instance
+    #     self.calculate_candidate_score_func()
 
-    def calculate_candidate_score_func(self, recursively=True):
+    def calculate_candidate_score(self, recursively=True):
         """This method calls all the scoring functions and assigns their results to class attributes.
         """
         self.check_for_other_variant()
@@ -555,7 +555,7 @@ class AutoCaSc:
 
         if self.inheritance == "comphet":
             if self.other_autocasc_obj and recursively:
-                self.other_autocasc_obj.calculate_candidate_score_func(recursively=False)
+                self.other_autocasc_obj.calculate_candidate_score(recursively=False)
 
                 self.candidate_score = round(mean([self.candidate_score,
                                                    self.other_autocasc_obj.__dict__.get("candidate_score")]), 2)

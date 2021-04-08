@@ -797,10 +797,9 @@ def get_tab_card(active_tab,
                 if _variant in transcripts_to_use.keys():
                     _transcript = transcripts_to_use.get(_variant)
                 else:
-                    _transcript = \
-                    list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+                    _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
             except AttributeError:
-                _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+                _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
             except IndexError:
                 print("")
 
@@ -889,9 +888,9 @@ def get_tab_card(active_tab,
             if _variant in transcripts_to_use.keys():
                 _transcript = transcripts_to_use.get(_variant)
             else:
-                _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+                _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
         except AttributeError:
-            _transcript = list(results_memory.get("instances").get(_variant).get("transcript_instances").keys())[0]
+            _transcript = results_memory.get("instances").get(_variant).get("affected_transcripts")[0]
 
         _instance_attributes = results_memory.get("instances").get(_variant).get("transcript_instances").get(_transcript)
         status_code = _instance_attributes.get("status_code")
@@ -1186,7 +1185,6 @@ def score_variants(instances, inheritance):
                     _variant_instance.transcript_instances[_transcript] = copy.deepcopy(transcript_instance_1)
                     match_found = True
                 else:
-                    _variant_instance.transcript_instances.pop(_transcript)
                     _variant_instance.affected_transcripts.remove(_transcript)
             if not match_found:
                 _variant_instance.status_code = 301
@@ -1200,7 +1198,12 @@ def score_variants(instances, inheritance):
         for _instance in instances:
             _instance.update_inheritance(inheritance=inheritance)
             if _instance.__dict__.get("status_code") == 200:
-                _instance.calculate_candidate_score()
+                for _transcript in _instance.get("affected_transcripts"):
+                    _transcript_instance = copy.deepcopy(_instance)
+                    _transcript_instance.__dict__.pop("transcript_instances")
+                    _transcript_instance.assign_results(_transcript)
+                    _transcript_instance.calculate_candidate_score()
+                    _instance.transcript_instances[_transcript] = _transcript_instance
             instances_processed.append(_instance)
     return instances_processed
 
