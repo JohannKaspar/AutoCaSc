@@ -286,7 +286,7 @@ def weighted_score(validation_run=False):
     plt.show()
 
 def plot_candidate_scores():
-    candidate_scores = pd.read_csv("/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/sonstige/data/manual_vs_automated.csv",
+    candidate_scores = pd.read_csv("/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/misc/data/manual_vs_automated.csv",
                                    sep=";")
     candidate_scores = candidate_scores.loc[candidate_scores.AutoCaSc != "-"]
     candidate_scores.loc[:, "CaSc"] = candidate_scores.loc[:, "CaSc"].apply(lambda x: float(str(x).replace(",", ".")))

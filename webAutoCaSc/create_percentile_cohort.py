@@ -2,7 +2,8 @@ from AutoCaSc_core.AutoCaSc import AutoCaSc
 from AutoCaSc_core.vcfAutoCaSc import mim_map, get_mim_number
 import pandas as pd
 
-
+# this was used to calculate the percentiles for webAutoCaSc
+# "This variant scored better than XYZ% of all our candidates."
 candidate_table = pd.read_csv("/Users/johannkaspar/Documents/Promotion/AutoCaSc_analytics/data/candidate-scores_rerun_20210305.csv")
 
 candidate_table = mim_map(candidate_table,

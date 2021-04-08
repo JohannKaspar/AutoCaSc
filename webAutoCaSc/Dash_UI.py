@@ -1271,7 +1271,7 @@ def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory
 @app.callback(
     Output("results_memory", "data"),
     Input("variant_memory", "data"),
-    Input("query_memory", "data"),
+    Input("query_memory", "data")
 )
 def calculate_results(variant_memory, query_memory):
     inheritance = None

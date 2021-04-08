@@ -497,18 +497,6 @@ class AutoCaSc:
             except TypeError:
                 self.status_code = 497
 
-    # def calculate_candidate_score(self, transcript_instances=True):
-    #     # if transcript_instances and self.status_code == 200 and self.inheritance != "comphet":
-    #     #     for _transcript, transcript_instance in self.transcript_instances.items():
-    #     #         if type(transcript_instance).__name__ == "dict":
-    #     #             _instance = AutoCaSc(transcript_instance.get("variant"),
-    #     #                                 mode="web")
-    #     #             _instance.__dict__ = transcript_instance
-    #     #         else:
-    #     #             _instance = transcript_instance
-    #     #         _instance.calculate_candidate_score_func()
-    #     #         self.transcript_instances[_transcript] = _instance
-    #     self.calculate_candidate_score_func()
 
     def calculate_candidate_score(self, recursively=True):
         """This method calls all the scoring functions and assigns their results to class attributes.
@@ -855,7 +843,8 @@ def batch(input_file):
                                 corresponding_variants=corresponding_variants,
                                 family_histories=family_histories)
 
-    click.echo(results_df.loc[:])
+    pd.set_option('display.max_columns', None)
+    click.echo(results_df)
 
 def interpret_family_history(input):
     if isinstance(input, str):
@@ -869,7 +858,7 @@ def interpret_family_history(input):
 @click.option("--variant", "-v",
               required=True,
               help="Variant in either VCF or HGVS format.")
-@click.option("--corresponding_variant", "-ov",
+@click.option("--corresponding_variant", "-cv",
               default=None,
               help="Corresponding compound heterozygous variant.")
 @click.option("--inheritance", "-ih",
@@ -881,10 +870,11 @@ def interpret_family_history(input):
 def single(variant, corresponding_variant, inheritance, family_history):
     family_history = interpret_family_history(family_history)
     results_df = score_variants([variant], [inheritance], [corresponding_variant], [family_history])
-    click.echo(results_df.head(len(results_df)))
+    pd.set_option('display.max_columns', None)
+    click.echo(results_df)
 
 
 if __name__ == "__main__":
     # single(["-v", "22:45255644:G:T"])
-    #batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
+    batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})

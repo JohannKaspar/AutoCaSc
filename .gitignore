@@ -30,6 +30,6 @@
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
 .idea/**/dbnavigator.xml
-/sonstige/data/ped_files/
-/sonstige/data/family_sample_ids.xlsx
-/sonstige/assets_old/
+/misc/data/ped_files/
+/misc/data/family_sample_ids.xlsx
+/misc/assets_old/

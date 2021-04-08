@@ -8,7 +8,7 @@ from io import StringIO
 
 def create_vcfs_with_inserted_variants():
     variant_excel = pd.read_excel(
-        "/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/published-variants-for-simulation_2021-01-22.xlsx",
+        "/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/published-variants-for-simulation_2021-01-22.xlsx",
         sheet_name="variants")
     variant_df = variant_excel.loc[variant_excel.Use == "yes"][
         ["Case_Number", "Variant_hg19_VCF", "Sex_Index", "GT_Index", "GT_Father", "GT_Mother", "Segregation_Siblings"]]
@@ -34,7 +34,7 @@ def create_vcfs_with_inserted_variants():
 
 def score_modified_vcfs():
     variant_excel = pd.read_excel(
-        "/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/published-variants-for-simulation_2021-01-22.xlsx",
+        "/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/published-variants-for-simulation_2021-01-22.xlsx",
         sheet_name="variants")
     variant_df = variant_excel.loc[variant_excel.Use == "yes"][
         ["Case_Number", "Variant_hg19_VCF", "Sex_Index", "GT_Index", "GT_Father", "GT_Mother", "Segregation_Siblings"]]
@@ -44,8 +44,8 @@ def score_modified_vcfs():
                               "vep_requests_GRCh37",
                               "vep_requests_GRCh38"]:
             try:
-                shutil.copy("/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/" + requests_file,
-                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/" + requests_file + ".bak")
+                shutil.copy("/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/" + requests_file,
+                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/" + requests_file + ".bak")
             except FileNotFoundError:
                 pass
 
@@ -72,14 +72,14 @@ def score_modified_vcfs():
                                        f"-o /home/johann/trio_scoring_results/synthetic_trios/{date}/{trio}_{case}.csv "
                                        f"-a GRCh37 "
                                        f"-s /home/johann/tools/slivar/slivar "
-                                       f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt' "
+                                       f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/gene_blacklist.txt' "
                                        f"-omim '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv' "
-                                       f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
-                                       f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
+                                       f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_primary_20210203.csv' "
+                                       f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_candidates_20210203.csv' "
                                        #f"-q 500 "
                                        f"-ssli "
                                        f"-dbed "
-                                       f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
+                                       f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/' "
                                        f"--cache '/home/johann/trio_scoring_results/synthetic_trios/{date}/cache/{trio}_{case}/' "
                                        #f"-pass "
                                        f"-dp 20 "
@@ -87,7 +87,7 @@ def score_modified_vcfs():
                                   ))
 
 def score_original_trios():
-    for entry in os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/ped_files"):
+    for entry in os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/ped_files"):
         if entry.is_file():
             print(f"working on family {entry.name}")
             os.makedirs(f"/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/",
@@ -101,13 +101,13 @@ def score_original_trios():
                 f"-o /home/johann/trio_scoring_results/varvis_trios/{date}/{entry.name}.csv "
                 f"-a GRCh37 "
                 f"-s /home/johann/tools/slivar/slivar "
-                f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/gene_blacklist.txt' "
+                f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/gene_blacklist.txt' "
                 f"-omim '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv' "
-                f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_primary_20210203.csv' "
-                f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/sysid_candidates_20210203.csv' "
+                f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_primary_20210203.csv' "
+                f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_candidates_20210203.csv' "
                 f"-dbed "
                 #f"-ssli "
-                f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
+                f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/' "
                 f"--cache '/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/' "
                 #f"-pass "
                 f"-dp 20 "
@@ -162,7 +162,7 @@ def score_clinvar():
         f"-a GRCh37 "
         f"-dbed "
         f"-ssli "
-        f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/sonstige/data/' "
+        f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/' "
         f"--trio_name clinvar"
     ))
 

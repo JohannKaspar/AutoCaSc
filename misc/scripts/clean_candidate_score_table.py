@@ -157,7 +157,7 @@ def make_vep_requests(hgvs_string,
                       inheritance,
                       hgvs_string_2=None,
                       start_pos_2=None):
-    request_cache = "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/"
+    request_cache = "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/misc/data/"
     if not isinstance(hgvs_string, str):
         return None
     if inheritance != "comphet":
@@ -236,9 +236,9 @@ candidate_table = load_manual_candidate_table()
 candidate_table = interpret_inheritance(candidate_table)
 candidate_table = clean_variants(candidate_table)
 # candidate_table = get_vcf_strings(candidate_table)
-update_request_cache("/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/")
+update_request_cache("/misc/data/")
 candidate_table = get_candidate_scores(candidate_table)
-update_request_cache("/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/sonstige/data/")
+update_request_cache("/misc/data/")
 #candidate_table = candidate_table.drop(columns=["index"])
 candidate_table.columns = [x.replace("\n", "") for x in candidate_table.columns]
 
