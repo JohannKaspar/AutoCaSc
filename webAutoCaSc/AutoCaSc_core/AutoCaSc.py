@@ -877,6 +877,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # single(["-v", "22:45255644:G:T"])
-    # single(["-v", "X:137793134:C:G"])
+    single(["-v", "X:137793134:C:G"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
