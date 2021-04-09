@@ -61,18 +61,21 @@ def score_modified_vcfs():
             # has to be denovo --> parents not affected
             ped_suffix = ""
 
-        for trio in ["ASH", "CEU"]:
+        for trio in ["ASH"]:
             os.makedirs(f'/home/johann/trio_scoring_results/synthetic_trios/{date}/cache/{trio}_{case}/',
                         exist_ok=True)
             subprocess.run(shlex.split("python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/vcfAutoCaSc.py "
-                                       f"score_vcf -v /mnt/raid/users/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
+                                       f"score_vcf "
+                                       # f"-v /mnt/raid/users/johann/VCFs/modified_VCFs/annotated/{trio}_{case}.vcf.gz "
+                                       f"-vcf_non_ch '/home/johann/trio_scoring_results/synthetic_trios/2021-04-05/cache/{trio}_{case}/{trio}_a{ped_suffix}_non_comphets' "
+                                       f"-vcf_ch '/home/johann/trio_scoring_results/synthetic_trios/2021-04-05/cache/{trio}_{case}/{trio}_a{ped_suffix}_comphets' "
                                        f"-p /home/johann/PEDs/{trio}_a{ped_suffix}.ped "
                                        f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                                        f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
                                        f"-o /home/johann/trio_scoring_results/synthetic_trios/{date}/{trio}_{case}.csv "
                                        f"-a GRCh37 "
                                        f"-s /home/johann/tools/slivar/slivar "
-                                       f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/gene_blacklist.txt' "
+                                       f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/gene_blacklist.txt' "
                                        f"-omim '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv' "
                                        f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_primary_20210203.csv' "
                                        f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_candidates_20210203.csv' "
@@ -87,7 +90,7 @@ def score_modified_vcfs():
                                   ))
 
 def score_original_trios():
-    for entry in os.scandir("/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/ped_files"):
+    for entry in os.scandir("/mnt/raid/users/johann/PEDs/varvis"):
         if entry.is_file():
             print(f"working on family {entry.name}")
             os.makedirs(f"/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/",
@@ -101,7 +104,7 @@ def score_original_trios():
                 f"-o /home/johann/trio_scoring_results/varvis_trios/{date}/{entry.name}.csv "
                 f"-a GRCh37 "
                 f"-s /home/johann/tools/slivar/slivar "
-                f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/gene_blacklist.txt' "
+                f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/gene_blacklist.txt' "
                 f"-omim '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/OMIM_morbidmap.tsv' "
                 f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_primary_20210203.csv' "
                 f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_candidates_20210203.csv' "
@@ -169,7 +172,7 @@ def score_clinvar():
 
 date = "2021-04-08"
 
-score_modified_vcfs()
+# score_modified_vcfs()
 score_original_trios()
 # score_clinvar()
 

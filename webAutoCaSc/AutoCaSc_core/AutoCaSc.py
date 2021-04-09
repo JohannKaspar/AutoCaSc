@@ -656,6 +656,7 @@ class AutoCaSc:
         elif self.impact == "high":
             # If there are no in silico scores for the variant and its impact is high, we assume a score of 1 point.
             self.in_silico_score, self.explanation_dict["in_silico"] = 1, "LoF: 1"
+
         # In case of absent in silico values and a moderate or low impact: consider splice site predictions, if existing
         else:
             affected_splice_counter = 0
@@ -876,6 +877,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # single(["-v", "22:45255644:G:T"])
-    single(["-v", "11:82698724:T:C"])
+    # single(["-v", "X:137793134:C:G"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
