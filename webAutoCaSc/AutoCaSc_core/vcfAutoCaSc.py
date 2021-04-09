@@ -233,6 +233,24 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
 
             if _instance.transcript == _other_instance.transcript:
                 pass
+            else:
+                common_transcripts = list(set(_other_instance.affected_transcripts) & set(_instance.affected_transcripts))
+                instances = []
+                highest_score = 0
+                highest_instance = None
+                for _transcript in common_transcripts:
+                    _instance = copy.deepcopy(_instance)
+                    _instance.__dict__.pop("transcript_instances")
+                    _other_instance = copy.deepcopy(_other_instance)
+                    _other_instance.__dict__.pop("transcript_instances")
+                    _instance.other_autocasc_obj = _other_instance
+                    _instance.calculate_candidate_score()
+                    instances.append(_instance)
+                for _instance in instances:
+                    if _instance.candidate_score > highest_score:
+                        highest_transcript = _instance
+
+
             elif _instance.transcript in _other_instance.affected_transcripts:
                 _other_instance.transcript = _instance.transcript
             elif _other_instance.transcript in _instance.affected_transcripts:
