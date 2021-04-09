@@ -217,7 +217,6 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
         instances_dict = {}
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
-        print("all comphet data retrieved")
 
     for i, row in comphet_cross_df.iterrows():
         var_1 = row["var_1"]
@@ -232,52 +231,47 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
             _other_instance.inheritance = "comphet"
 
             if _instance.transcript == _other_instance.transcript:
-                pass
+                _instance = copy.deepcopy(_instance)
+                _instance.__dict__.pop("transcript_instances")
+                _other_instance = copy.deepcopy(_other_instance)
+                _other_instance.__dict__.pop("transcript_instances")
+                _instance.other_autocasc_obj = _other_instance
+                _instance.calculate_candidate_score()
             else:
                 common_transcripts = list(set(_other_instance.affected_transcripts) & set(_instance.affected_transcripts))
-                instances = []
                 highest_score = 0
-                highest_instance = None
                 for _transcript in common_transcripts:
-                    _instance = copy.deepcopy(_instance)
-                    _instance.__dict__.pop("transcript_instances")
-                    _other_instance = copy.deepcopy(_other_instance)
-                    _other_instance.__dict__.pop("transcript_instances")
-                    _instance.other_autocasc_obj = _other_instance
-                    _instance.calculate_candidate_score()
-                    instances.append(_instance)
-                for _instance in instances:
-                    if _instance.candidate_score > highest_score:
-                        highest_transcript = _instance
+                    _transcript_instance = copy.deepcopy(_instance)
+                    _transcript_instance.__dict__.pop("transcript_instances")
+                    _other_transscript_instance = copy.deepcopy(_other_transscript_instance)
+                    _other_transscript_instance.__dict__.pop("transcript_instances")
+                    _transcript_instance.other_autocasc_obj = _other_transscript_instance
+                    _transcript_instance.calculate_candidate_score()
+                    if _transcript_instance.candidate_score > highest_score:
+                        _instance = copy.deepcopy(_transcript_instance)
 
 
-            elif _instance.transcript in _other_instance.affected_transcripts:
-                _other_instance.transcript = _instance.transcript
-            elif _other_instance.transcript in _instance.affected_transcripts:
-                _instance.transcript = _other_instance.transcript
-            else:
-                for j in range(max([len(_instance.affected_transcripts), len(_other_instance.affected_transcripts)])):
-                    try:
-                        if _instance.affected_transcripts[j] in _other_instance.affected_transcripts:
-                            _instance.transcript = _instance.affected_transcripts[j]
-                            _other_instance.transcript = _instance.affected_transcripts[j]
-                            break
-                    except IndexError:
-                        pass
-                    try:
-                        if _other_instance.affected_transcripts[j] in _instance.affected_transcripts:
-                            _instance.transcript = _other_instance.affected_transcripts[j]
-                            _other_instance.transcript = _other_instance.affected_transcripts[j]
-                            break
-                    except IndexError:
-                        pass
+            # elif _instance.transcript in _other_instance.affected_transcripts:
+            #     _other_instance.transcript = _instance.transcript
+            # elif _other_instance.transcript in _instance.affected_transcripts:
+            #     _instance.transcript = _other_instance.transcript
+            # else:
+            #     for j in range(max([len(_instance.affected_transcripts), len(_other_instance.affected_transcripts)])):
+            #         try:
+            #             if _instance.affected_transcripts[j] in _other_instance.affected_transcripts:
+            #                 _instance.transcript = _instance.affected_transcripts[j]
+            #                 _other_instance.transcript = _instance.affected_transcripts[j]
+            #                 break
+            #         except IndexError:
+            #             pass
+            #         try:
+            #             if _other_instance.affected_transcripts[j] in _instance.affected_transcripts:
+            #                 _instance.transcript = _other_instance.affected_transcripts[j]
+            #                 _other_instance.transcript = _other_instance.affected_transcripts[j]
+            #                 break
+            #         except IndexError:
+            #             pass
 
-            _instance = copy.deepcopy(_instance)
-            _instance.__dict__.pop("transcript_instances")
-            _other_instance = copy.deepcopy(_other_instance)
-            _other_instance.__dict__.pop("transcript_instances")
-            _instance.other_autocasc_obj = _other_instance
-            _instance.calculate_candidate_score()
         else:
             _instance = None
         comphet_cross_df.loc[i, "instance"] = _instance
