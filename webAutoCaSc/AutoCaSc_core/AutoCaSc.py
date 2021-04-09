@@ -14,12 +14,11 @@ from tenacity import retry, stop_after_attempt, wait_exponential, wait_random
 import click
 import pandas as pd
 import requests
-from numpy import isnan, poly1d, product
+from numpy import isnan
 from gnomAD import GnomADQuery
-from tools import safe_get, filterTheDict, get_seq_difference, write_new_api_request
-import copy
+from tools import safe_get, get_seq_difference, write_new_api_request
 
-
+VERSION = 1.0
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
 gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
@@ -57,7 +56,8 @@ class AutoCaSc:
                                    "oe_mis_lower", "oe_mis_upper", "oe_mis_interval", "oe_lof_interval",
                                    "sift_converted_rankscore", "mutationtaster_converted_rankscore",
                                    "mutationassessor_rankscore", "mgi_score", "virlof_ar_enrichment", "ref_seq",
-                                    "filter_fail_explanation", "factors"
+                                    "filter_fail_explanation", "factors", "canonical_transcripts", "response_decoded",
+                                   "affected_transcripts", "cadd_phred"
                                    ]
         for attribute in default_none_attributes:
             self.__dict__[attribute] = None
@@ -77,15 +77,12 @@ class AutoCaSc:
         self.path_to_request_cache_dir = path_to_request_cache_dir
         self.filter_pass = True
         self.transcript_instances = {}
-        self.affected_transcripts = None
-        self.response_decoded = None
 
         if self.assembly == "GRCh37":
             self.server = "http://grch37.rest.ensembl.org"  # API endpoint for GRCh37
         else:
             self.server = "http://rest.ensembl.org"  # API endpoint for GRCh38
 
-        self.cadd_phred = None
         self.explanation_dict = {}
         self.inheritance_score = 0
         self.frequency_score = 0
@@ -139,12 +136,6 @@ class AutoCaSc:
                                           mode=self.mode)
                 self.other_autocasc_obj = other_instance
                 self.status_code = other_instance.status_code
-            # for _transcript in self.affected_transcripts:
-            #     print("deepcopying")
-            #     transcript_instance = copy.deepcopy(self)
-            #     transcript_instance.__dict__.pop("transcript_instances")
-            #     transcript_instance.assign_results(_transcript)
-            #     self.transcript_instances[_transcript] = transcript_instance
 
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
@@ -491,6 +482,9 @@ class AutoCaSc:
                 self.high_priority_transcripts = transcript_df.transcript_id.to_list()
                 self.transcript = self.high_priority_transcripts[0]
 
+                if 1 in transcript_df.canonical.to_list():
+                    self.canonical_transcripts = transcript_df.loc[transcript_df.canonical == 1, "transcript_id"].to_list()
+
             except AttributeError:
                 self.status_code = 499
             except KeyError:
@@ -799,7 +793,7 @@ def score_variants(ctx, variants, inheritances, corresponding_variants, family_h
 
     results_df.index.names = ["variant"]
     if output_path:
-        results_df.to_csv(output_path, index=False)
+        results_df.to_csv(output_path)
     return results_df
 
 
@@ -877,6 +871,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # single(["-v", "22:45255644:G:T"])
-    single(["-v", "X:137793134:C:G"])
+    # single(["-v", "11:82698724:T:C"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})

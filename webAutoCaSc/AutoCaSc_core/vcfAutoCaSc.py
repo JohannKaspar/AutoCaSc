@@ -5,7 +5,7 @@ import shlex
 import subprocess
 from io import StringIO
 import click
-from AutoCaSc import AutoCaSc
+from AutoCaSc import AutoCaSc, VERSION
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor
 import re
@@ -249,6 +249,9 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
                     _transcript_instance.calculate_candidate_score()
                     if _transcript_instance.candidate_score > highest_score:
                         _instance = copy.deepcopy(_transcript_instance)
+                    elif _transcript_instance.candidate_score == highest_score:
+                        if _transcript_instance.transcript in instance_1.canonical_transcripts:
+                            _instance = copy.deepcopy(_transcript_instance)
 
 
             # elif _instance.transcript in _other_instance.affected_transcripts:
@@ -836,6 +839,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                               blacklist_path=blacklist_path,
                                               sysid_primary_path=sysid_primary_path,
                                               sysid_candidates_path=sysid_candidates_path)
+        autocasc_df["version"] = VERSION
         autocasc_df.to_csv(f"{output_path}",
                          index=False,
                          decimal=",",
