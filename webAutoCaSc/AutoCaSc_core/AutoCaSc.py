@@ -342,6 +342,7 @@ class AutoCaSc:
         for result in self.response_decoded["transcript_consequences"]:
             if result.get("transcript_id") == transcript_id:
                 selected_transcript_consequences = result
+                break
 
         if self.response_decoded.get("vcf_string") is not None:
             self.vcf_string = re.sub(r"-", ":", self.response_decoded.get("vcf_string"))
@@ -652,10 +653,9 @@ class AutoCaSc:
         if score_list:
             self.in_silico_score, self.explanation_dict["in_silico"] = round(mean(score_list), 2),\
                     f"mean in silico score: {round(mean(score_list), 2)}"
-        if self.impact == "high":
+        elif self.impact == "high":
             # If there are no in silico scores for the variant and its impact is high, we assume a score of 1 point.
             self.in_silico_score, self.explanation_dict["in_silico"] = 1, "LoF: 1"
-
         # In case of absent in silico values and a moderate or low impact: consider splice site predictions, if existing
         else:
             affected_splice_counter = 0
@@ -876,6 +876,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # single(["-v", "22:45255644:G:T"])
-    single(["-v", "5:113698316:C:A"])
+    single(["-v", "11:82698724:T:C"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
