@@ -2,7 +2,7 @@ import os
 import pickle
 
 import pandas as pd
-ROOT_DIR = "/AutoCaSc_maintenance/data/"
+ROOT_DIR = "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 
 def write_new_api_request(path, data):

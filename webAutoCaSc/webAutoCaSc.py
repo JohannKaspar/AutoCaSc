@@ -1,11 +1,7 @@
 import copy
 import io
-import os
-import tempfile
 from statistics import mean
-import time
-
-from flask import Flask, send_file
+from flask import Flask
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -16,7 +12,7 @@ from urllib.parse import unquote, quote
 import pandas as pd
 from numpy import array
 
-from AutoCaSc_core.AutoCaSc import AutoCaSc
+from AutoCaSc_core.AutoCaSc import AutoCaSc, VERSION
 from dash_extensions import Download
 
 server = Flask(__name__)
@@ -44,6 +40,8 @@ navbar = html.Div(
                                         width="auto"),
                                 dbc.Col(dbc.NavLink("FAQ", href='/faq', style={"color": "#ffffff"}),
                                         width="auto"),
+                                dbc.Col(dbc.NavLink("News", href='/news', style={"color": "#ffffff"}),
+                                        width="auto"),
                                 dbc.Col(dbc.NavLink("Impressum", href='/impressum', style={"color": "#ffffff"}),
                                         width="auto"),
                             ],
@@ -59,7 +57,6 @@ navbar = html.Div(
             color="dark",
             dark=True,
             fixed="top",
-            #sticky="top"
         ),
     html.Div(style={"height": "80px"})
     ]
@@ -164,16 +161,6 @@ misc_input_card = dbc.FormGroup(
             ],
             inline=True
         ),
-        # html.Br(),
-        # dbc.RadioItems(
-        #     id="assembly_input",
-        #     options=[
-        #         {"label": "GRCh37 (hg19)", "value": "GRCh37"},
-        #         {"label": "GRCh38 (hg38)", "value": "GRCh38"},
-        #     ],
-        #     inline=True,
-        #     value="GRCh37",
-        # )
     ]
 )
 
@@ -184,8 +171,9 @@ landing_page = html.Div([
                 dbc.Row(
                     dbc.Col(
                         [
-                            dcc.Markdown("""# Welcome to **webAutoCaSc**,\n
-#### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
+                            dcc.Markdown("""
+                            # Welcome to **webAutoCaSc**,\n
+                            #### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
                             dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
                             variant_input_card,
                             misc_input_card
@@ -205,7 +193,7 @@ landing_page = html.Div([
                     ]
                 )
             ],
-            style={"max-height": "calc(100vh - 150px)",
+            style={"max-height": "calc(100vh - 140px)",
                     "overflow-y": "auto"}
         ),
     # html.Div(style={"height": "1vh"}),
@@ -221,23 +209,8 @@ search_page = html.Div([
 results_page_clear = html.Div([
     dbc.Container([
         html.H3(
-            "X:12345:C:T"
+            "Looks like something went wrong..."
         ),
-        html.H2(
-            "Candidate Score: 9"
-        ),
-        html.P(
-            "Gene: XYZ"
-        ),
-        html.P(
-            "HGVSC: ENST100001023:c.213C>T"
-        ),
-        html.P(
-            "HGVSP: XYZ:p.Thr70Asn"
-        )
-        # html.P(
-        #     ""
-        # )
     ],
         style={"max-height": "calc(100vh - 150px)",
                "overflow-y": "auto"}
@@ -297,9 +270,9 @@ about_ger = [html.P("AutoCaSc ist ein Skript zum automatisierten Bewerten von Ka
                    style={"text-align": "justify"})]
 
 about_page = html.Div([
-    html.Br(),
     dbc.Container(
         [
+            html.Br(),
             dbc.Row([
                 dbc.Col(html.H2("About"),
                         width="auto"),
@@ -315,7 +288,6 @@ about_page = html.Div([
         style={"max-height": "calc(100vh - 180px)",  # html.Hr margin seemed to induce global scrollbar
                "overflow-y": "auto"}
     ),
-    # html.Div(style={"height": "1vh"}),
     ])
 
 
@@ -401,30 +373,48 @@ faq_page = html.Div([
     ),
     ])
 
+
+news_page = html.Div([
+    dbc.Container(
+        [
+            html.Br(),
+            dbc.Row([
+                dbc.Col(html.H2("News"),
+                        width="auto")
+            ]),
+            html.Br(),
+            html.Div("There are no news yet...",
+                     id="faq_text")
+        ],
+        style={"max-height": "calc(100vh - 150px)",
+               "overflow-y": "auto"}
+    ),
+    ])
+
 impressum_ger = dcc.Markdown("""
                             Gemäß § 28 BDSG widersprechen wir jeder kommerziellen Verwendung und Weitergabe der Daten.\n
-                            __Verantwortunsbereich__:\n
+                            __Verantwortunsbereich__:  
                             Das Impressum gilt nur für die Internetpräsenz unter der Adresse: https://autocasc.uni-leipzig.de\n
-                            __Abgrenzung__:\n
+                            __Abgrenzung__:  
                             Die Web-Präsenz ist Teil des WWW und dementsprechend mit fremden, sich jederzeit wandeln könnenden Web-Sites verknüpft, die folglich auch nicht diesem Verantwortungsbereich unterliegen und für die nachfolgende Informationen nicht gelten. Dass die Links weder gegen Sitten noch Gesetze verstoßen, wurde genau ein Mal geprüft (bevor sie hier aufgenommen wurden).\n
-                            __Diensteanbieter__:\n
+                            __Diensteanbieter__:  
                             Johann Lieberwirth und Rami Abou Jamra\n
                             __Ansprechpartner für die Webseite__:\n
                             Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
-                            __Verantwortlicher__:\n
+                            __Verantwortlicher__:  
                             Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
-                            __Anschrift__:\n
-                            Sekretariat\n
-                            Philipp-Rosenthal-Str. 55\n
-                            04103 Leipzig\n
+                            __Anschrift__:  
+                            Sekretariat  
+                            Philipp-Rosenthal-Str. 55  
+                            04103 Leipzig  
                             Telefon: 0341 - 97 23800\n
-                            __Urheberschutz und Nutzung__:\n
+                            __Urheberschutz und Nutzung__:  
                             Der Urheber räumt Ihnen ganz konkret das Nutzungsrecht ein, sich eine private Kopie für persönliche Zwecke anzufertigen. Nicht berechtigt sind Sie dagegen, die Materialien zu verändern und /oder weiter zu geben oder gar selbst zu veröffentlichen.
                             Wenn nicht ausdrücklich anders vermerkt, liegen die Urheberrechte bei Johann Lieberwirth
                             Datenschutz Personenbezogene Daten werden nur mit Ihrem Wissen und Ihrer Einwilligung erhoben. Auf Antrag erhalten Sie unentgeltlich Auskunft zu den über Sie gespeicherten personenbezogenen Daten. Wenden Sie sich dazu bitte an den Administrator.\n
-                            __Keine Haftung__:\n
+                            __Keine Haftung__:  
                             Die Inhalte dieses Webprojektes wurden sorgfältig geprüft und nach bestem Wissen erstellt. Aber für die hier dargebotenen Informationen wird kein Anspruch auf Vollständigkeit, Aktualität, Qualität und Richtigkeit erhoben. Es kann keine Verantwortung für Schäden übernommen werden, die durch das Vertrauen auf die Inhalte dieser Website oder deren Gebrauch entstehen.\n
-                            __Schutzrechtsverletzung__:\n
+                            __Schutzrechtsverletzung__:  
                             Falls Sie vermuten, dass von dieser Website aus eines Ihrer Schutzrechte verletzt wird, teilen Sie das bitte umgehend per elektronischer Post mit, damit zügig Abhilfe geschafft werden kann. Bitte nehmen Sie zur Kenntnis: Die zeitaufwändigere Einschaltung eines Anwaltes zur für den Diensteanbieter kostenpflichtigen Abmahnung entspricht nicht dessen wirklichen oder mutmaßlichen Willen.\n
                             \n
                             lt. Urteil vom 12. Mai 1998 - 312 O 85/98 - "Haftung für Links" hat das Landgericht Hamburg entschieden, dass man durch die Anbringung eines Links, die Inhalte der gelinkten Seite ggf. mit zu verantworten hat. Dies kann nur dadurch verhindert werden, dass man sich ausdrücklich von diesen Inhalten distanziert.
@@ -437,16 +427,16 @@ impressum_eng = [
                 html.P("The Institute for Human Genetics (University Medical Center Leipzig) makes no representation about the suitability or accuracy of this software or data for any purpose, and makes no warranties, including fitness for a particular purpose or that the use of this software will not infringe any third party patents, copyrights, trademarks or other rights."),
                 html.Br(),
                 dcc.Markdown("""
-                __Responsible for this website__:\n
+                __Responsible for this website__:  
                 Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
-                __Responsible for this project__:\n
+                __Responsible for this project__:  
                 Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
-                __Address__:\n
-                Sekretariat\n
-                Philipp-Rosenthal-Str. 55\n
-                04103 Leipzig\n
-                GERMANY\n
-                Telefon: 0341 - 97 23800\n""")
+                __Address__:  
+                Sekretariat  
+                Philipp-Rosenthal-Str. 55  
+                04103 Leipzig  
+                GERMANY  
+                Telefon: 0341 - 97 23800""")
             ]
 
 
@@ -502,7 +492,8 @@ app.validation_layout = html.Div([
     html.Div(id="loading_output"),
     dcc.Dropdown(id="transcript_dropdown"),
     impressum_page,
-    faq_page
+    faq_page,
+    news_page
 ])
 
 
@@ -638,8 +629,10 @@ def display_page(pathname, results_memory):
             return about_page
         if pathname == "/impressum":
             return impressum_page
-        if "/faq" in pathname:
+        if pathname == "/faq":
             return faq_page
+        if pathname == "/news":
+            return news_page
         if "/search" in pathname:
             if results_memory is None:
                 print("search page")
@@ -981,14 +974,20 @@ def get_tab_card(active_tab,
             explanation_tooltips = [
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('pli_z')}",
                             target="gene_constraint_score_explanation"),
-                dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('impact')}, "
-                            f"insilico: {_instance_attributes.get('explanation_dict').get('in_silico')}, "
-                            f"conservation: {_instance_attributes.get('explanation_dict').get('conservation')}, "
-                            f"frequency: {_instance_attributes.get('explanation_dict').get('frequency')}",
+                dbc.Tooltip(f"impact: {_instance_attributes.get('impact_score')}, "
+                            f"insilico: {_instance_attributes.get('in_silico_score')}, "
+                            f"conservation: {_instance_attributes.get('conservation_score')}, "
+                            f"frequency: {_instance_attributes.get('frequency_score')}",
                             target="variant_score_explanation"),
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('inheritance')}",
-                            target="inheritance_score_explanation")
-                # Todo literature score explanation
+                            target="inheritance_score_explanation"),
+                dbc.Tooltip(f"weighted sum from PubTator: {_instance_attributes.get('pubtator_score')}, "
+                            f"GTEx: {_instance_attributes.get('gtex_score')}, "
+                            f"PsyMuKB: {_instance_attributes.get('denovo_rank_score')}, "
+                            f"DisGeNET: {_instance_attributes.get('disgenet_score')}, "
+                            f"MGI: {_instance_attributes.get('mgi_score')}, "
+                            f"STRING: {_instance_attributes.get('string_score')}",
+                            target="literature_score_explanation")
             ]
             description_tooltips = [
                 dbc.Tooltip("Points attributed for inheritance & segregation",
@@ -1350,6 +1349,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
         else:
             df.loc[i, "variant_attribute_score"] = _instance_attributes.get("variant_score")
         df.loc[i, "gene_constraint_score"] = _instance_attributes.get("gene_constraint_score")
+        df["version"] = VERSION
 
     data = io.StringIO()
     df.to_csv(data, sep="\t", decimal=",")

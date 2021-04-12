@@ -6,14 +6,15 @@ import scipy
 import seaborn as sns
 from scipy import stats
 from statannot import add_stat_annotation
-from webAutoCaSc.AutoCaSc_core import add_categories
+from webAutoCaSc.AutoCaSc_core.tools import add_categories
 import ptitprince as pt
 import matplotlib.patches as mpatches
 import numpy as np
 # from sklearn.metrics import r2_score
 
 # ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+ROOT_DIR = "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 colors = ["#a8d0db", "#4062BB", "#FED766", "#a37a74"]
 pal = sns.color_palette(colors)
@@ -110,8 +111,10 @@ def rain_disgenet():
 
 def plot_parameter_genescores(validation_run=False):
     global all_gene_data, order
-    sns.set(style="ticks", font_scale=0.4)
-    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(3, 2.5), sharey=True, sharex=True, dpi=300)
+    sns.set(style="ticks",
+            # font_scale=0.4
+            )
+    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(12, 8), sharey=True, sharex=True, dpi=300)
     all_gene_data = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
 
     if validation_run:
