@@ -9,6 +9,7 @@ AutoCaSc is a command line tool for evaluating deleteriousness of genomic varian
 4. Navigate to the repository and run `pipenv install`
 
 ## Usage
+For available inheritance options, please check the [wiki](https://github.com/JohannKaspar/AutoCaSc/wiki/Available-inheritance-options).
 ### Scoring single variants
 If you have a set of variants that you want to quickly check or if you want to integrate AutoCaSc into a pipeline, use the command `single`. E.g. `pipenv run python AutoCaSc_core/AutoCaSc.py single --variant 1:55516888:G:GA --inheritance de_novo`
 ### Scoring multiple variants
