@@ -9,7 +9,6 @@ AutoCaSc is a command line tool for evaluating deleteriousness of genomic varian
 4. Navigate to the repository and run `pipenv install`
 
 ## Usage
-There are different options for different usecases.
 ### Scoring single variants
 If you have a set of variants that you want to quickly check or if you want to integrate AutoCaSc into a pipeline, use the command `single`. E.g. `pipenv run python AutoCaSc_core/AutoCaSc.py single --variant 1:55516888:G:GA --inheritance de_novo`
 ### Scoring multiple variants
@@ -18,5 +17,7 @@ If you want to score a list of variants, you can use the command `batch`. The co
 | ----------- | ----------- | ----------- | ----------- |
 | 14:93681589:G:GTT | comphet | 14:93673673:G:T | True |
 | NM_015317.2:c.2216del | de_novo | | False |
+
+E.g. `pipenv run python AutoCaSc_core/AutoCaSc.py batch -i /path/to/list/of/variants.csv`
 ### Scoring VCFs
 `vcfAutoCaSc.py` can be used to score whole VCF files. These can be prefiltered using any tool of your choice. In this case inheritance patterns should be inserted into the INFO field of the variants. An interface to prefilter using [slivar](https://github.com/brentp/slivar) and [bedtools](https://bedtools.readthedocs.io/en/latest/index.html) is implemented in the script. Slivar needs to be installed seperately.
