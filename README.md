@@ -2,6 +2,9 @@
 If you use AutoCaSc, please cite the paper.
 AutoCaSc is a command line tool for evaluating deleteriousness of genomic variants found in Trio Exome Sequencing in cases of neurodevelopmental disorders (NDD). Variants are assigned up to 15 points based on various parameters such as in silico predictions and inheritance patterns. The higher the score, the higher the probability that the variant is harmful. For detailed information on how the scores are determined, please refer to our paper.Variants are assigned up to 15 points based on various parameters such as in silico predictions and inheritance patterns. The higher the score, the higher the probability that the variant is harmful. For detailed information on how the scores are determined, please refer to our paper.
 
+
+An online webinterface running the tool can be found at [https://autocasc.uni-leipzig.de/](https://autocasc.uni-leipzig.de/)
+
 ## Installation
 1. Clone this repository
 2. Install Python 3.8
