@@ -65,31 +65,6 @@ navbar = html.Div(
     ]
 )
 
-# navbar = dbc.Navbar(
-#     [
-#         dbc.Col(dbc.NavbarBrand("AutoCaSc", href="/"),
-#                 sm=2,
-#                 md=1),
-#         dbc.Col(dbc.NavLink("About", href='/about'),
-#                 width="auto"),
-#         dbc.Col(dbc.NavLink("another link", href='/about'),
-#                 width="auto"),
-#         dbc.Col(dbc.Row(
-#             [
-#                 dbc.Col(dbc.Input(type="search", placeholder="Search variant")),
-#                 dbc.Col(dbc.Button("Search", color="primary", className="ml-2 mr-2"),
-#                         width="auto")
-#             ],
-#             no_gutters=True,
-#             className="ml-auto flex-nowrap mt-3 mt-md-0",
-#             align="center",
-#             ))
-#     ],
-#     color="dark",
-#     dark=True,
-#     #align="center",
-# )
-
 footer = html.Div(
     [
         dbc.Navbar(
@@ -1328,7 +1303,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
             comphet = False
             _other_instance_attributes = {}
         df.loc[i, "hgnc_symbol"] = _instance_attributes.get("gene_symbol")
-        df.loc[i, "transcript"] = _instance_attributes.get("transcript_hgvsc")
+        df.loc[i, "transcript"] = _instance_attributes.get("transcript")
         df.loc[i, "vcf_format_1"] = _instance_attributes.get("vcf_string")
         df.loc[i, "vcf_format_2"] = _other_instance_attributes.get("vcf_string")
         df.loc[i, "cDNA_1"] = _instance_attributes.get("hgvsc_change")
