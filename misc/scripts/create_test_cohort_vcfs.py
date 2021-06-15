@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 
 import pandas as pd
 import shlex
@@ -90,18 +91,20 @@ def score_modified_vcfs():
                                   ))
 
 def score_original_trios():
+    processed_cases = []
     for entry in os.scandir("/mnt/raid/users/johann/PEDs/varvis"):
-        if entry.is_file():
-            print(f"working on family {entry.name}")
+        if entry.is_file() and not entry.name in processed_cases:
+            print(f"working on family {entry.name},\t\t{time.strftime('%H:%M:%S')}")
             os.makedirs(f"/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/",
                       exist_ok=True)
             subprocess.run(shlex.split(
                 "python /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/vcfAutoCaSc.py "
-                f"score_vcf -v /mnt/raid/users/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered.AC_filtered.impact_filtered.vcf.gz "
+                f"score_vcf "
+                f"-v /mnt/raid/users/johann/VCFs/AutoCaScValidationCohort.ann.vcf.gz.bed_filtered.AC_filtered.impact_filtered.vcf.gz "
                 f"-p {entry.path} "
                 f"-g /home/johann/tools/slivar/gnotate/gnomad.hg37.zip "
                 f"-j /home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/slivar-functions.js "
-                f"-o /home/johann/trio_scoring_results/varvis_trios/{date}/{entry.name}.csv "
+                f"-o /home/johann/trio_scoring_results/varvis_trios/{date}/bugfixed/{entry.name}.csv "
                 f"-a GRCh37 "
                 f"-s /home/johann/tools/slivar/slivar "
                 f"-blp '/home/johann/PycharmProjects/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/gene_blacklist.txt' "
@@ -109,13 +112,14 @@ def score_original_trios():
                 f"-sys_prim '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_primary_20210203.csv' "
                 f"-sys_cand '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/sysid_candidates_20210203.csv' "
                 f"-dbed "
-                #f"-ssli "
+                # f"-ssli "
                 f"-req_cache '/home/johann/PycharmProjects/AutoCaSc_project_folder/misc/data/' "
-                f"--cache '/home/johann/trio_scoring_results/varvis_trios/{date}/cache/{entry.name.strip('.ped')}/' "
+                f"--cache '/mnt/raid/users/johann/temp/cache' "
                 #f"-pass "
                 f"-dp 20 "
                 f"-ab 0.3 "
             ))
+            break
 
 def concat_results(path="/home/johann/trio_scoring_results/varvis_trios/new_script_test/"):
     concat_df = pd.DataFrame()
@@ -172,8 +176,8 @@ def score_clinvar():
 
 date = "2021-04-09"
 
-score_modified_vcfs()
-# score_original_trios()
+# score_modified_vcfs()
+score_original_trios()
 # score_clinvar()
 
 # score_modified_vcfs()

@@ -6,14 +6,15 @@ import scipy
 import seaborn as sns
 from scipy import stats
 from statannot import add_stat_annotation
-from webAutoCaSc.AutoCaSc_core import add_categories
+from webAutoCaSc.AutoCaSc_core.tools import add_categories
 import ptitprince as pt
 import matplotlib.patches as mpatches
 import numpy as np
 # from sklearn.metrics import r2_score
 
 # ROOT_DIR = "/home/johann/PycharmProjects/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
-ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
+ROOT_DIR = "//mnt/raid/users/johann/AutoCaSc_maintenance_data/"
+# ROOT_DIR = "/Users/johannkaspar/OneDrive/Promotion/AutoCaSc_project_folder/AutoCaSc_maintenance/data/"
 
 colors = ["#a8d0db", "#4062BB", "#FED766", "#a37a74"]
 pal = sns.color_palette(colors)

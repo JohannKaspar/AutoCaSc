@@ -242,10 +242,16 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
                 highest_score = 0
                 for _transcript in common_transcripts:
                     _transcript_instance = copy.deepcopy(_instance)
-                    _transcript_instance.__dict__.pop("transcript_instances")
-                    _other_transscript_instance = copy.deepcopy(_other_transscript_instance)
-                    _other_transscript_instance.__dict__.pop("transcript_instances")
-                    _transcript_instance.other_autocasc_obj = _other_transscript_instance
+                    try:
+                        _transcript_instance.__dict__.pop("transcript_instances")
+                    except KeyError:
+                        pass
+                    _other_transcript_instance = copy.deepcopy(_other_instance)
+                    try:
+                        _other_transcript_instance.__dict__.pop("transcript_instances")
+                    except KeyError:
+                        pass
+                    _transcript_instance.other_autocasc_obj = _other_transcript_instance
                     _transcript_instance.calculate_candidate_score()
                     if _transcript_instance.candidate_score > highest_score:
                         _instance = copy.deepcopy(_transcript_instance)
@@ -586,35 +592,37 @@ def add_ranks(df, dp):
     df.loc[:, f"rank"] = df.loc[:, f"rank"].apply(lambda x: int(x+1))
 
     temp = filter_ac_mim(df, dp)
-    temp.sort_values(f"candidate_score",
-                     ascending=False,
-                     inplace=True,
-                     ignore_index=True)
 
-    if not "other_variant" in temp.columns:
-        temp.loc[:, f"rank_filtered"] = temp.index + 1
-    else:
-        temp.loc[:, f"rank_filtered"] = np.nan
-        for i, row in temp.iterrows():
-            if row["variant"] in temp.other_variant.to_list():
-                if pd.isnull(temp.loc[temp.other_variant == row["variant"], f"rank_filtered"].values[0]):
-                    temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
+    if not temp.empty:
+        temp.sort_values(f"candidate_score",
+                         ascending=False,
+                         inplace=True,
+                         ignore_index=True)
+        if not "other_variant" in temp.columns:
+            temp.loc[:, f"rank_filtered"] = temp.index + 1
+        else:
+            temp.loc[:, f"rank_filtered"] = np.nan
+            for i, row in temp.iterrows():
+                if row["variant"] in temp.other_variant.to_list():
+                    if pd.isnull(temp.loc[temp.other_variant == row["variant"], f"rank_filtered"].values[0]):
+                        temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
+                    else:
+                        temp.loc[i, f"rank_filtered"] = temp.loc[temp.other_variant == row["variant"],
+                                                                           f"rank_filtered"].values[0]
                 else:
-                    temp.loc[i, f"rank_filtered"] = temp.loc[temp.other_variant == row["variant"],
-                                                                       f"rank_filtered"].values[0]
-            else:
-                temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
+                    temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
 
-
-    if "autocasc_filter" in temp.columns:
-        merge_columns = ["rank", "rank_filtered", "autocasc_filter"]
+        if "autocasc_filter" in temp.columns:
+            merge_columns = ["rank", "rank_filtered", "autocasc_filter"]
+        else:
+            merge_columns = ["rank", "rank_filtered"]
+        df = df.merge(temp[merge_columns],
+                      on=f"rank",
+                      how="left")
+        df.sort_values("rank_filtered",
+                          inplace=True)
     else:
-        merge_columns = ["rank", "rank_filtered"]
-    df = df.merge(temp[merge_columns],
-                  on=f"rank",
-                  how="left")
-    df.sort_values("rank_filtered",
-                      inplace=True)
+        df["rank_filtered"] = np.nan
     df.loc[:, "rank_filtered"] = pd.to_numeric(df.loc[:, "rank_filtered"],
                                                downcast="unsigned",
                                                errors="ignore")
@@ -633,7 +641,10 @@ def post_scoring_polish(df,
     if sysid_primary_path and sysid_candidates_path:
         df = in_sysid(df, sysid_primary_path, sysid_candidates_path)
     df = add_ranks(df, dp)
-    df.loc[df.autocasc_filter != "PASS", "autocasc_filter"] = "FAIL"
+    if "autocasc_filter" in df.columns:
+        df.loc[df.autocasc_filter != "PASS", "autocasc_filter"] = "FAIL"
+    else:
+        df["autocasc_filter"] = "FAIL"
     return df
 
 
@@ -827,6 +838,9 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
 
         if n_hemialt is not None:
             merged_instances = filter_xlinked_frequency(merged_instances, n_hemialt)
+
+        if merged_instances.empty:
+            raise IOError("No variants left after filtering.")
 
         autocasc_df = make_spreadsheet(merged_instances)
         autocasc_df.fillna("-", inplace=True)
