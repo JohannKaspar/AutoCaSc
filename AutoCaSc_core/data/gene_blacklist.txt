@@ -1,0 +1,8 @@
+# list of regex patterns matching to gene symbols to exclude from storing, e.g. known inhouse artefacts
+^MUC[0-9]+
+^HLA.+
+^OBSC$
+^TTN$
+^FLG$
+^HTT$
+^KRTAP.?$

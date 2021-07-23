@@ -1,0 +1,2 @@
+14:93681589:G:GTT, comphet, 14:93673673:G:T, True
+NM_015317.2:c.2216del, de_novo,, False

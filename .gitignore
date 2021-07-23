@@ -1,15 +1,15 @@
 # Project exclude paths
-/AutoCaSc_maintenance/data/
+/update_data/data/
 /Manuskript/
 /venv/
 /venv_new/
 /_old/
 
 #/AutoCaSc_core/.idea/
-/webAutoCaSc/AutoCaSc_core/venv/
-/webAutoCaSc/AutoCaSc_core/venv_backup/bin/
-/webAutoCaSc/AutoCaSc_core/venv_backup/lib/python3.7/site-packages/
-/webAutoCaSc/AutoCaSc_core/venv_backup/pyvenv.cfg
+/AutoCaSc_core/venv/
+/AutoCaSc_core/venv_backup/bin/
+/AutoCaSc_core/venv_backup/lib/python3.7/site-packages/
+/AutoCaSc_core/venv_backup/pyvenv.cfg
 /autocasc_image.dmg
 
 # User-specific stuff
@@ -30,6 +30,6 @@
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
 .idea/**/dbnavigator.xml
-/misc/data/ped_files/
-/misc/data/family_sample_ids.xlsx
-/misc/assets_old/
+/paper/data/ped_files/
+/paper/data/family_sample_ids.xlsx
+/paper/assets_old/
