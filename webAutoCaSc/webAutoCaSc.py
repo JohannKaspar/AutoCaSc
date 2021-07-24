@@ -57,77 +57,86 @@ navbar = html.Div(
             color="dark",
             dark=True,
             fixed="top",
-        ),
-    html.Div(style={"height": "80px"})
+        )
     ]
 )
 
-# navbar = dbc.Navbar(
-#     [
-#         dbc.Col(dbc.NavbarBrand("AutoCaSc", href="/"),
-#                 sm=2,
-#                 md=1),
-#         dbc.Col(dbc.NavLink("About", href='/about'),
-#                 width="auto"),
-#         dbc.Col(dbc.NavLink("another link", href='/about'),
-#                 width="auto"),
-#         dbc.Col(dbc.Row(
-#             [
-#                 dbc.Col(dbc.Input(type="search", placeholder="Search variant")),
-#                 dbc.Col(dbc.Button("Search", color="primary", className="ml-2 mr-2"),
-#                         width="auto")
-#             ],
-#             no_gutters=True,
-#             className="ml-auto flex-nowrap mt-3 mt-md-0",
-#             align="center",
-#             ))
-#     ],
-#     color="dark",
-#     dark=True,
-#     #align="center",
-# )
-
-footer = html.Div(
-    [
-        dbc.Navbar(
+footer = dbc.Navbar(
             dbc.Container(
                 [
-                    html.A(html.Img(src="https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-sa.eu.svg",
-                                    height="30px"),
-                           href="https://creativecommons.org/licenses/by-nc-sa/4.0/",
-                           target="_blank"),
-                    dbc.NavLink("Github", href='https://github.com/JohannKaspar/AutoCaSc', target="_blank", style={"color": "#ffffff"}),
-                    dbc.NavLink("Human Genetics Leipzig",
-                                href='https://www.uniklinikum-leipzig.de/einrichtungen/humangenetik',
-                                target="_blank",
-                                style={"color": "#ffffff"}),
-                    dbc.NavLink("Our Manuscript",
-                                href="https://www.biorxiv.org",
-                                target="_blank",
-                                style={"color": "#ffffff"})
+                    html.A(
+                        html.Img(src="https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-sa.eu.svg",
+                                 height="30px"),
+                        href="https://creativecommons.org/licenses/by-nc-sa/4.0/",
+                        target="_blank"),
+                    dbc.NavbarToggler(id="footer-toggler"),
+                    dbc.Collapse(
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    dbc.NavLink("Github",
+                                        href='https://github.com/JohannKaspar/AutoCaSc',
+                                        target="_blank",
+                                        style={"color": "#ffffff"}),
+                                    align="center",
+                                    width="auto"),
+                                dbc.Col(dbc.NavLink("Human Genetics Leipzig",
+                                                    href='https://www.uniklinikum-leipzig.de/einrichtungen/humangenetik',
+                                                    target="_blank",
+                                                    style={"color": "#ffffff"}),
+                                        align="center",
+                                        width="auto"),
+                                dbc.Col(dbc.NavLink("Our Manuscript",
+                                                    href="https://www.biorxiv.org",
+                                                    target="_blank",
+                                                    style={"color": "#ffffff"}),
+                                        align="center",
+                                        width="auto"
+                                        )
+                            ],
+                            no_gutters=True,
+                            className="ml-auto flex-nowrap mt-3 mt-md-0",
+                            align="center",
+                        ),
+                        id="footer-collapse",
+                        navbar=True,
+                    )
                 ],
             ),
             color="dark",
             dark=True,
-            fixed="bottom"
-        ),
-        html.Div(style={"height": "70px"})
-    ]
-)
+            fixed="bottom",
+        )
 
-url_bar_and_content_div = html.Div([
+stores = ["query_memory",
+            "variant_queue_input",
+            "variant_queue_url",
+            "variant_memory",
+            "results_memory",
+            "transcripts_to_use_memory"]
+url_bar_and_content_div = html.Div(
+    [dcc.Store(id=_store) for _store in stores] + [
     dcc.Location(id='url', refresh=False),
-    dcc.Store(id="query_memory"),
-    dcc.Store(id="variant_queue_input"),
-    dcc.Store(id="variant_queue_url"),
-    dcc.Store(id="variant_memory"),
-    dcc.Store(id="results_memory"),
-    dcc.Store(id="transcripts_to_use_memory"),
     Download(id="download"),
     navbar,
-    html.Div(id='page-content'),
+    dbc.Container(
+        dbc.Row(
+            id='page-content',
+            style={
+                "margin-top": "80px",
+                "margin-bottom": "63px",
+                "height": "calc(100vh - 143px)",
+                "overflow-y": "auto",
+                "justify-content": "start",
+                "width": "100%"
+            },
+            align="center",
+            className="hide_scrollbar"
+        )
+    ),
     footer
-])
+],
+style={"width": "100%"})
 
 variant_input_card = dbc.FormGroup(
     [
@@ -164,60 +173,46 @@ misc_input_card = dbc.FormGroup(
     ]
 )
 
-landing_page = html.Div([
-    html.Div(style={"height": "10vh"}),
-    dbc.Container(
-            [
-                dbc.Row(
-                    dbc.Col(
-                        [
-                            dcc.Markdown("""
-                            # Welcome to **webAutoCaSc**,\n
-                            #### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
-                            dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
-                            variant_input_card,
-                            misc_input_card
-                        ]
-                    ),
-                ),
-                html.Br(),
-                dbc.Row(
+landing_page = dbc.Container(
+        [
+            dbc.Row(
+                dbc.Col(
                     [
-                        dbc.Col(
-                            dbc.Button(
-                                "Start search",
-                                color="primary",
-                                id="search_button"
-                            )
-                        )
+                        dcc.Markdown("""
+                        # Welcome to **webAutoCaSc**,\n
+                        #### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
+                        dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
+                        variant_input_card,
+                        misc_input_card
                     ]
-                )
-            ],
-            style={"max-height": "calc(100vh - 140px)",
-                    "overflow-y": "auto"}
-        ),
-    # html.Div(style={"height": "1vh"}),
-])
+                ),
+            ),
+            html.Br(),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        dbc.Button(
+                            "Start search",
+                            color="primary",
+                            id="search_button"
+                        ),
+                        style={"padding-bottom": "10px"}
+                    )
+                ]
+            )
+        ],
+    )
 
-
-search_page = html.Div([
-    dbc.Container([
+search_page = dbc.Container([
         dbc.Spinner(fullscreen=True)
     ])
-])
 
-results_page_clear = html.Div([
-    dbc.Container([
+error_page = dbc.Container([
         html.H3(
             "Looks like something went wrong..."
         ),
-    ],
-        style={"max-height": "calc(100vh - 150px)",
-               "overflow-y": "auto"}
-    ),
-],
+    ])
 
-)
 citations = html.Div([
     html.Hr(),
     dbc.Container([
@@ -269,9 +264,7 @@ about_ger = [html.P("AutoCaSc ist ein Skript zum automatisierten Bewerten von Ka
              html.P("Bei Fragen und Anmerkungen kontaktieren Sie bitte johann.lieberwirth@medizin.uni-leipzig.de oder rami.aboujamra@medizin.uni-leipzig.de.",
                    style={"text-align": "justify"})]
 
-about_page = html.Div([
-    dbc.Container(
-        [
+about_page = dbc.Container([
             html.Br(),
             dbc.Row([
                 dbc.Col(html.H2("About"),
@@ -284,11 +277,7 @@ about_page = html.Div([
             id="about_text"),
             html.Br(),
             citations
-        ],
-        style={"max-height": "calc(100vh - 180px)",  # html.Hr margin seemed to induce global scrollbar
-               "overflow-y": "auto"}
-    ),
-    ])
+        ])
 
 
 faq_ger = dcc.Markdown("""
@@ -354,9 +343,7 @@ faq_eng = dcc.Markdown("""
             """)
 
 
-faq_page = html.Div([
-    dbc.Container(
-        [
+faq_page = dbc.Container([
             html.Br(),
             dbc.Row([
                 dbc.Col(html.H2("FAQ"),
@@ -367,29 +354,21 @@ faq_page = html.Div([
             html.Br(),
             html.Div(faq_eng,
                      id="faq_text")
-        ],
-        style={"max-height": "calc(100vh - 150px)",
-               "overflow-y": "auto"}
-    ),
-    ])
+        ])
 
-
-news_page = html.Div([
-    dbc.Container(
-        [
-            html.Br(),
-            dbc.Row([
-                dbc.Col(html.H2("News"),
-                        width="auto")
-            ]),
-            html.Br(),
-            html.Div("There are no news yet...",
-                     id="faq_text")
-        ],
-        style={"max-height": "calc(100vh - 150px)",
-               "overflow-y": "auto"}
-    ),
-    ])
+news_page = dbc.Container(
+    [
+        html.Br(),
+        dbc.Row([
+            dbc.Col(html.H2("News"),
+                    width="auto")
+        ]),
+        html.Br(),
+        html.Div("There are no news yet...",
+                 id="faq_text")
+    ],
+    style={"height": "calc(100vh - 150px)"}
+)
 
 impressum_ger = dcc.Markdown("""
                             Gemäß § 28 BDSG widersprechen wir jeder kommerziellen Verwendung und Weitergabe der Daten.\n
@@ -439,10 +418,7 @@ impressum_eng = [
                 Telefon: 0341 - 97 23800""")
             ]
 
-
-impressum_page = html.Div(
-    [
-        dbc.Container([
+impressum_page = dbc.Container([
             html.Br(),
             dbc.Row([
                 dbc.Col(html.H2("Impressum"),
@@ -454,12 +430,7 @@ impressum_page = html.Div(
             html.Div(impressum_ger,
             id="impressum_text",
             )
-        ],
-        style={"max-height": "calc(100vh - 150px)",
-               "overflow-y": "auto"}
-        ),
-    ]
-)
+        ])
 
 
 
@@ -472,7 +443,7 @@ app.validation_layout = html.Div([
     about_page,
     landing_page,
     search_page,
-    results_page_clear,
+    error_page,
     dbc.Button(id="download_button"),
     html.Div([
                     dbc.Container([
@@ -493,7 +464,8 @@ app.validation_layout = html.Div([
     dcc.Dropdown(id="transcript_dropdown"),
     impressum_page,
     faq_page,
-    news_page
+    news_page,
+    footer
 ])
 
 
@@ -511,7 +483,7 @@ def get_display_variant(_variant, n_chars=25):
 
 def get_results_page(results_memory):
     if not results_memory:
-        return results_page_clear
+        return error_page
     else:
         tab_list = []
         initial_tab = "tab_0"
@@ -526,9 +498,9 @@ def get_results_page(results_memory):
             tab_list.append(dbc.Tab(label=get_display_variant(_variant), tab_id=f"tab_{tab_num}"))
             tab_num += 1
 
-        results_page = html.Div([
-                    dbc.Container([
-                dbc.Card([
+        results_page = dbc.Container(
+            dbc.Card(
+                [
                     dbc.CardHeader(
                         dbc.Row(
                             [
@@ -554,12 +526,11 @@ def get_results_page(results_memory):
                         html.P(id="card_content"),
                         style={"padding-bottom": "0"}
                     )
-                ])
-            ],
-                style={"max-height": "calc(100vh - 150px)",
-                       "overflow-y": "auto"}
-        ),
-        ])
+                ]
+            ),
+            style={"width": "100%",
+                   "min-height": "calc(100vh - 150px)"}
+        )
         return results_page
 
 
@@ -606,44 +577,78 @@ def get_percentile(candidate_score):
     except (TypeError, ValueError):
         return "-"
 
-
-@app.callback(
-        Output(f"navbar-collapse", "is_open"),
-        [Input(f"navbar-toggler", "n_clicks")],
-        [State(f"navbar-collapse", "is_open")])
-def toggle_navbar_collapse(n, is_open):
-    if n:
-        return not is_open
-    return is_open
+for _item in ["navbar", "footer"]:
+    @app.callback(
+            Output(f"{_item}-collapse", "is_open"),
+            [Input(f"{_item}-toggler", "n_clicks")],
+            [State(f"{_item}-collapse", "is_open")])
+    def toggle_navbar_collapse(n, is_open):
+        if n:
+            return not is_open
+        return is_open
 
 
 @app.callback(Output('page-content', 'children'),
+              Output("query_memory", "clear_data"),
+              Output("variant_queue_input", "clear_data"),
+              Output("variant_queue_url", "clear_data"),
+              Output("results_memory", "clear_data"),
+              Output("transcripts_to_use_memory", "clear_data"),
               [Input('url', 'pathname'),
                Input("results_memory", "data")])
 def display_page(pathname, results_memory):
     ctx = dash.callback_context
-
-    if "pathname" in ctx.triggered[0]['prop_id']:
+    if "results_memory" in ctx.triggered[0]['prop_id'] and results_memory is not None:
+        print("results page")
+        return [get_results_page(results_memory)] + [False for _store in range(5)]
+    else:
         if pathname == "/about":
-            return about_page
+            return [about_page] + [False for _store in range(5)]
         if pathname == "/impressum":
-            return impressum_page
+            return [impressum_page] + [False for _store in range(5)]
         if pathname == "/faq":
-            return faq_page
+            return [faq_page] + [False for _store in range(5)]
         if pathname == "/news":
-            return news_page
+            return [news_page] + [False for _store in range(5)]
         if "/search" in pathname:
             if results_memory is None:
                 print("search page")
-                return search_page
+                return [search_page] + [False for _store in range(5)]
             else:
                 print("results page")
-                return get_results_page(results_memory)
+                return [get_results_page(results_memory)] + [False for _store in range(5)]
         else:
-            return landing_page
-    else:
-        print("results page")
-        return get_results_page(results_memory)
+            return [landing_page] + [True for _store in range(5)]
+
+# @app.callback(Output('page-content', 'children'),
+#               Output("results_memory", "clear_data"),
+#               [Input('url', 'pathname'),
+#                Input("results_memory", "data")])
+# def display_page(pathname, results_memory):
+#     ctx = dash.callback_context
+#     if "pathname" in ctx.triggered[0]['prop_id']:
+#         if pathname == "/about":
+#             return about_page, False
+#         if pathname == "/impressum":
+#             return impressum_page
+#         if pathname == "/faq":
+#             return faq_page, False
+#         if pathname == "/news":
+#             return news_page, False
+#         if "/search" in pathname:
+#             if results_memory is None:
+#                 print("search page")
+#                 return search_page, False
+#             else:
+#                 print("results page")
+#                 return get_results_page(results_memory), False
+#         else:
+#             return landing_page, True
+#     elif results_memory is not None:
+#         print("results page")
+#         return get_results_page(results_memory), False
+#     else:
+#         raise PreventUpdate
 
 
 @app.callback(
@@ -1033,8 +1038,6 @@ def get_tab_card(active_tab,
                     [
                         dbc.Col(dcc.Markdown(f"**Gene symbol:** {_instance_attributes.get('gene_symbol')}"),
                                 className="col-12 col-md-6"),
-                        # dbc.Col(dcc.Markdown(f"**Transcript:** {_instance_attributes.get('transcript')}"),
-                        #         className="col-12 col-md-6"),
                         dbc.Col(dbc.Row(
                             [dbc.Col(dcc.Markdown("**Transcript:**"),
                                      width="auto",
@@ -1081,6 +1084,7 @@ def get_tab_card(active_tab,
                                     responsive=True,
                                     hover=True,
                                     striped=True,
+                                    style={"margin-bottom": 0}
                                 ),
                             className="col-12 col-md-6"
                         ),
@@ -1095,10 +1099,11 @@ def get_tab_card(active_tab,
                                 responsive=True,
                                 hover=True,
                                 striped=True,
+                                style={"margin-bottom": 0}
                             ),
                             className="col-12 col-md-6"
-                        ),
-                    ],
+                        )
+                    ]
                 )
             ]
             return tab_card_content
@@ -1256,6 +1261,7 @@ def store_instances(instance_list, code_key="variant"):
 )
 def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory):
     variant_queue = variant_queue_input or variant_queue_url
+    ctx = dash.callback_context
     if variant_queue:
         if variant_memory is not None:
             if variant_queue.get("instances").keys() == variant_memory.get("instances").keys():
@@ -1264,7 +1270,6 @@ def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory
         for _instance in instances:
             if not _instance.data_retrieved:
                 _instance.retrieve_data()
-        # [_instance.retrieve_data() for _instance in instances if not _instance.data_retrieved]
         return store_instances(instances)
     else:
         raise PreventUpdate
@@ -1276,6 +1281,7 @@ def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory
     Input("query_memory", "data")
 )
 def calculate_results(variant_memory, query_memory):
+    ctx = dash.callback_context
     inheritance = None
     if query_memory:
         inheritance = query_memory.get("inheritance")
