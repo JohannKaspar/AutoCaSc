@@ -178,7 +178,8 @@ landing_page = dbc.Container(
         dbc.Row(
             dbc.Col(
                 [
-                    dcc.Markdown("""# Welcome to **webAutoCaSc**,\n #### a webinterface for the automatic CaSc classification of research candidate variants in neurodevelopmental disorders."""),
+                    dcc.Markdown("""# Welcome to **webAutoCaSc**,\n #### a webinterface for the automatic CaSc \
+                    classification of research candidate variants in neurodevelopmental disorders."""),
                     dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
                     variant_input_card,
                     misc_input_card
