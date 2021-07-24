@@ -12,6 +12,9 @@ from urllib.parse import unquote, quote
 import pandas as pd
 from numpy import array
 
+import os, sys
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(CURRENT_DIR))
 from AutoCaSc_core.AutoCaSc import AutoCaSc, VERSION
 from dash_extensions import Download
 
