@@ -1501,7 +1501,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
 
 
 if __name__ == '__main__':
-    app.run_server(#debug=True,
-                   #dev_tools_hot_reload=True,
+    app.run_server(debug=True,
+                   dev_tools_hot_reload=False,
                    host='0.0.0.0',
                    port=5000)
