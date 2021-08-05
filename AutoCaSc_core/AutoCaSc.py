@@ -152,7 +152,7 @@ class AutoCaSc:
                                  mode=self.mode,
                                  other_variant=self.other_variant,
                                  other_autocasc_obj=self.other_autocasc_obj,
-                                 transcript=self.transcript,
+                                 #transcript=self.transcript,
                                  family_history=self.family_history,
                                  path_to_request_cache_dir=self.path_to_request_cache_dir
                                  )
@@ -310,6 +310,11 @@ class AutoCaSc:
                     if self.path_to_request_cache_dir is not None:
                         new_vep_request = {self.variant: self.response_decoded}
                         write_new_api_request(f"{self.path_to_request_cache_dir}tmp/vep", new_vep_request)
+
+                    # if self.mode == "web":
+                    #     try:
+                    #         self.response_decoded["hgvsc_nm"] = self.get_hgvsc_nm()
+
 
             end = time.time()
             print(f"VEP execution time {round(end - start, 2)}")
