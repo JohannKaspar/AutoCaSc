@@ -152,7 +152,7 @@ class AutoCaSc:
                                  mode=self.mode,
                                  other_variant=self.other_variant,
                                  other_autocasc_obj=self.other_autocasc_obj,
-                                 #transcript=self.transcript,
+                                 #transcript=self.transcript,  # this line caused a bug
                                  family_history=self.family_history,
                                  path_to_request_cache_dir=self.path_to_request_cache_dir
                                  )

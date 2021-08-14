@@ -17,6 +17,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(CURRENT_DIR))
 from AutoCaSc_core.AutoCaSc import AutoCaSc, VERSION
 from dash_extensions import Download
+from refseq_transcripts_converter import convert_variant
 
 server = Flask(__name__)
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -116,7 +117,8 @@ stores = ["query_memory",
           "variant_queue_url",
           "variant_memory",
           "results_memory",
-          "transcripts_to_use_memory"]
+          "transcripts_to_use_memory",
+          "active_variant_tab"]
 url_bar_and_content_div = html.Div(
     [dcc.Store(id=_store) for _store in stores] + [
         dcc.Location(id='url', refresh=False),
@@ -583,7 +585,9 @@ app.validation_layout = html.Div([
     impressum_page,
     faq_page,
     news_page,
-    footer
+    footer,
+    dbc.Button(id="collapse_button_transcripts"),
+    dbc.Collapse(id="collapse_transcripts")
 ])
 
 
@@ -749,6 +753,27 @@ for _item in ["navbar", "footer"]:
             return not is_open
         return is_open
 
+@app.callback(
+    Output("collapse_transcripts", "is_open"),
+    Output("collapse_transcripts", "children"),
+    Input("collapse_button_transcripts", "n_clicks"),
+    State("collapse_transcripts", "is_open"),
+    State("active_variant_tab", "data")
+)
+def load_all_hgvsc_notations(n, is_open, active_variant):
+    if n:
+        if not is_open:
+            notations = convert_variant(active_variant.get("active_variant"))
+            notations_styled_children = []
+            for _notation in notations:
+                notations_styled_children.append(_notation)
+                notations_styled_children.append(html.Br())
+            notations_styled = html.Div(notations_styled_children)
+        else:
+            notations_styled = None
+        return not is_open, notations_styled
+    return is_open, ""
+
 
 @app.callback(Output('page-content', 'children'),
               Output("query_memory", "clear_data"),
@@ -889,6 +914,7 @@ def update_transcripts_to_use(selected_transcript,
 
 @app.callback(
     Output("card_content", "children"),
+    Output("active_variant_tab", "data"),
     Input("card_tabs", "active_tab"),
     Input("transcripts_to_use_memory", "data"),
     State("results_memory", "data"),
@@ -1008,7 +1034,7 @@ def get_tab_card(active_tab,
             ),
             overview_table
         ]
-        return tab_card_content
+        return tab_card_content, None
     else:
         tab_num = int(active_tab.split("_")[-1])
         _variant = list(results_memory.get("instances").keys())[tab_num]
@@ -1172,11 +1198,12 @@ def get_tab_card(active_tab,
                         dbc.Col(dcc.Markdown(f"**Gene symbol:** {_instance_attributes.get('gene_symbol')}"),
                                 className="col-12 col-md-6"),
                         dbc.Col(dbc.Row(
-                            [dbc.Col(dcc.Markdown("**Transcript:**"),
+                            [
+                                dbc.Col(dcc.Markdown("**Transcript:**"),
                                      width="auto",
                                      style={"margin-top": "6px"}
                                      ),
-                             dbc.Col(dcc.Dropdown(
+                                dbc.Col(dcc.Dropdown(
                                  options=[{"label": f"{_transcript}", "value": f"{_transcript}"} for _transcript in
                                           results_memory.get("instances").get(_variant).get(
                                               "transcript_instances").keys()],
@@ -1188,8 +1215,8 @@ def get_tab_card(active_tab,
                                      "padding-top": "0px"
                                  },
                                  id="transcript_dropdown"
-                             ))
-                             ],
+                                 ))
+                            ],
                             no_gutters=True,
                             align="start"
                         ),
@@ -1239,12 +1266,34 @@ def get_tab_card(active_tab,
                             className="col-12 col-md-6"
                         )
                     ]
+                ),
+                html.Hr(),
+                dbc.Row(
+                    dbc.Col(
+                        dbc.Button(
+                            [
+                                "Load all HGVSC notations (coding only)"
+                            ],
+                            id="collapse_button_transcripts",
+                            className="mb-3",
+                            n_clicks=0
+                        )
+                    )
+                ),
+                dbc.Row(
+                    dbc.Col(
+                        dbc.Collapse(
+                            dbc.Card(dbc.CardBody("This content is hidden")),
+                            id="collapse_transcripts",
+                            is_open=False
+                    )
+                    )
                 )
             ]
-            return tab_card_content
+            return tab_card_content, {"active_variant": f"{_transcript}:{_instance_attributes.get('hgvsc_change')}"}
         else:
             error_message, error_color = get_error(status_code)
-            return dbc.Alert(error_message, color=error_color)
+            return dbc.Alert(error_message, color=error_color), None
 
 
 @app.callback(
