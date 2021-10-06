@@ -50,15 +50,13 @@ def translate_gt_ad(gt):
         return "50,49"
     if gt == "1/1":
         return "0,99"
-    if gt == "./.":
-        return ".,."
 
 
 def convert_variant(input_variant, inheritance, family_order,
                     var_num=0, GT_index=None, GT_father=None, GT_mother=None):
     input_variant = re.sub(r"^[\W]", "", input_variant)
     input_variant = re.sub(r"Chr|chr", "", input_variant)
-    input_variant = re.sub(r"[^A-Za-z0-9](?!$)", ":", input_variant)
+    input_variant = re.sub(r"[^A-Za-z0-9]", ":", input_variant)
 
     variant_parts = input_variant.split(":")
     if len(variant_parts) == 3:

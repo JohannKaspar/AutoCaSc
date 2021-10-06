@@ -16,6 +16,145 @@ function hq1(sample) {
   return sample.AB > 0.95 // was 0.98
 }
 
+
+
+
+function hq_or_missing(sample) {
+  if (sample.unknown) { return true; }
+  if (sample.GQ < config.min_GQ) { return false; }
+  if (sample.DP < config.min_DP) { return false; }
+  if (sample.hom_ref){
+      return sample.AB < 0.05 // was 0.02
+  }
+  if(sample.het) {
+      return sample.AB >= config.min_AB && sample.AB <= (1 - config.min_AB)
+  }
+  return sample.AB > 0.95 // was 0.98
+}
+
+function unknown_inheritance(kid, mom, dad, chromosome, gnomad_popmax_af, dominant_af_max, ar_af_max, nhomalt, x_recessive_af_max){
+  if(!(mom.unknown || dad.unknown)){ return false; }
+  if(!(hq1(kid) && hq_or_missing(mom) && hq_or_missing(dad))){ return false; }
+  if(!((chromosome == "Y") || (chromosome == "chrY"))) {
+    if(!((kid.sex == "male") && ((chromosome == "X") || (chromosome == "chrX")))) {
+      if(dad.unknown) {
+        if(!mom.unknown) {
+          if(mom.affected) {
+            if(dad.affected) {
+               if(mom.hom_ref) {return false;}
+               if(mom.het && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+               if(mom.hom_alt) {
+                 if(kid.het && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+                 if(kid.hom_alt && (gnomad_popmax_af >= ar_af_max)) {return false;}
+               }
+            }
+            if(!dad.affected) {
+                if(mom.hom_ref) {return false;}
+                if(kid.het && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+                if(kid.hom_alt && mom.het) {return false;}
+                if(kid.hom_alt && (gnomad_popmax_af >= ar_af_max)) {return false;}
+            }
+          }
+          if(!mom.affected) {
+            if(dad.affected) {
+                if(!mom.hom_ref) {return false;}
+                if(mom.hom_ref) {
+                    if(kid.het && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+                    if(kid.hom_alt) {return false;}
+                }
+            }
+            if(!dad.affected) {
+                if(mom.hom_alt) {return false;}
+                if(mom.hom_ref && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+                if(mom.hom_ref && kid.hom_alt) {return false;}
+                if(mom.het && kid.het) {return false;}
+                if(mom.het && (gnomad_popmax_af >= ar_af_max)) {return false;}
+            }
+          }
+        }
+        if(mom.unknown) {
+            if(kid.het && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+            if(kid.hom_alt && (gnomad_popmax_af >= ar_af_max)) {return false;}
+        }
+      }
+      if(mom.unknown) {
+        if(mom.affected) {
+            if(dad.affected) {
+                if(dad.hom_ref) {return false;}
+                if(kid.het && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+                if(kid.hom_alt && (gnomad_popmax_af >= ar_af_max)) {return false;}
+            }
+            if(!dad.affected) {
+                if(dad.hom_alt) {return false;}
+                if(dad.hom_ref && kid.hom_alt) {return false;}
+                if(dad.hom_ref && kid.het && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+                if(dad.het && kid.het) {return false;}
+                if(dad.het && kid.hom_alt && (gnomad_popmax_af >= ar_af_max)) {return false;}
+            }
+        }
+        if(!mom.affected) {
+            if(dad.affected) {
+                if(kid.het) {
+                    if(dad.hom_ref) {return false;}
+                    if(gnomad_popmax_af >= dominant_af_max) {return false;}
+                }
+                if(kid.hom_alt) {
+                    if(dad.hom_alt && (gnomad_popmax_af >= ar_af_max)) {return false;}
+                    if(!dad.hom_alt) {return false;}
+                }
+            }
+            if(!dad.affected) {
+                if(kid.hom_alt) {
+                    if(dad.het && (gnomad_popmax_af >= ar_af_max)) {return false;}
+                    if(!dad.het) {return false;}
+                }
+                if(kid.het) {
+                    if(dad.hom_ref && (gnomad_popmax_af >= dominant_af_max)) {return false;}
+                    if(!dad.hom_ref) {return false;}
+                }
+            }
+        }
+      }
+  }
+    if((kid.sex == "male") && ((chromosome == "X") || (chromosome == "chrX"))) {
+    if(!kid.hom_alt) {return false;}
+    if(dad.unknown) {
+        if(!mom.unknown) {
+            if(mom.affected) {
+                if(!mom.hom_alt) {return false;}
+                if(gnomad_popmax_af >= x_recessive_af_max) {return false;}
+            }
+            if(!mom.affected) {
+                if(!mom.het) {return false;}
+                if(gnomad_popmax_af >= x_recessive_af_max) {return false;}
+           }
+        }
+        if(mom.unknown) {
+            if(gnomad_popmax_af >= x_recessive_af_max) {return false;}
+        }
+    }
+    if(mom.unknown) {
+        if(dad.affected) {
+            if(!dad.hom_alt) {return false;}
+            if(gnomad_popmax_af >= x_recessive_af_max) {return false;}
+        }
+        if(!dad.affected) {
+            if(dad.hom_alt) {return false;}
+            if(gnomad_popmax_af >= x_recessive_af_max) {return false;}
+        }
+    }
+  }
+  }
+  if((chromosome == "Y") || (chromosome == "chrY")) {
+    if(!(kid.sex == "male")) {return false;}
+    if(gnomad_popmax_af >= dominant_af_max) {return false;}
+  }
+  return true;
+}
+
+
+
+
 function hqrv(variant, INFO, af_cutoff) {
   // hi-quality, rare variant.
   return INFO.gnomad_popmax_af < af_cutoff && variant.FILTER == 'PASS'
@@ -31,7 +170,7 @@ function denovo(kid, mom, dad){
 function x_denovo(kid, mom, dad) {
   if(!(kid.alts >= 1 && mom.hom_ref && dad.hom_ref && kid.AB > 0.3)){ return false; }
   if(!hq(kid, mom, dad)) { return false; }
-  //if(kid.sex != 'male') { return false; }
+  if(kid.sex != 'male') { return false; }
   return ((mom.AD[1] + dad.AD[1]) < 2);
 }
 

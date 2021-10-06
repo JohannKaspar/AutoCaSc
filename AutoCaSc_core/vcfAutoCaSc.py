@@ -35,6 +35,7 @@ def thread_function_AutoCaSc_non_comp(params):
     return_df = pd.DataFrame(columns=["variant", "instance", "transcript_num"])
 
     # iterrating through the rows of the chunk, variant by variant
+    _counter = 0
     for row_id, row in vcf_chunk.iterrows():
         try:
             chrom = row["#CHROM"]
@@ -50,9 +51,7 @@ def thread_function_AutoCaSc_non_comp(params):
         else:
             quality_parameters = None
 
-        if "comphet_side" in str(vcf_chunk.loc[row_id, "INFO"]):
-            continue
-        elif "de_novo" in str(vcf_chunk.loc[row_id, "INFO"]):
+        if "de_novo" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "de_novo"
         elif "homo" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "homo"
@@ -60,10 +59,16 @@ def thread_function_AutoCaSc_non_comp(params):
             inheritance = "x_linked"
         elif "autosomal_dominant" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "ad_inherited"
-        else:
+        elif "unknown_inheritance" in str(vcf_chunk.loc[row_id, "INFO"]):
             inheritance = "unknown"
+        elif "comphet_side" in str(vcf_chunk.loc[row_id, "INFO"]):
+            continue
+        else:
+            print(f"could not identify inheritance for variant {variant_vcf}")
 
-        print(f"non_comph {row_id + 1} of {len(vcf_chunk)}: {variant_vcf}")
+        _counter += 1
+        print(
+            f"non_comph {_counter} of {len(vcf_chunk.loc[vcf_chunk.INFO.str.contains('de_novo|homo|x_linked|autosomal_dominant|unknown_inheritance')])}: {variant_vcf}")
 
         autocasc_instance = AutoCaSc(variant=variant_vcf,
                                      inheritance=inheritance,
@@ -125,7 +130,7 @@ def score_non_comphets(filtered_vcf, cache, trio_name, assembly, ped_file, path_
     vcf_annotated = pd.read_csv(f"{cache}/temp_{trio_name}.tsv", sep="\t")
 
     vcf_chunks = [vcf_annotated.loc[round(i * len(vcf_annotated) / num_threads):
-                                    round((i+1) * len(vcf_annotated) / num_threads), :] for i in range(num_threads)]
+                                    round((i + 1) * len(vcf_annotated) / num_threads), :] for i in range(num_threads)]
 
     # this starts annotation of all variants that are comphet
     with ProcessPoolExecutor() as executor:
@@ -155,9 +160,9 @@ def extract_quality_parameters(row, ped_file):
         quality_parameters.append(f'GQ_index={row[index_id].split(":")[gq_position]}')
     if "AD" in row["FORMAT"]:
         ad_position = row["FORMAT"].split("AD")[0].count(":")
-        quality_parameters.append(f'AD_index={row[index_id].split(":")[ad_position]}'.replace(",",":"))
-        quality_parameters.append(f'AD_father={row[father_id].split(":")[ad_position]}'.replace(",",":"))
-        quality_parameters.append(f'AD_moth={row[mother_id].split(":")[ad_position]}'.replace(",",":"))
+        quality_parameters.append(f'AD_index={row[index_id].split(":")[ad_position]}'.replace(",", ":"))
+        quality_parameters.append(f'AD_father={row[father_id].split(":")[ad_position]}'.replace(",", ":"))
+        quality_parameters.append(f'AD_moth={row[mother_id].split(":")[ad_position]}'.replace(",", ":"))
     if "DP" in row["FORMAT"]:
         dp_position = row["FORMAT"].split("DP")[0].count(":")
         quality_parameters.append(f'DP_index={row[index_id].split(":")[dp_position]}')
@@ -206,14 +211,16 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
         return comphet_cross_df
 
     all_variants = list(list(set(comphet_cross_df.var_1.to_list())) + list(set(comphet_cross_df.var_2.to_list())))
-    variant_chunks = [all_variants[round(i * len(all_variants) / num_threads):round((i+1) * len(all_variants) / num_threads)] for i in range(num_threads)]
+    variant_chunks = [
+        all_variants[round(i * len(all_variants) / num_threads):round((i + 1) * len(all_variants) / num_threads)] for i
+        in range(num_threads)]
 
     with ProcessPoolExecutor() as executor:
         # retrieve data and inititate instances
         dicts_iterator = executor.map(thread_function_AutoCaSc_comp,
-                                          zip(variant_chunks,
-                                              [assembly] * len(variant_chunks),
-                                              [path_to_request_cache_dir] * len(variant_chunks)))
+                                      zip(variant_chunks,
+                                          [assembly] * len(variant_chunks),
+                                          [path_to_request_cache_dir] * len(variant_chunks)))
         instances_dict = {}
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
@@ -238,7 +245,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
                 _instance.other_autocasc_obj = _other_instance
                 _instance.calculate_candidate_score()
             else:
-                common_transcripts = list(set(_other_instance.affected_transcripts) & set(_instance.affected_transcripts))
+                common_transcripts = list(
+                    set(_other_instance.affected_transcripts) & set(_instance.affected_transcripts))
                 highest_score = 0
                 for _transcript in common_transcripts:
                     _transcript_instance = copy.deepcopy(_instance)
@@ -258,7 +266,6 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
                     elif _transcript_instance.candidate_score == highest_score:
                         if _transcript_instance.transcript in instance_1.canonical_transcripts:
                             _instance = copy.deepcopy(_transcript_instance)
-
 
             # elif _instance.transcript in _other_instance.affected_transcripts:
             #     _other_instance.transcript = _instance.transcript
@@ -342,8 +349,7 @@ def execute_slivar(slivar_dir,
                    assembly,
                    quality,
                    x_recessive_af_max,
-                   denovo_af_max,
-                   autosomal_af_max,
+                   dominant_af_max,
                    comp_af_max,
                    ar_af_max,
                    gq_filter,
@@ -363,13 +369,14 @@ def execute_slivar(slivar_dir,
         with open(f"{cache}/vcf_filtered_temp", "wb") as vcf_filtered:
             bed_filter_command = f'bedtools intersect -wa -header -a {vcf_file} -b {bed_file}'
             bed_filter_process = subprocess.run(shlex.split(bed_filter_command),
-                                            stdout=vcf_filtered,
-                                            universal_newlines=True)
+                                                stdout=vcf_filtered,
+                                                universal_newlines=True)
         if bed_filter_process.returncode == 0:
             vcf_file = f"{cache}/vcf_filtered_temp"
             click.echo("BED-filtering successfull!")
         else:
-            click.echo("There has been a problem filtering for protein coding variants only! Continuing with all variants.")
+            click.echo(
+                "There has been a problem filtering for protein coding variants only! Continuing with all variants.")
 
     javascript_file = edit_java_script_functions(javascript_file,
                                                  gq_filter=gq_filter,
@@ -378,8 +385,8 @@ def execute_slivar(slivar_dir,
 
     if float(x_recessive_af_max) == 0.0:
         x_recessive_af_max = "0.000000001"
-    if float(denovo_af_max) == 0.0:
-        denovo_af_max = "0.000000001"
+    if float(dominant_af_max) == 0.0:
+        dominant_af_max = "0.000000001"
     if float(comp_af_max) == 0.0:
         comp_af_max = "0.000000001"
 
@@ -388,21 +395,24 @@ def execute_slivar(slivar_dir,
     else:
         pass_expr = ""
     slivar_noncomp_command = f'{slivar_dir} expr -v {vcf_file} -j {javascript_file} -p {ped_file} ' \
-                                 f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
-                                 f'--info "INFO.gnomad_nhomalt <= {nhomalt} && INFO.impactful{pass_expr}" ' \
-                                 f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
-                                 f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
-                                 f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
-                                 f'&& x_recessive(kid, mom, dad)" ' \
-                                 f'--trio "de_novo:INFO.gnomad_popmax_af <= {denovo_af_max} ' \
-                                 '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
-                                 '|| variant.CHROM==\'chrX\') ' \
-                                 f'&& x_denovo(kid, mom, dad)))" ' \
-                                 f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
-                                 f'&& INFO.gnomad_popmax_af <= {comp_af_max}"'
+                             f'--pass-only -g {gnotate_file} -o {cache}/{trio_name}_non_comphets ' \
+                             f'--info "INFO.gnomad_nhomalt <= {nhomalt} && INFO.impactful{pass_expr}" ' \
+                             f'--trio "homo:recessive(kid, mom, dad) && INFO.gnomad_popmax_af < {ar_af_max}" ' \
+                             f'--trio "x_linked_recessive:(variant.CHROM==\'X\' || variant.CHROM==\'chrX\') ' \
+                             f'&& INFO.gnomad_popmax_af <= {x_recessive_af_max} ' \
+                             f'&& x_recessive(kid, mom, dad)" ' \
+                             f'--trio "de_novo:INFO.gnomad_popmax_af <= {dominant_af_max} ' \
+                             '&& (denovo(kid, mom, dad) || ((variant.CHROM==\'X\' ' \
+                             '|| variant.CHROM==\'chrX\') ' \
+                             f'&& x_denovo(kid, mom, dad)))" ' \
+                             f'--trio "comphet_side:comphet_side(kid, mom, dad) ' \
+                             f'&& INFO.gnomad_popmax_af <= {comp_af_max}" ' \
+                             f'--trio "unknown_inheritance:unknown_inheritance(kid, mom, dad, variant.CHROM, ' \
+                             f'INFO.gnomad_popmax_af, {dominant_af_max}, {ar_af_max}, {nhomalt}, {x_recessive_af_max})"'
+
     if interpret_pedigree(ped_file)[0]:
-        slivar_noncomp_command += f' --trio "autosomal_dominant:INFO.gnomad_popmax_af <= {autosomal_af_max} ' \
-                                 '&& trio_autosomal_dominant(kid, mom, dad)" '
+        slivar_noncomp_command += f' --trio "autosomal_dominant:INFO.gnomad_popmax_af <= {dominant_af_max} ' \
+                                  '&& trio_autosomal_dominant(kid, mom, dad)" '
 
     slivar_noncomp_process = subprocess.run(shlex.split(slivar_noncomp_command),
                                             stdout=subprocess.PIPE,
@@ -474,6 +484,7 @@ def update_request_cache(path_to_request_cache_dir, assembly="GRCh37"):
                 pickle.dump(requests, requests_file)
             shutil.rmtree(f"{path_to_request_cache_dir}tmp/{api}")
 
+
 def filter_xlinked_frequency(merged_instances, n_hemialt):
     drop_rows = []
     for i, row in merged_instances.iterrows():
@@ -492,7 +503,7 @@ def filter_blacklist(df, blacklist_path):
         blacklist = [line.strip() for line in file if not line[0] == "#"]
     for pattern in blacklist:
         df.loc[df.gene_symbol.str.contains(pattern, regex=True, na=False), "blacklist_filtered"] = True
-        #df = df.loc[~df.gene_symbol.str.contains(pattern, regex=True, na=False)]
+        # df = df.loc[~df.gene_symbol.str.contains(pattern, regex=True, na=False)]
     return df.reset_index(drop=True)
 
 
@@ -516,7 +527,8 @@ def mim_map(df, omim_morbid_path, column="gene_symbol"):
     omim_morbid.columns = ["disease", "gene_symbol", "mim_gene_number"]
     omim_morbid.gene_symbol = omim_morbid.gene_symbol.apply(lambda x: x.split(",")[0] if "," in x else x)
     try:
-        omim_morbid["mim_number"] = omim_morbid.disease.apply(lambda x: re.findall(", [0-9]{6}", x)[0].strip(", ") if re.findall(", [0-9]{6}", x) != [] else None)
+        omim_morbid["mim_number"] = omim_morbid.disease.apply(
+            lambda x: re.findall(", [0-9]{6}", x)[0].strip(", ") if re.findall(", [0-9]{6}", x) != [] else None)
     except IndexError:
         print("error indexing")
     omim_morbid = omim_morbid.dropna()
@@ -552,18 +564,24 @@ def filter_ac_mim(df, dp):
     if "blacklist_filtered" in temp.columns:
         temp = temp.loc[temp.blacklist_filtered != True]
 
-    temp = temp.loc[(pd.to_numeric(temp.DP_index, errors="coerce") > int(dp))
+    temp = pd.concat(
+        [
+            temp.loc[(pd.to_numeric(temp.DP_index, errors="coerce") > int(dp))
                     & (pd.to_numeric(temp.DP_moth, errors="coerce") > int(dp))
-                    & (pd.to_numeric(temp.DP_father, errors="coerce") > int(dp))]
+                    & (pd.to_numeric(temp.DP_father, errors="coerce") > int(dp))],
+            temp.loc[(temp.inheritance == "unknown")]
+        ],
+        ignore_index=True).drop_duplicates(keep="first").reset_index(drop=True)
 
     temp = pd.concat(
         [
-            temp.loc[(temp.inheritance == "de_novo") & (temp.AC == 1)],
-            temp.loc[(temp.inheritance == "de_novo") & (temp.AC == 2) & (temp.variant.str[0].isin(["X", "Y"]))],
+            temp.loc[(temp.inheritance == "de_novo") & (temp.AC <= 1)],
+            temp.loc[(temp.inheritance == "de_novo") & (temp.AC <= 2) & (temp.variant.str[0].isin(["X", "Y"]))],
             temp.loc[(temp.inheritance == "homo") & (temp.AC <= 6)],  # homo --> AC == 4, +2 for being recessive
             temp.loc[(temp.inheritance == "comphet") & (temp.AC <= 4)],  # comphet --> AC == 2, +2 for being recessive
             temp.loc[(temp.inheritance == "x_linked") & (temp.AC <= 5)],  # x_linked --> AC == 3, +2 for being recessive
-            temp.loc[(temp.inheritance == "ad_inherited") & (temp.AC == 2)],
+            temp.loc[(temp.inheritance == "ad_inherited") & (temp.AC <= 2)],
+            temp.loc[(temp.inheritance == "unknown") & (temp.AC <= 6)]
         ],
         ignore_index=True)
     try:
@@ -583,13 +601,13 @@ def filter_ac_mim(df, dp):
 
 def add_ranks(df, dp):
     df[f"candidate_score"] = pd.to_numeric(df[f"candidate_score"],
-                                                     errors="coerce")
+                                           errors="coerce")
     df.sort_values(f"candidate_score",
                    ascending=False,
                    inplace=True,
                    ignore_index=True)
     df.loc[:, f"rank"] = df.index
-    df.loc[:, f"rank"] = df.loc[:, f"rank"].apply(lambda x: int(x+1))
+    df.loc[:, f"rank"] = df.loc[:, f"rank"].apply(lambda x: int(x + 1))
 
     temp = filter_ac_mim(df, dp)
 
@@ -608,7 +626,7 @@ def add_ranks(df, dp):
                         temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
                     else:
                         temp.loc[i, f"rank_filtered"] = temp.loc[temp.other_variant == row["variant"],
-                                                                           f"rank_filtered"].values[0]
+                                                                 f"rank_filtered"].values[0]
                 else:
                     temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
 
@@ -620,7 +638,7 @@ def add_ranks(df, dp):
                       on=f"rank",
                       how="left")
         df.sort_values("rank_filtered",
-                          inplace=True)
+                       inplace=True)
     else:
         df["rank_filtered"] = np.nan
     df.loc[:, "rank_filtered"] = pd.to_numeric(df.loc[:, "rank_filtered"],
@@ -667,6 +685,7 @@ def main(ctx, verbose):
 
     ctx.obj['VERBOSE'] = verbose
 
+
 @main.command("score_vcf")
 @click.option("--vcf_file", "-v",
               required=False,
@@ -686,7 +705,7 @@ def main(ctx, verbose):
               help="Path to slivar javascript file.")
 @click.option("--output_path", "-o",
               help="Output path for table with scored variants.")
-@click.option("--denovo_af_max", "-daf",
+@click.option("--dominant_af_max", "-daf",
               default="0.0000001",
               help="Popmax AF in gnomad for denovo variants.")
 @click.option("--x_recessive_af_max", "-xaf",
@@ -698,9 +717,6 @@ def main(ctx, verbose):
 @click.option("--comp_af_max", "-caf",
               default="0.005",
               help="Popmax AF in gnomad for compound heterozygous variants.")
-@click.option("--autosomal_af_max", "-aaf",
-              default="0.0000001",
-              help="Popmax AF in gnomad for autosomal dominant variants.")
 @click.option("--nhomalt", "-nh",
               default="0",
               help="Max number of alternative sequence homozygotes in gnomad.")
@@ -764,7 +780,7 @@ def main(ctx, verbose):
 @click.option("--trio_name", "-trio",
               help="Name of trio to use")
 def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, output_path,
-              denovo_af_max, x_recessive_af_max, ar_af_max, comp_af_max, autosomal_af_max, nhomalt, n_hemialt,
+              dominant_af_max, x_recessive_af_max, ar_af_max, comp_af_max, nhomalt, n_hemialt,
               quality, gq_filter, ab_filter, dp_filter, pass_only, cache, slivar_dir, assembly, deactivate_bed_filter,
               skip_slivar, vcf_comphet_path, vcf_non_comphet_path, path_to_request_cache_dir,
               blacklist_path, omim_morbid_path, sysid_primary_path, sysid_candidates_path, trio_name):
@@ -793,8 +809,7 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                    assembly,
                                    quality,
                                    x_recessive_af_max,
-                                   denovo_af_max,
-                                   autosomal_af_max,
+                                   dominant_af_max,
                                    comp_af_max,
                                    ar_af_max,
                                    nhomalt,
@@ -855,12 +870,12 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                               sysid_candidates_path=sysid_candidates_path)
         autocasc_df["version"] = VERSION
         autocasc_df.to_csv(f"{output_path}",
-                         index=False,
-                         decimal=",",
-                         sep="\t")
-        #shutil.rmtree(cache)
+                           index=False,
+                           decimal=",",
+                           sep="\t")
+        # shutil.rmtree(cache)
         update_request_cache(path_to_request_cache_dir, assembly)
-        #os.remove(javascript_file)
+        # os.remove(javascript_file)
 
 
 if __name__ == "__main__":

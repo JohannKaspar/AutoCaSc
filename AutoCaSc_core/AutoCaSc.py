@@ -239,7 +239,7 @@ class AutoCaSc:
 
         input_hgvs = re.sub(r"\s+", "", input)
 
-        if re.fullmatch(r"(\d{1,2}|X):\d+:[a-zA-Z]+:([a-zA-Z]*|-)+", input_vcf) is not None:
+        if re.fullmatch(r"(\d{1,2}|[XY]):\d+:[a-zA-Z]+:([a-zA-Z]*|-)+", input_vcf) is not None:
             self.variant_format = "vcf"
             self.variant = input_vcf
         elif re.fullmatch(
