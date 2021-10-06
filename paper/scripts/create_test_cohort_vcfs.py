@@ -44,29 +44,42 @@ def score_modified_vcfs():
         "/home/johann/PycharmProjects/AutoCaSc_project_folder/paper/data/published-variants-for-simulation_2021-01-22.xlsx",
         sheet_name="variants")
     variant_df = variant_excel.loc[variant_excel.Use == "yes"][
-        ["Case_Number", "Variant_hg19_VCF", "Sex_Index", "GT_Index", "GT_Father", "GT_Mother", "Segregation_Siblings"]]
-    for case in variant_df.Case_Number.unique():
-        for requests_file in ["gnomad_requests_GRCh37",
-                              "gnomad_requests_GRCh38",
-                              "vep_requests_GRCh37",
-                              "vep_requests_GRCh38"]:
-            try:
-                shutil.copy("/home/johann/PycharmProjects/AutoCaSc_project_folder/paper/data/" + requests_file,
-                            "/home/johann/PycharmProjects/AutoCaSc_project_folder/paper/data/" + requests_file + ".bak")
-            except FileNotFoundError:
-                pass
+        ["Case_Number", "Publication_Name", "Variant_hg19_VCF", "Sex_Index", "GT_Index", "GT_Father", "GT_Mother", "Segregation_Siblings"]]
 
+    inheritance_excel = pd.read_excel(
+        "/home/johann/PycharmProjects/AutoCaSc_project_folder/paper/data/published-variants-for-simulation_2021-01-22.xlsx",
+        sheet_name="publications")
+    inheritance_excel = inheritance_excel.loc[:, ["Publication_Name", "InheritancePattern_reported"]]
+
+    for case in variant_df.Case_Number.unique():
         case_df = variant_df.loc[variant_df.Case_Number == case].reset_index(drop=True)
-        if len(case_df) == 2:
-            # then it's comphet
-            ped_suffix = ""
-        elif "1" in case_df["GT_Mother"].values[0]:
-            ped_suffix = "_mother_affected"
-        elif "1" in case_df["GT_Father"].values[0]:
-            ped_suffix = "_father_affected"
-        else:
-            # has to be denovo --> parents not affected
-            ped_suffix = ""
+
+        publication_name = case_df["Publication_Name"].values[0]
+        reported_inheritance = inheritance_excel.loc[inheritance_excel.Publication_Name == publication_name,
+                                                     "InheritancePattern_reported"].values[0]
+
+        if "dominant" in reported_inheritance:  # there are no cases where two parents are affected
+            if "1" in case_df["GT_Mother"].values[0]:
+                ped_suffix = "_mother_affected"
+            elif "1" in case_df["GT_Father"].values[0]:
+                ped_suffix = "_father_affected"
+            else:
+                # has to be denovo --> parents not affected
+                ped_suffix = ""
+        elif ("recessive" in reported_inheritance) or ("X-linked" in reported_inheritance):
+            if "1/1" in case_df["GT_Mother"].values[0]:
+                ped_suffix = "_mother_affected"
+            elif "1/1" in case_df["GT_Father"].values[0]:
+                ped_suffix = "_father_affected"
+            else:
+                ped_suffix = ""
+            if len(case_df) == 2:  # then it's comphet
+                if (case_df["GT_Mother"].values[0][2] == "1") and (case_df["GT_Mother"].values[1][2] == "1"):
+                    ped_suffix = "_mother_affected"
+                if (case_df["GT_Father"].values[0][2] == "1") and (case_df["GT_Father"].values[1][2] == "1"):
+                    ped_suffix = "_father_affected"
+                else:
+                    ped_suffix = ""
 
         for trio in ["ASH", "CEU"]:
             os.makedirs(f'/home/johann/trio_scoring_results/synthetic_trios/{date}/cache/{trio}_{case}/',
