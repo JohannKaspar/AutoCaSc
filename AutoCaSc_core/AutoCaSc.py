@@ -478,7 +478,8 @@ class AutoCaSc:
                                                           ascending=[False, False],
                                                           ignore_index=True)
 
-                self.affected_transcripts = transcript_df.transcript_id.to_list()
+                self.affected_transcripts = transcript_df.sort_values("transcript_id",
+                                                                      ascending=True).transcript_id.to_list()
                 self.num_transcripts = len(transcript_df)
                 transcript_df = transcript_df.loc[
                     transcript_df.impact_level == transcript_df.loc[0, "impact_level"]]
