@@ -1393,12 +1393,20 @@ def score_variants(instances, inheritance):
         for _instance in instances:
             _instance.update_inheritance(inheritance=inheritance)
             if _instance.__dict__.get("status_code") == 200:
+                highest_casc = 0
+                transcript_to_use = _instance.get("affected_transcripts")[0]
                 for _transcript in _instance.get("affected_transcripts"):
                     _transcript_instance = copy.deepcopy(_instance)
                     _transcript_instance.__dict__.pop("transcript_instances")
                     _transcript_instance.assign_results(_transcript)
                     _transcript_instance.calculate_candidate_score()
                     _instance.transcript_instances[_transcript] = _transcript_instance
+                    if _transcript_instance.candidate_score > highest_casc:
+                        transcript_to_use = _transcript
+                        highest_casc = _transcript_instance.candidate_score
+                        affected_transcripts_id = _instance.get("affected_transcripts").index(transcript_to_use)
+                _instance.affected_transcripts[0], _instance.affected_transcripts[affected_transcripts_id] = \
+                    _instance.affected_transcripts[affected_transcripts_id], _instance.affected_transcripts[0]
             instances_processed.append(_instance)
     return instances_processed
 
@@ -1556,4 +1564,5 @@ if __name__ == '__main__':
     app.run_server(debug=True,
                    dev_tools_hot_reload=False,
                    host='0.0.0.0',
-                   port=5000)
+                   port=5000
+                   )
