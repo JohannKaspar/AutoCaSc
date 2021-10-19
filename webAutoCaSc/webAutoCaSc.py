@@ -587,7 +587,11 @@ app.validation_layout = html.Div([
     news_page,
     footer,
     dbc.Button(id="collapse_button_transcripts"),
-    dbc.Collapse(id="collapse_transcripts")
+    dbc.Collapse(id="collapse_transcripts"),
+    dbc.Tabs(
+        id="card_tabs",
+        card=True,
+    )
 ])
 
 
@@ -812,12 +816,17 @@ def display_page(pathname, results_memory):
     Output("variant_input", "valid"),
     Output("variant_input", "invalid"),
     Output("variant_queue_input", "data"),
-    [Input("variant_input", "n_blur")],
+    [Input("variant_input", "n_blur"),
+     Input("inheritance_input", "value")],
     [State("variant_input", "value")]
 )
-def check_user_input(_, user_input):
+def check_user_input(_, inheritance, user_input):
     if user_input is not None:
         variants = parse_input(user_input)
+        if inheritance == "x_linked":
+            for _variant in variants:
+                if _variant[0] != "X":
+                    return False, True, None
         variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
         if input_ok(variant_instances):
             variant_queue = {"instances": {_instance.__dict__.get("variant"): _instance.__dict__ for _instance in
@@ -840,6 +849,10 @@ def search_button_click(n_clicks, variant_queue_input, variant_queue_url, inheri
     if n_clicks is not None and not variant_queue is None and not inheritance is None:
         variants = [variant_queue.get("instances").get(_key).get("variant") for _key in
                     variant_queue.get("instances").keys()]
+        if inheritance == "x_linked":
+            for _variant in variants:
+                if _variant[0] != "X":
+                    raise PreventUpdate
         url_suffix = quote(f"/search/inheritance={inheritance}/variants={'%'.join(variants)}")
         return url_suffix
     else:
@@ -1104,10 +1117,14 @@ def get_tab_card(active_tab,
                 "cadd_phred": "CADD phred",
                 "oe_lof_interval": "o/e LoF",
                 "oe_mis_interval": "o/e mis",
-                "ac_hom": "gnomAD homozygous count",  # todo show gnomad hemi only when X
-                "n_hemi": "gnomAD hemizygous count",
-                "gerp_rs_rankscore": "GERP++ RS"
+                "allele_count": "gnomAD allele count",
+                "ac_hom": "gnomAD homozygous count"  # todo show gnomad hemi only when X
             }
+            if _instance_attributes.get("inheritance") == "x_linked":
+                parameters["n_hemi"] = "gnomAD hemizygous count"
+                parameters["gerp_rs_rankscore"] = "GERP++ RS"
+            else:
+                parameters["gerp_rs_rankscore"] = "GERP++ RS"
 
             casc_table_header = html.Thead(
                 html.Tr(
@@ -1143,12 +1160,12 @@ def get_tab_card(active_tab,
                             target="variant_score_explanation"),
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('inheritance')}",
                             target="inheritance_score_explanation"),
-                dbc.Tooltip(f"weighted sum from PubTator: {_instance_attributes.get('pubtator_score')}, "
-                            f"GTEx: {_instance_attributes.get('gtex_score')}, "
-                            f"PsyMuKB: {_instance_attributes.get('denovo_rank_score')}, "
-                            f"DisGeNET: {_instance_attributes.get('disgenet_score')}, "
-                            f"MGI: {_instance_attributes.get('mgi_score')}, "
-                            f"STRING: {_instance_attributes.get('string_score')}",
+                dbc.Tooltip(f"weighted sum from PubTator: {round(float(_instance_attributes.get('pubtator_score')) * 1.18, 2)}, "
+                            f"GTEx: {round(float(_instance_attributes.get('gtex_score')) * 0.59, 2)}, "
+                            f"PsyMuKB: {round(float(_instance_attributes.get('denovo_rank_score')) * 0.65, 2)}, "
+                            f"DisGeNET: {round(float(_instance_attributes.get('disgenet_score')) * 1.64, 2)}, "
+                            f"MGI: {round(float(_instance_attributes.get('mgi_score')) * 0.97, 2)}, "
+                            f"STRING: {round(float(_instance_attributes.get('string_score')) * 0.97, 2)}",
                             target="literature_score_explanation")
             ]
             description_tooltips = [
@@ -1173,17 +1190,18 @@ def get_tab_card(active_tab,
             )
             parameter_table_rows = []
             for _parameter in parameters.keys():
-                parameter_table_rows.append(
-                    html.Tr(
-                        [
-                            html.Th(parameters.get(_parameter),
-                                    scope="row",
-                                    style=cell_style),
-                            html.Td(_instance_attributes.get(_parameter),
-                                    style=cell_style)
-                        ],
+                if _instance_attributes.get(_parameter):
+                    parameter_table_rows.append(
+                        html.Tr(
+                            [
+                                html.Th(parameters.get(_parameter),
+                                        scope="row",
+                                        style=cell_style),
+                                html.Td(_instance_attributes.get(_parameter),
+                                        style=cell_style)
+                            ],
+                        )
                     )
-                )
 
             tab_card_content = [
                 html.Div(description_tooltips + explanation_tooltips),
@@ -1524,7 +1542,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
             comphet = False
             _other_instance_attributes = {}
         df.loc[i, "hgnc_symbol"] = _instance_attributes.get("gene_symbol")
-        df.loc[i, "transcript"] = _instance_attributes.get("transcript_hgvsc")
+        df.loc[i, "transcript"] = _transcript
         df.loc[i, "vcf_format_1"] = _instance_attributes.get("vcf_string")
         df.loc[i, "vcf_format_2"] = _other_instance_attributes.get("vcf_string")
         df.loc[i, "cDNA_1"] = _instance_attributes.get("hgvsc_change")
