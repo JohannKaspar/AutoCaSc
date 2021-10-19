@@ -1117,14 +1117,13 @@ def get_tab_card(active_tab,
                 "cadd_phred": "CADD phred",
                 "oe_lof_interval": "o/e LoF",
                 "oe_mis_interval": "o/e mis",
-                "allele_count": "gnomAD allele count",
-                "ac_hom": "gnomAD homozygous count"  # todo show gnomad hemi only when X
+                "gerp_rs_rankscore": "GERP++ RS",
+                "allele_count": "gnomAD allele count"
             }
-            if _instance_attributes.get("inheritance") == "x_linked":
+            if _instance_attributes.get("vcf_string")[0] == "X":
                 parameters["n_hemi"] = "gnomAD hemizygous count"
-                parameters["gerp_rs_rankscore"] = "GERP++ RS"
-            else:
-                parameters["gerp_rs_rankscore"] = "GERP++ RS"
+            if _instance_attributes.get("inheritance") not in ["ad_inherited", "de_novo"]:
+                parameters["ac_hom"] = "gnomAD homozygous count"
 
             casc_table_header = html.Thead(
                 html.Tr(
@@ -1190,18 +1189,17 @@ def get_tab_card(active_tab,
             )
             parameter_table_rows = []
             for _parameter in parameters.keys():
-                if _instance_attributes.get(_parameter):
-                    parameter_table_rows.append(
-                        html.Tr(
-                            [
-                                html.Th(parameters.get(_parameter),
-                                        scope="row",
-                                        style=cell_style),
-                                html.Td(_instance_attributes.get(_parameter),
-                                        style=cell_style)
-                            ],
-                        )
+                parameter_table_rows.append(
+                    html.Tr(
+                        [
+                            html.Th(parameters.get(_parameter),
+                                    scope="row",
+                                    style=cell_style),
+                            html.Td(_instance_attributes.get(_parameter),
+                                    style=cell_style)
+                        ],
                     )
+                )
 
             tab_card_content = [
                 html.Div(description_tooltips + explanation_tooltips),
