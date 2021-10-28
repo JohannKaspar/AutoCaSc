@@ -112,12 +112,12 @@ def fuse_data(validation_run=False):
 
     # all_data[
     #     "gene_sum"] = all_data.gtex_score + all_data.denovo_rank_score + all_data.disgenet_score + all_data.mgi_score + all_data.pubtator_score + all_data.string_score
-    all_data["weighted_score"] = sum(
+    all_data["gene_plausibility"] = sum(
         [spearmanr(all_data[parameter], all_data.sys_primary)[0] * all_data[parameter] for parameter in
          ["mgi_score", "string_score", "pubtator_score", "disgenet_score", "gtex_score", "denovo_rank_score"]])
-    all_data.weighted_score = all_data.weighted_score / all_data.weighted_score.max()
+    all_data.gene_plausibility = all_data.gene_plausibility / all_data.gene_plausibility.max()
 
-    all_data = all_data.sort_values(by="weighted_score", ascending=False).drop_duplicates(
+    all_data = all_data.sort_values(by="gene_plausibility", ascending=False).drop_duplicates(
         subset=["entrez_id", "ensemble_id"], keep="first")
     if validation_run:
         all_data.to_csv(ROOT_DIR + "all_gene_data_seed_42.csv", index=False)

@@ -144,7 +144,7 @@ def plot_parameter_genescores(validation_run=False):
     fig.suptitle('Genescores by gene category', fontsize=10)
     plt.show()
 
-def weighted_score(validation_run=False):
+def gene_plausibility(validation_run=False):
     all_gene_data = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
     all_gene_data = all_gene_data.drop_duplicates(subset=["entrez_id"])
 
@@ -154,15 +154,15 @@ def weighted_score(validation_run=False):
 
     all_gene_data = add_categories(all_gene_data, "entrez_id", "entrez", "morbid_genes")
 
-    # ax = sns.violinplot(x="sys_category", y="weighted_score", data=all_gene_data,
+    # ax = sns.violinplot(x="sys_category", y="gene_plausibility", data=all_gene_data,
     #                  order=order, color="0.5")
-    # ax = sns.stripplot(x="sys_category", y="weighted_score", data=all_gene_data, jitter=True,
+    # ax = sns.stripplot(x="sys_category", y="gene_plausibility", data=all_gene_data, jitter=True,
     #                  order=order, alpha=0.2)
 
     ax = plt.figure(figsize=(4.5, 3))
 
     # scatter
-    ax = sns.stripplot(x="sys_category", y="weighted_score", data=all_gene_data,
+    ax = sns.stripplot(x="sys_category", y="gene_plausibility", data=all_gene_data,
                             palette=pal,
                             size=5,
                             alpha=0.6,
@@ -171,7 +171,7 @@ def weighted_score(validation_run=False):
                             jitter=0.2
                             )
     # whiskers
-    ax = sns.boxplot(x="sys_category", y="weighted_score", data=all_gene_data,
+    ax = sns.boxplot(x="sys_category", y="gene_plausibility", data=all_gene_data,
                           showcaps=True,
                           showbox=False,
                           boxprops={'facecolor': '#D3D3D3',
@@ -184,7 +184,7 @@ def weighted_score(validation_run=False):
                           )
 
     # boxline
-    ax = sns.boxplot(x="sys_category", y="weighted_score", data=all_gene_data,
+    ax = sns.boxplot(x="sys_category", y="gene_plausibility", data=all_gene_data,
                           showcaps=False,
                           showbox=True,
                           whis=0,
@@ -196,7 +196,7 @@ def weighted_score(validation_run=False):
                           )
 
     # significance
-    add_stat_annotation(ax, data=all_gene_data, x="sys_category", y="weighted_score", order=order,
+    add_stat_annotation(ax, data=all_gene_data, x="sys_category", y="gene_plausibility", order=order,
                         box_pairs=[("negative control", "known NDD")],
                         test='Mann-Whitney', text_format='star', loc='outside', line_offset_to_box=0.001,
                         line_height=0.05, text_offset=2, verbose=2)
@@ -307,7 +307,7 @@ def plot_pubtator_clean():
 # plot_disgenet()
 # plot_mgi()
 # rain_disgenet()
-# weighted_score(validation_run=True)
+# gene_plausibility(validation_run=True)
 # plot_candidate_scores()
 
 plot_parameter_genescores(validation_run=False)

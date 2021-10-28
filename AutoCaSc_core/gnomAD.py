@@ -43,20 +43,8 @@ query Gene($geneId: String, $geneSymbol: String, $referenceGenome: ReferenceGeno
     }
   }
 }
-# query Variant($variantId: String!
-# ){
-#   variant(dataset: gnomad_r2_1, variantId: $variantId) {
-#     colocatedVariants
-#     exome {
-#       ac_hemi
-#       ac_hom
-#       ac
-#     }
-#   }
-# }
 '''
 
-# result_dict = {}
 REQS_PER_SEC = 15
 
 class GnomADQuery:

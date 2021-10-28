@@ -1109,7 +1109,7 @@ def get_tab_card(active_tab,
                 "inheritance_score": "Inheritance",
                 "gene_constraint_score": "Gene Constraint",
                 "variant_score": "Variant Attributes",
-                "literature_score": "Literature Plausibility",
+                "gene_plausibility": "Literature Plausibility",
             }
 
             parameters = {
@@ -1165,7 +1165,7 @@ def get_tab_card(active_tab,
                             f"DisGeNET: {round(float(_instance_attributes.get('disgenet_score')) * 1.64, 2)}, "
                             f"MGI: {round(float(_instance_attributes.get('mgi_score')) * 0.97, 2)}, "
                             f"STRING: {round(float(_instance_attributes.get('string_score')) * 0.97, 2)}",
-                            target="literature_score_explanation")
+                            target="gene_plausibility_explanation")
             ]
             description_tooltips = [
                 dbc.Tooltip("Points attributed for inheritance & segregation",
@@ -1176,7 +1176,7 @@ def get_tab_card(active_tab,
                             target="variant_score_description"),
                 dbc.Tooltip("Points attributed for data in literature databases, animal models, expression pattern, "
                             "interaction networks",
-                            target="literature_score_description")
+                            target="gene_plausibility_description")
             ]
 
             parameter_table_header = html.Thead(
@@ -1560,7 +1560,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
             df.loc[i, "var_2_full_name"] = ""
         df.loc[i, "inheritance"] = _instance_attributes.get("inheritance")
         df.loc[i, "candidate_score"] = _instance_attributes.get("candidate_score")
-        df.loc[i, "literature_plausibility"] = _instance_attributes.get("literature_score")
+        df.loc[i, "literature_plausibility"] = _instance_attributes.get("gene_plausibility")
         df.loc[i, "inheritance_score"] = _instance_attributes.get("inheritance_score")
         if comphet:
             df.loc[i, "variant_attribute_score"] = round(mean([_instance_attributes.get("variant_score"),

@@ -87,7 +87,7 @@ class AutoCaSc:
         self.inheritance_score = 0
         self.frequency_score = 0
         self.variant_score = 0
-        self.literature_score = 0
+        self.gene_plausibility = 0
         self.gene_constraint_score = 0
         self.candidate_score = 0
 
@@ -519,8 +519,8 @@ class AutoCaSc:
 
         if self.gene_id in gene_scores.ensemble_id.to_list():
             # If the gene_id is in the computed gene score table, its results are assigned to the class attributes.
-            self.literature_score = round(
-                6.0 * gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "weighted_score"].values[0], 2)
+            self.gene_plausibility = round(
+                6.0 * gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "gene_plausibility"].values[0], 2)
             # Assigning the plausibility subscores for being able to call them individually.
             for score in ["pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
                           "mgi_score", "string_score"]:
@@ -528,7 +528,7 @@ class AutoCaSc:
                                              2)
         else:
             # If not, the values are set to 0.
-            for score in ["literature_score", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
+            for score in ["gene_plausibility", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
                           "mgi_score", "string_score"]:
                 self.__dict__[score] = 0.
 
@@ -539,7 +539,7 @@ class AutoCaSc:
                 self.inheritance_score,
                 self.gene_constraint_score,
                 self.variant_score,
-                self.literature_score]]
+                self.gene_plausibility]]
             self.candidate_score = round(sum(candidate_score_list), 2)
 
         if self.inheritance == "comphet":
@@ -793,7 +793,7 @@ def score_variants(ctx, variants, inheritances, corresponding_variants, family_h
             results_df.loc[_variant, "inheritance_score"] = variant_instance.inheritance_score
             results_df.loc[_variant, "gene_score"] = variant_instance.gene_constraint_score
             results_df.loc[_variant, "variant_score"] = variant_instance.variant_score
-            results_df.loc[_variant, "literature_score"] = variant_instance.literature_score
+            results_df.loc[_variant, "gene_plausibility"] = variant_instance.gene_plausibility
         results_df.loc[_variant, "inheritance_mode"] = variant_instance.inheritance
         results_df.loc[_variant, "status_code"] = str(int(variant_instance.status_code))
 
@@ -877,7 +877,7 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # some examples for testing
-    # single(["-v", "22:45255644:G:T"])
+    single(["-v", "1:205030515:C:T", "-ih", "homo"])
     # single(["-v", "9:134736022:G:A", "-ih", "homo"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
