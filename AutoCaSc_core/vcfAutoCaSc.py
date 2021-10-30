@@ -96,7 +96,12 @@ def thread_function_AutoCaSc_non_comp(params):
                     alternative_instance.calculate_candidate_score()
 
                 ix = len(return_df)
-                return_df.loc[ix, "variant"] = variant_vcf + f" ({_transcript})"
+
+
+                return_df.loc[ix, "variant"] = variant_vcf  # + f" ({_transcript})"
+                return_df.loc[ix, "quality_parameters"] = quality_parameters
+
+
                 return_df.loc[ix, "instance"] = alternative_instance
                 return_df.loc[ix, "transcript"] = _transcript
     return return_df
@@ -152,9 +157,14 @@ def extract_quality_parameters(row, ped_file):
     quality_parameters = []
     if not re.findall(r"AC=[\w?]+(?=;)", row["INFO"]) == []:
         quality_parameters.append(re.findall(r"AC=[\w?]+(?=;)", row["INFO"])[0])
-    if not re.findall(r"AF=[^;]+(?=;)", row["INFO"]) == []:
-        quality_parameters.append(re.findall(r"AF=[^;]+(?=;)", row["INFO"])[0])
-    quality_parameters.append(f'QUAL={row["QUAL"]}')
+    # if not re.findall(r"AF=[^;]+(?=;)", row["INFO"]) == []:
+    #     quality_parameters.append(re.findall(r"AF=[^;]+(?=;)", row["INFO"])[0])
+    quality_parameters.append(f'QUAL={int(float(row["QUAL"]))}')
+    if "GT" in row["FORMAT"]:
+        gt_position = row["FORMAT"].split("GT")[0].count(":")
+        quality_parameters.append(f'GT_index={row[index_id].split(":")[gt_position]}')
+        quality_parameters.append(f'GT_father={row[father_id].split(":")[gt_position]}')
+        quality_parameters.append(f'GT_moth={row[mother_id].split(":")[gt_position]}')
     if "GQ" in row["FORMAT"]:
         gq_position = row["FORMAT"].split("GQ")[0].count(":")
         quality_parameters.append(f'GQ_index={row[index_id].split(":")[gq_position]}')
@@ -225,6 +235,8 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
         for _dict in dicts_iterator:
             instances_dict.update(_dict)
 
+    print("\nmatching comphet transcripts, this might take some time...\n")
+
     for i, row in comphet_cross_df.iterrows():
         var_1 = row["var_1"]
         var_2 = row["var_2"]
@@ -266,28 +278,6 @@ def score_comphets(comphets_vcf, cache, trio_name, assembly, ped_file, path_to_r
                     elif _transcript_instance.candidate_score == highest_score:
                         if _transcript_instance.transcript in instance_1.canonical_transcripts:
                             _instance = copy.deepcopy(_transcript_instance)
-
-            # elif _instance.transcript in _other_instance.affected_transcripts:
-            #     _other_instance.transcript = _instance.transcript
-            # elif _other_instance.transcript in _instance.affected_transcripts:
-            #     _instance.transcript = _other_instance.transcript
-            # else:
-            #     for j in range(max([len(_instance.affected_transcripts), len(_other_instance.affected_transcripts)])):
-            #         try:
-            #             if _instance.affected_transcripts[j] in _other_instance.affected_transcripts:
-            #                 _instance.transcript = _instance.affected_transcripts[j]
-            #                 _other_instance.transcript = _instance.affected_transcripts[j]
-            #                 break
-            #         except IndexError:
-            #             pass
-            #         try:
-            #             if _other_instance.affected_transcripts[j] in _instance.affected_transcripts:
-            #                 _instance.transcript = _other_instance.affected_transcripts[j]
-            #                 _other_instance.transcript = _other_instance.affected_transcripts[j]
-            #                 break
-            #         except IndexError:
-            #             pass
-
         else:
             _instance = None
         comphet_cross_df.loc[i, "instance"] = _instance
@@ -347,7 +337,6 @@ def execute_slivar(slivar_dir,
                    javascript_file,
                    trio_name,
                    assembly,
-                   quality,
                    x_recessive_af_max,
                    dominant_af_max,
                    comp_af_max,
@@ -452,7 +441,7 @@ def make_spreadsheet(merged_instances):
             result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
             result_df.loc[i, "literature_score"] = _instance.__dict__.get("literature_score")
             result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
-            result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
+            # result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
             try:
                 quality_parameters = row["quality_parameters"].split(";")
                 for parameter in quality_parameters:
@@ -564,18 +553,11 @@ def filter_ac_mim(df, dp):
     if "blacklist_filtered" in temp.columns:
         temp = temp.loc[temp.blacklist_filtered != True]
 
-    temp = pd.concat(
-        [
-            temp.loc[(pd.to_numeric(temp.DP_index, errors="coerce") > int(dp))
-                    & (pd.to_numeric(temp.DP_moth, errors="coerce") > int(dp))
-                    & (pd.to_numeric(temp.DP_father, errors="coerce") > int(dp))],
-            temp.loc[(temp.inheritance == "unknown")]
-        ],
-        ignore_index=True).drop_duplicates(keep="first").reset_index(drop=True)
+    temp = temp.loc[(pd.to_numeric(temp.DP_index, errors="coerce") > int(dp))].reset_index(drop=True)
 
     temp = pd.concat(
         [
-            temp.loc[(temp.inheritance == "de_novo") & (temp.AC <= 1)],
+            temp.loc[(temp.inheritance == "de_novo") & (temp.AC <= 1) & (~temp.variant.str[0].isin(["X", "Y"]))],
             temp.loc[(temp.inheritance == "de_novo") & (temp.AC <= 2) & (temp.variant.str[0].isin(["X", "Y"]))],
             temp.loc[(temp.inheritance == "homo") & (temp.AC <= 6)],  # homo --> AC == 4, +2 for being recessive
             temp.loc[(temp.inheritance == "comphet") & (temp.AC <= 4)],  # comphet --> AC == 2, +2 for being recessive
@@ -612,23 +594,23 @@ def add_ranks(df, dp):
     temp = filter_ac_mim(df, dp)
 
     if not temp.empty:
-        temp.sort_values(f"candidate_score",
+        temp.sort_values("candidate_score",
                          ascending=False,
                          inplace=True,
                          ignore_index=True)
         if not "other_variant" in temp.columns:
-            temp.loc[:, f"rank_filtered"] = temp.index + 1
+            temp.loc[:, "rank_filtered"] = temp.index + 1
         else:
-            temp.loc[:, f"rank_filtered"] = np.nan
+            temp.loc[:, "rank_filtered"] = np.nan
             for i, row in temp.iterrows():
                 if row["variant"] in temp.other_variant.to_list():
-                    if pd.isnull(temp.loc[temp.other_variant == row["variant"], f"rank_filtered"].values[0]):
-                        temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
+                    if pd.isnull(temp.loc[temp.other_variant == row["variant"], "rank_filtered"].values[0]):
+                        temp.loc[i, "rank_filtered"] = temp["rank_filtered"].nunique() + 1
                     else:
-                        temp.loc[i, f"rank_filtered"] = temp.loc[temp.other_variant == row["variant"],
-                                                                 f"rank_filtered"].values[0]
+                        temp.loc[i, "rank_filtered"] = temp.loc[temp.other_variant == row["variant"],
+                                                                 "rank_filtered"].values[0]
                 else:
-                    temp.loc[i, f"rank_filtered"] = temp[f"rank_filtered"].nunique() + 1
+                    temp.loc[i, "rank_filtered"] = temp["rank_filtered"].nunique() + 1
 
         if "autocasc_filter" in temp.columns:
             merge_columns = ["rank", "rank_filtered", "autocasc_filter"]
@@ -646,6 +628,30 @@ def add_ranks(df, dp):
                                                errors="ignore")
     return df
 
+def filter_multi_transcripts(df):
+    cleaned_variants = pd.DataFrame()
+    df.loc[:, "num_transcripts"] = 1
+    for _variant in df.variant.unique():
+        variant_chunk = df.loc[df.variant == _variant]
+        variant_chunk = variant_chunk.sort_values(["candidate_score", "transcript"],
+                                                  ascending=[False, True],
+                                                  ignore_index=True)
+        for _inheritance in variant_chunk.inheritance.unique():
+            inheritance_chunk = variant_chunk.loc[variant_chunk.inheritance == _inheritance].reset_index(drop=True)
+            if len(inheritance_chunk) > 1:
+                for _gene in inheritance_chunk.gene_symbol.unique():
+                    gene_chunk = inheritance_chunk.loc[inheritance_chunk.gene_symbol == _gene].reset_index(drop=True)
+                    if len(gene_chunk) > 1:
+                        transcript_list = gene_chunk.transcript.to_list()[1:]
+                        gene_chunk.loc[0, "other_transcripts"] = ", ".join(transcript_list)
+                        gene_chunk.loc[0, "num_transcripts"] = len(transcript_list) + 1
+                    cleaned_variants = pd.concat([cleaned_variants, pd.DataFrame([gene_chunk.loc[0, :]])], ignore_index=True)
+    if not cleaned_variants.empty:
+        df = df.loc[~df.variant.isin(cleaned_variants.variant.to_list())].reset_index(drop=True)
+        return pd.concat([df, cleaned_variants], ignore_index=True)
+    else:
+        return df
+
 
 def post_scoring_polish(df,
                         omim_morbid_path,
@@ -658,6 +664,9 @@ def post_scoring_polish(df,
     df = mim_map(df, omim_morbid_path)
     if sysid_primary_path and sysid_candidates_path:
         df = in_sysid(df, sysid_primary_path, sysid_candidates_path)
+
+    df = filter_multi_transcripts(df)
+
     df = add_ranks(df, dp)
     if "autocasc_filter" in df.columns:
         df.loc[df.autocasc_filter != "PASS", "autocasc_filter"] = "FAIL"
@@ -738,7 +747,7 @@ def main(ctx, verbose):
 @click.option("--pass_only", "-pass",
               is_flag=True,
               default=False,
-              help="Whether to use vants with VCF-filter 'PASS' only.")
+              help="Whether to use variants with VCF-filter 'PASS' only.")
 @click.option("--cache", "-c",
               type=click.Path(exists=True),
               help="Path to cache for temporary data.")
@@ -807,15 +816,14 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                    javascript_file,
                                    trio_name,
                                    assembly,
-                                   quality,
                                    x_recessive_af_max,
                                    dominant_af_max,
                                    comp_af_max,
                                    ar_af_max,
-                                   nhomalt,
                                    gq_filter,
-                                   ab_filter,
                                    dp_filter,
+                                   ab_filter,
+                                   nhomalt,
                                    pass_only,
                                    deactivate_bed_filter)
 

@@ -33,6 +33,7 @@ function hq_or_missing(sample) {
 }
 
 function unknown_inheritance(kid, mom, dad, chromosome, gnomad_popmax_af, dominant_af_max, ar_af_max, nhomalt, x_recessive_af_max){
+  if(kid.hom_ref){return false;}
   if(!(mom.unknown || dad.unknown)){ return false; }
   if(!(hq1(kid) && hq_or_missing(mom) && hq_or_missing(dad))){ return false; }
   if(!((chromosome == "Y") || (chromosome == "chrY"))) {

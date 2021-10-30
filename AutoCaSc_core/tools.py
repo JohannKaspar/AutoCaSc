@@ -2,7 +2,7 @@ import os
 import pickle
 
 import pandas as pd
-ROOT_DIR = "/update_data/data/"
+ROOT_DIR = "/mnt/raid/users/johann/AutoCaSc_maintenance_data/"
 
 
 def write_new_api_request(path, data):
