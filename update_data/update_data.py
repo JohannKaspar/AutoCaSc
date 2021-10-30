@@ -1,5 +1,5 @@
 import pickle
-
+import math
 import pandas as pd
 from AutoCaSc_core.tools import add_categories, rank_genes, lin_rank, negative_product
 from scipy.stats import spearmanr, mannwhitneyu
@@ -101,7 +101,11 @@ def fuse_data(validation_run=False):
     # careful with filling nans, o/e = 0 would bias results
     all_data = all_data.merge(gnomad, on="ensemble_id", how="outer")
 
+
+
     all_data = add_categories(all_data, "entrez_id", "entrez")
+
+
 
     # all_data = all_data.dropna(subset=["mgi_score", "string_score", "pubtator_score", "disgenet_score", "gtex_score", "denovo_rank_score"])
 
@@ -115,6 +119,11 @@ def fuse_data(validation_run=False):
     all_data["gene_plausibility"] = sum(
         [spearmanr(all_data[parameter], all_data.sys_primary)[0] * all_data[parameter] for parameter in
          ["mgi_score", "string_score", "pubtator_score", "disgenet_score", "gtex_score", "denovo_rank_score"]])
+    all_data.gene_plausibility = all_data.gene_plausibility / all_data.gene_plausibility.max()
+    for parameter in ["mgi_score", "string_score", "pubtator_score", "disgenet_score", "gtex_score", "denovo_rank_score"]:
+        print(parameter, round(6.0 * spearmanr(all_data[parameter], all_data.sys_primary)[0] / all_data.weighted_score.max(), 3))
+
+    print(all_data.gene_plausibility.max())
     all_data.gene_plausibility = all_data.gene_plausibility / all_data.gene_plausibility.max()
 
     all_data = all_data.sort_values(by="gene_plausibility", ascending=False).drop_duplicates(
