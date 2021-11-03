@@ -1,3 +1,4 @@
+import copy
 import os
 import pickle
 import sys
@@ -91,8 +92,8 @@ class AutoCaSc:
         self.gene_constraint_score = 0
         self.candidate_score = 0
 
-        self.check_for_other_variant()
         self.check_variant_format()  # this function is called to check if the entered variant is valid
+        self.check_for_other_variant()
         if self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
             self.status_code = 401
         elif not self.mode == "web":
@@ -105,7 +106,7 @@ class AutoCaSc:
         """Check if a corresponding autocasc objet exists. If so set other_variant to its variant.
         """
         if self.other_autocasc_obj and self.other_variant is None:
-            if self.other_autocasc_obj.vcf_string:
+            if self.other_autocasc_obj.vcf_string and self.variant_format == "vcf":
                 self.other_variant = self.other_autocasc_obj.vcf_string
             else:
                 self.other_variant = self.other_autocasc_obj.variant
@@ -140,6 +141,20 @@ class AutoCaSc:
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
 
+    # def swap_aminoacids(self, variant):
+    #     amino_acid_swap_dict = {"C": "G",
+    #                             "G": "C",
+    #                             "A": "T",
+    #                             "T": "A"}
+    #     part_0, part_1 = variant.rsplit(".", 1)
+    #     new_1 = ""
+    #     for _char in part_1:
+    #         if _char not in amino_acid_swap_dict.keys():
+    #             new_1 += _char
+    #         else:
+    #             new_1 += amino_acid_swap_dict.get(_char)
+    #     return part_0 + "." + new_1
+
 
     def hgvs_strand_shift(self, gnomad=True):
         """It sometimes occurs, that VEP returns error codes if a variant is entered in HGVS format. Nevertheless, it
@@ -158,10 +173,11 @@ class AutoCaSc:
                                  )
         if not test_instance.data_retrieved:
             test_instance.retrieve_data(gnomad=gnomad)
-        variant_pre_standshift = self.variant
+        variant_pre_standshift = copy.deepcopy(self.variant)
         if test_instance.status_code == 200:
             self.__dict__ = test_instance.__dict__
             self.variant = variant_pre_standshift
+            self.variant_format = "hgvs"
 
 
     def create_url(self):
