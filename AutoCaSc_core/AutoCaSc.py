@@ -128,7 +128,7 @@ class AutoCaSc:
             start = time.time()
             self.get_gnomad_counts()  # gets allele counts in gnomad
             end = time.time()
-            print(f"gnomad execution time {round(end - start, 2)}")
+            #print(f"gnomad execution time {round(end - start, 2)}")
             if self.other_variant is not None and self.other_autocasc_obj is None:
                 other_instance = AutoCaSc(variant=self.other_variant,
                                           inheritance=self.inheritance,
@@ -333,7 +333,7 @@ class AutoCaSc:
 
 
             end = time.time()
-            print(f"VEP execution time {round(end - start, 2)}")
+            #print(f"VEP execution time {round(end - start, 2)}")
 
         if self.status_code == 200:
             self.get_transcript_index()
@@ -893,7 +893,7 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # some examples for testing
-    single(["-v", "1:205030515:C:T", "-ih", "homo"])
+    # single(["-v", "1:205030515:C:T", "-ih", "homo"])
     # single(["-v", "9:134736022:G:A", "-ih", "homo"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})

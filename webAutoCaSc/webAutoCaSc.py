@@ -20,8 +20,7 @@ from dash_extensions import Download
 from refseq_transcripts_converter import convert_variant
 
 server = Flask(__name__)
-app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
-                server=server)
+app = dash.Dash(server=server)
 app.title = "webAutoCaSc"
 
 navbar = html.Div(
@@ -65,12 +64,14 @@ navbar = html.Div(
     ]
 )
 
+
 footer = dbc.Navbar(
     dbc.Container(
         [
             html.A(
-                html.Img(src="https://mirrors.creativecommons.org/presskit/buttons/88x31/svg/by-nc-sa.eu.svg",
-                         height="30px"),
+                html.Img(src="assets/by-nc-sa.eu.svg",
+                         height="30px"
+                         ),
                 href="https://creativecommons.org/licenses/by-nc-sa/4.0/",
                 target="_blank"),
             dbc.NavbarToggler(id="footer-toggler"),
@@ -119,6 +120,7 @@ stores = ["query_memory",
           "results_memory",
           "transcripts_to_use_memory",
           "active_variant_tab"]
+
 url_bar_and_content_div = html.Div(
     [dcc.Store(id=_store) for _store in stores] + [
         dcc.Location(id='url', refresh=False),
@@ -769,10 +771,13 @@ def load_all_hgvsc_notations(n, is_open, active_variant):
         if not is_open:
             notations = convert_variant(active_variant.get("active_variant"))
             notations_styled_children = []
-            for _notation in notations:
-                notations_styled_children.append(_notation)
-                notations_styled_children.append(html.Br())
-            notations_styled = html.Div(notations_styled_children)
+            if notations:
+                for _notation in notations:
+                    notations_styled_children.append(_notation)
+                    notations_styled_children.append(html.Br())
+                notations_styled = html.Div(notations_styled_children)
+            else:
+                notations_styled = "Sorry, none found."
         else:
             notations_styled = None
         return not is_open, notations_styled
