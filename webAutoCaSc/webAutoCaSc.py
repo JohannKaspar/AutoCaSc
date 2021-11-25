@@ -70,7 +70,7 @@ footer = dbc.Navbar(
     dbc.Container(
         [
             html.A(
-                html.Img(src="assets/by-nc-sa.eu.svg",
+                html.Img(src=app.get_asset_url('by-nc-sa.eu.svg'),
                          height="30px"
                          ),
                 href="https://creativecommons.org/licenses/by-nc-sa/4.0/",
