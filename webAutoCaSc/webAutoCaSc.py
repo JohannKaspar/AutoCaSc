@@ -20,7 +20,8 @@ from dash_extensions import Download
 from refseq_transcripts_converter import convert_variant
 
 server = Flask(__name__)
-app = dash.Dash(server=server)
+app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
+                server=server)
 app.title = "webAutoCaSc"
 
 navbar = html.Div(
