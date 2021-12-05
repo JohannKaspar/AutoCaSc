@@ -1202,10 +1202,20 @@ def get_tab_card(active_tab,
                                     scope="row",
                                     style=cell_style),
                             html.Td(_instance_attributes.get(_parameter),
-                                    style=cell_style)
+                                    style=cell_style,
+                                    id=f"cell_{_parameter}")
                         ],
                     )
                 )
+
+            if _instance_attributes.get('explanation_dict').get("impact_splice_site"):
+                impact_splice_site_tooltip = dbc.Tooltip(
+                    _instance_attributes.get('explanation_dict').get("impact_splice_site"),
+                    target="cell_impact"
+                    )
+            else:
+                impact_splice_site_tooltip = html.Div()
+            print("stop")
 
             tab_card_content = [
                 html.Div(description_tooltips + explanation_tooltips),
@@ -1213,6 +1223,7 @@ def get_tab_card(active_tab,
                     f"About {get_percentile(_instance_attributes.get('candidate_score'))} of the scored variants "
                     f"@Institute for Human Genetics Leipzig had a lower score than this.",
                     target="percentile_target"),
+                impact_splice_site_tooltip,
                 card_header,
                 html.Hr(),
                 dbc.Row(

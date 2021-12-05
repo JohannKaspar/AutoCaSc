@@ -419,17 +419,20 @@ class AutoCaSc:
                     self.polyphen_prediction = re.sub(r"_", " ", selected_transcript_consequences.get("polyphen_prediction"))
 
                 # cutoffs correspond to Leipzig guidelines (Alamut)
+                affected_splice_score = []
                 if self.ada_score is not None:
                     if self.ada_score >= 0.6:
                         self.ada_consequence = "splicing affected"
                     else:
                         self.ada_consequence = "splicing not affected"
+                    affected_splice_score.append(self.ada_consequence)
 
                 if self.rf_score is not None:
                     if self.rf_score >= 0.6:
                         self.rf_consequence = "splicing affected"
                     else:
                         self.rf_consequence = "splicing not affected"
+                    affected_splice_score.append(self.rf_consequence)
 
                 if self.maxentscan_ref is not None and self.maxentscan_alt is not None:
                     self.maxentscan_decrease = (self.maxentscan_alt - self.maxentscan_ref) / self.maxentscan_ref
@@ -437,6 +440,22 @@ class AutoCaSc:
                         self.maxentscan_consequence = "splicing affected"
                     else:
                         self.maxentscan_consequence = "splicing not affected"
+                    affected_splice_score.append(self.maxentscan_consequence)
+
+                if not self.impact in ["moderate", "high"]:
+                    if len(affected_splice_score) >= 2:
+                        if affected_splice_score.count("splicing affected") >= 2:
+                            self.impact, self.explanation_dict["impact_splice_site"] = "high", \
+                                   f"VEP impact low, but {affected_splice_score.count('splicing affected')} of " \
+                                   f"{len(affected_splice_score)} splice site predictions are \"pathogenic\""
+                    else:
+                        if self.cadd_phred:
+                            if self.cadd_phred >= 20:
+                                self.impact, self.explanation_dict["impact_splice_site"] = "high", \
+                                                                                           f"VEP impact low, but CADD" \
+                                                                                           f" phred = {self.cadd_phred}"
+
+
 
     def get_frequencies(self, colocated_variants):
         """This function checks the annotation data for the variants frequency in gnomad and its
@@ -519,7 +538,6 @@ class AutoCaSc:
         """This method calls all the scoring functions and assigns their results to class attributes.
         """
         self.check_for_other_variant()
-        self.explanation_dict = {}
 
         self.rate_inheritance()
         self.rate_pli_z()
@@ -807,7 +825,7 @@ def score_variants(ctx, variants, inheritances, corresponding_variants, family_h
         results_df.loc[_variant, "other_variant"] = variant_instance.other_variant
         if verbose:
             results_df.loc[_variant, "inheritance_score"] = variant_instance.inheritance_score
-            results_df.loc[_variant, "gene_score"] = variant_instance.gene_constraint_score
+            results_df.loc[_variant, "gene_constraint"] = variant_instance.gene_constraint_score
             results_df.loc[_variant, "variant_score"] = variant_instance.variant_score
             results_df.loc[_variant, "gene_plausibility"] = variant_instance.gene_plausibility
         results_df.loc[_variant, "inheritance_mode"] = variant_instance.inheritance
@@ -894,6 +912,6 @@ def single(variant, corresponding_variant, inheritance, family_history):
 if __name__ == "__main__":
     # some examples for testing
     # single(["-v", "1:205030515:C:T", "-ih", "homo"])
-    # single(["-v", "9:134736022:G:A", "-ih", "homo"])
+    # single(["-v", "ENST00000159111:c.288C>T", "-ih", "de_novo"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
