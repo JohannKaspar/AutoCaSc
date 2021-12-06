@@ -342,12 +342,32 @@ class AutoCaSc:
                 self.assign_results()
 
 
-    def assign_results(self, transcript_id=None):
+    def clear_params(self):
+        for _parameter in ["gene_symbol",
+                            "amino_acids",
+                            "gene_id",
+                           "impact",
+                           "consequence_terms",
+                           "hgvsc",
+                           "hgvsc_change",
+                           "hgvsc_transcript",
+                           "hgvsp",
+                           "protein",
+                           "hgvsp_change",
+                           "consequence"]:
+            try:
+                self.__dict__.pop(_parameter)
+            except KeyError:
+                continue
+
+    def assign_results(self, transcript_id=None, clear_params=False):
         """This function filters and formats the received annotation results.
 
         :param self.response_decoded: received annotation data
         :param transcript_index: index of the transcript to work with from transcript_consequences
         """
+        if clear_params:
+            self.clear_params()
         if not transcript_id:
             transcript_id = self.transcript
         selected_transcript_consequences = None
@@ -404,8 +424,8 @@ class AutoCaSc:
                 if selected_transcript_consequences.get("gerp++_rs_rankscore") is not None:
                     self.gerp_rs_rankscore = round(selected_transcript_consequences.get("gerp++_rs_rankscore"), 2)
 
-                if selected_transcript_consequences.get("consequence_terms") is not None:
-                    self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
+                # if selected_transcript_consequences.get("consequence_terms") is not None:
+                #     self.consequence = safe_get(selected_transcript_consequences.get("consequence_terms"), 0)
                 if selected_transcript_consequences.get("hgvsc") is not None:
                     self.hgvsc_transcript, self.hgvsc_change = selected_transcript_consequences.get("hgvsc").split(":")
 
@@ -442,7 +462,9 @@ class AutoCaSc:
                         self.maxentscan_consequence = "splicing not affected"
                     affected_splice_score.append(self.maxentscan_consequence)
 
-                if not self.impact in ["moderate", "high"]:
+                if (not self.impact in ["moderate", "high"]) and \
+                        (any("splice" in _consequence_term or "synonymous" in _consequence_term
+                             for _consequence_term in selected_transcript_consequences.get("consequence_terms"))):
                     if len(affected_splice_score) >= 2:
                         if affected_splice_score.count("splicing affected") >= 2:
                             self.impact, self.explanation_dict["impact_splice_site"] = "high", \
@@ -586,6 +608,7 @@ class AutoCaSc:
                     self.candidate_score = round(self.candidate_score + 1., 2)
                     self.impact_score, self.explanation_dict["impact"] = 3, "impact high, biallelic: 3"
                     self.other_autocasc_obj.__dict__["impact_score"], self.other_autocasc_obj.__dict__["explanation_dict"]["impact"] = 3, "impact high, biallelic: 3"
+
 
     def rate_inheritance(self):
         """This function scores zygosity/segregation.

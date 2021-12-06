@@ -1215,7 +1215,6 @@ def get_tab_card(active_tab,
                     )
             else:
                 impact_splice_site_tooltip = html.Div()
-            print("stop")
 
             tab_card_content = [
                 html.Div(description_tooltips + explanation_tooltips),
@@ -1431,7 +1430,13 @@ def score_variants(instances, inheritance):
                 for _transcript in _instance.get("affected_transcripts"):
                     _transcript_instance = copy.deepcopy(_instance)
                     _transcript_instance.__dict__.pop("transcript_instances")
-                    _transcript_instance.assign_results(_transcript)
+
+
+                    _transcript_instance.__dict__["transcript"] = _transcript  # added this line on 2021-12-06
+
+
+                    _transcript_instance.assign_results(_transcript, clear_params=True)
+                    _transcript_instance.__dict__["mode"] = "web"
                     _transcript_instance.calculate_candidate_score()
                     _instance.transcript_instances[_transcript] = _transcript_instance
                     if _transcript_instance.candidate_score > highest_casc:
