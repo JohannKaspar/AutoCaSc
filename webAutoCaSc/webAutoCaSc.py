@@ -11,7 +11,7 @@ from dash.exceptions import PreventUpdate
 from urllib.parse import unquote, quote
 import pandas as pd
 from numpy import array
-
+import re
 import os, sys
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(CURRENT_DIR))
@@ -21,7 +21,8 @@ from refseq_transcripts_converter import convert_variant
 
 server = Flask(__name__)
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
-                server=server)
+                server=server,
+                suppress_callback_exceptions=True)
 app.title = "webAutoCaSc"
 
 navbar = html.Div(
@@ -594,6 +595,7 @@ app.validation_layout = html.Div([
     dbc.Tabs(
         id="card_tabs",
         card=True,
+        active_tab=None
     )
 ])
 
@@ -831,6 +833,8 @@ def check_user_input(_, inheritance, user_input):
         variants = parse_input(user_input)
         if inheritance == "x_linked":
             for _variant in variants:
+                revariant = re.compile(re.escape('chr'), re.IGNORECASE)
+                _variant = revariant.sub('', _variant)
                 if _variant[0] != "X":
                     return False, True, None
         variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
@@ -1599,8 +1603,8 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True,
-                   dev_tools_hot_reload=True,
+    app.run_server(debug=False,
+                   dev_tools_hot_reload=False,
                    host='0.0.0.0',
                    port=5000
                    )
