@@ -821,6 +821,17 @@ def get_percentile(candidate_score):
     except (TypeError, ValueError):
         return "-"
 
+def get_casc_color(casc, layer="border"):
+    border_colors = ['#213ECC', '#353ABE', '#4A36AF', '#5E32A1', '#732E92', '#872B84', '#9B2775', '#B02366', '#C41F58', '#D91B4A', '#ED173B']
+    background_colors = ['#B2BEF8', '#B9B9EF', '#C1B3E5', '#C8AEDC', '#D0A8D2', '#D7A3C9', '#DE9DC0', '#E698B6', '#ED92AD', '#F58DA3', '#FC879A']
+    if round(casc) <= 5:
+        i = 0
+    else:
+        i = round(casc) - 5
+    if layer == "border":
+        return border_colors[i]
+    if layer == "background":
+        return background_colors[i]
 
 for _item in ["navbar", "footer"]:
     @app.callback(
@@ -863,7 +874,6 @@ def load_all_hgvsc_notations(n, is_open, active_variant):
     State("results_memory", "data")
 )
 def check_x_linkedness(_, results_memory):
-    # ctx = dash.callback_context
     if results_memory is not None:
         for _variant, _instance_attributes in results_memory.get("instances").items():
             if _instance_attributes.get("inheritance") == "x_linked":
@@ -885,7 +895,7 @@ def display_page(pathname, results_memory):
     if "results_memory" in ctx.triggered[0]['prop_id'] and results_memory is not None:
         print("results page")
         return [get_results_page(results_memory)] + [False for _store in range(5)] + ["center"]
-    else:
+    elif "url" in ctx.triggered[0]['prop_id']:
         if pathname == "/about":
             return [about_page] + [False for _store in range(5)] + ["start"]
         if pathname == "/impressum":
@@ -902,6 +912,7 @@ def display_page(pathname, results_memory):
                 print("results page")
                 return [get_results_page(results_memory)] + [False for _store in range(5)] + ["center"]
         else:
+            print("landing page")
             return [landing_page] + [True for _store in range(5)] + ["center"]
 
 
@@ -1014,19 +1025,6 @@ def update_transcripts_to_use(selected_transcript,
         _other_variant = results_memory.get("instances").get(_variant).get("other_variant")
         transcript_dict[_other_variant] = selected_transcript
     return transcript_dict
-
-
-def get_casc_color(casc, layer="border"):
-    border_colors = ['#213ECC', '#353ABE', '#4A36AF', '#5E32A1', '#732E92', '#872B84', '#9B2775', '#B02366', '#C41F58', '#D91B4A', '#ED173B']
-    background_colors = ['#B2BEF8', '#B9B9EF', '#C1B3E5', '#C8AEDC', '#D0A8D2', '#D7A3C9', '#DE9DC0', '#E698B6', '#ED92AD', '#F58DA3', '#FC879A']
-    if round(casc) <= 5:
-        i = 0
-    else:
-        i = round(casc) - 5
-    if layer == "border":
-        return border_colors[i]
-    if layer == "background":
-        return background_colors[i]
 
 
 @app.callback(
