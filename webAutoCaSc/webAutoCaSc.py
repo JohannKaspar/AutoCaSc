@@ -3,8 +3,8 @@ import io
 from statistics import mean
 from flask import Flask
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc
+from dash import html
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 from dash.exceptions import PreventUpdate
@@ -25,17 +25,17 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
                 suppress_callback_exceptions=True)
 app.title = "webAutoCaSc"
 
-navbar = html.Div(
-    [
-        dbc.Navbar(
+navbar = dbc.Navbar(
             dbc.Container(
                 [
                     html.A(
                         dbc.NavbarBrand("webAutoCaSc",
                                         style={
-                                            "font-size": "1.8em"
-                                        }),
+                                            "fontSize": "1.8em"
+                                        },
+                                        class_name="ms-2"),
                         href="/",
+                        style={"textDecoration": "none"}
                     ),
                     dbc.NavbarToggler(id="navbar-toggler"),
                     dbc.Collapse(
@@ -50,8 +50,7 @@ navbar = html.Div(
                                 dbc.Col(dbc.NavLink("Impressum", href='/impressum', style={"color": "#ffffff"}),
                                         width="auto"),
                             ],
-                            no_gutters=True,
-                            className="ml-auto flex-nowrap mt-3 mt-md-0",
+                            className="ms-auto flex-nowrap mt-3 mt-md-0 g-0",
                             align="center",
                         ),
                         id="navbar-collapse",
@@ -63,8 +62,6 @@ navbar = html.Div(
             dark=True,
             fixed="top",
         )
-    ]
-)
 
 
 footer = dbc.Navbar(
@@ -101,18 +98,17 @@ footer = dbc.Navbar(
                                 width="auto"
                                 )
                     ],
-                    no_gutters=True,
-                    className="ml-auto flex-nowrap mt-3 mt-md-0",
+                    className="ms-auto flex-nowrap mt-3 mt-md-0 g-0",
                     align="center",
                 ),
                 id="footer-collapse",
                 navbar=True,
             )
-        ],
+        ]
     ),
     color="dark",
     dark=True,
-    fixed="bottom",
+    fixed="bottom"
 )
 
 stores = ["query_memory",
@@ -124,30 +120,49 @@ stores = ["query_memory",
           "active_variant_tab"]
 
 url_bar_and_content_div = html.Div(
-    [dcc.Store(id=_store) for _store in stores] + [
+    [
+        dcc.Store(id=_store) for _store in stores] + [
         dcc.Location(id='url', refresh=False),
         Download(id="download"),
         navbar,
+        dbc.Toast(
+            "You have selected X-linked inheritance, but the variant is not located on the X-chromosome.",
+            id="warning-toast",
+            header="CAVE!",
+            is_open=False,
+            dismissable=True,
+            icon="danger",
+            style={
+                "position": "fixed",
+                "top": 66,
+                "right": 10,
+                "width": 350,
+                "zIndex": 2
+            },
+        ),
         dbc.Container(
             dbc.Row(
                 id='page-content',
                 style={
-                    "margin-top": "80px",
-                    "margin-bottom": "63px",
-                    "height": "calc(100vh - 143px)",
-                    "overflow-y": "auto",
-                    "justify-content": "start",
-                    "width": "100%"
+                    "marginTop": "70px",
+                    "marginBottom": "63px",
+                    "height": "calc(100vh - 133px)",
+                    "overflowY": "auto",
+                    "justifyContent": "start",
+                    "width": "100%",
                 },
-                align="center",
+                align="start",
                 className="hide_scrollbar"
-            )
+            ),
+            style={
+                "zIndex": 1
+            }
         ),
         footer
     ],
     style={"width": "100%"})
 
-variant_input_card = dbc.FormGroup(
+variant_input_card = html.Div(
     [
         dbc.Input(
             type="text",
@@ -155,17 +170,17 @@ variant_input_card = dbc.FormGroup(
             placeholder="e.g. X:12345:T:C",
             autoFocus=True
         ),
-        dcc.Markdown('''Although HGVS works as well, we recommend using VCF format.\t
+        dcc.Markdown('''Although HGVS might work in some cases, we recommend using VCF format.\t
                      Examples: [11:94730916:A:C](/search/inheritance%3Dde_novo/variants%3D11%3A94730916%3AA%3AC), 
                      [X:101409056:A:C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC), 
                      [ENST00000378402.5:c.4966G>A](/search/inheritance%3Dhomo/variants%3DENST00000378402.5%3Ac.4966G%3EA)
                      ''',
-                     style={"font-size": "12px",
-                            "margin-top": "10px"})
+                     style={"fontSize": "12px",
+                            "marginTop": "10px"})
     ]
 )
 
-misc_input_card = dbc.FormGroup(
+misc_input_card = html.Div(
     [
         dbc.RadioItems(
             id="inheritance_input",
@@ -204,11 +219,11 @@ landing_page = dbc.Container(
                         color="primary",
                         id="search_button"
                     ),
-                    style={"padding-bottom": "10px"}
+                    style={"paddingBottom": "10px"}
                 )
             ]
         )
-    ],
+    ]
 )
 
 search_page = dbc.Container([
@@ -282,13 +297,13 @@ about_eng = [html.P(
     "STRING (4), MGI (5), PubTator (6), PsyMuKB (7), DisGeNET (8)) and generated empirical cut-offs for each category "
     "by comparing the respective readout between a manually curated list of known NDD genes from the SysID database ("
     "9) and a list of genes not involved in NDD.",
-    style={"text-align": "justify"}),
+    style={"textAlign": "justify"}),
              html.Br(),
              html.P(
                  "Feel free to contact johann.lieberwirth@medizin.uni-leipzig.de or "
                  "rami.aboujamra@medizin.uni-leipzig.de in case you have further questions or in case you have found "
                  "a bug.",
-                 style={"text-align": "justify"})]
+                 style={"textAlign": "justify"})]
 
 about_ger = [html.P(
     "AutoCaSc ist ein Skript zum automatisierten Bewerten von Kandidatenvarianten in Fällen neuronaler "
@@ -300,19 +315,21 @@ about_ger = [html.P(
     "(7), DisGeNET (8)). Die maximal erreichbare Punktzahl sind 15 Punkte. Je höher der erreichte Punktwert, "
     "desto plausibler scheint die aus den zugrundeliegenden Daten errechnete Pathogenität der Variante mit Blick auf "
     "neuronale Entwicklungsverzögerung.",
-    style={"text-align": "justify"}),
+    style={"textAlign": "justify"}),
              html.Br(),
              html.P(
                  "Bei Fragen und Anmerkungen kontaktieren Sie bitte johann.lieberwirth@medizin.uni-leipzig.de oder "
                  "rami.aboujamra@medizin.uni-leipzig.de.",
-                 style={"text-align": "justify"})]
+                 style={"textAlign": "justify"})]
 
 about_page = dbc.Container([
     html.Br(),
     dbc.Row([
         dbc.Col(html.H2("About"),
                 width="auto"),
-        dbc.Col(dbc.Button("DE", id="about_language_button"),
+        dbc.Col(dbc.Button("DE",
+                           id="about_language_button",
+                           color="secondary"),
                 width="auto")
     ]),
     html.Br(),
@@ -322,7 +339,42 @@ about_page = dbc.Container([
     citations
 ])
 
-faq_ger = dcc.Markdown("""
+
+browser_compatibility_header = [
+    html.Thead(html.Tr([html.Th("OS"),
+                        html.Th("Version"),
+                        html.Th("Chrome"),
+                        html.Th("Firefox"),
+                        html.Th("Microsoft Edge"),
+                        html.Th("Safari")]))
+]
+browser_compatibility_row1 = html.Tr([html.Td("MacOS"),
+                html.Td("12.0.1"),
+                html.Td("96.0.4664.110"),
+                html.Td("94.0.2"),
+                html.Td("n/a"),
+                html.Td("15.1")])
+browser_compatibility_row2 = html.Tr([html.Td("Linux"),
+                html.Td("20.04.3 LTS"),
+                html.Td("93.0.4577.82"),
+                html.Td("n/a"),
+                html.Td("n/a"),
+                html.Td("n/a")])
+browser_compatibility_row3 = html.Tr([html.Td("Windows 10"),
+                html.Td("1809"),
+                html.Td("94.0.4606.71"),
+                html.Td("92.0.1"),
+                html.Td("96.0.1504.53"),
+                html.Td("n/a")])
+
+browser_compatibility_body = [html.Tbody([browser_compatibility_row1,
+                                          browser_compatibility_row2,
+                                          browser_compatibility_row3])]
+
+
+faq_ger = html.Div(
+    [
+        dcc.Markdown("""
             __Was ist AutoCaSc?__  
             AutoCaSc ist ein Werkzeug zur systematischen Evaluierung der Plausibilität von Varianten in Genen, welche 
             bislang nicht mit Erkrankungen in Verbindung gebracht wurden ("Kandidatengene"), in Fällen neurologischer 
@@ -380,9 +432,17 @@ faq_ger = dcc.Markdown("""
             __Kann webAutoCaSc für andere Phänotypen genutzt werden?__  
             AutoCaSc wurde für die Arbeit mit NDDs entwickelt. Wir empfehlen nicht, es für andere Phänotypen zu 
             verwenden. Für zukünftige Updates planen wir ein verallgemeinertes, phänotyp-unabhängiges Framework.
-            """)
+            
+            __Auf welchen Browsern läuft webAutoCaSc?__
+            Wir haben webAutoCaSc auf folgenden Betriebssystemen und Browsern getestet:
+            """),
+        dbc.Table(browser_compatibility_header + browser_compatibility_body, bordered=True)
+    ]
+)
 
-faq_eng = dcc.Markdown("""
+faq_eng = html.Div(
+    [
+        dcc.Markdown("""
             __What is AutoCaSc?__  
             The AutoCaSc tool systematically evaluates the plausibility of variants in genes not yet associated with 
             human disease ("candidate genes") to be associated with neurodevelopmental disorders (NDDs). Such variants 
@@ -437,20 +497,28 @@ faq_eng = dcc.Markdown("""
             __Can webAutoCaSc be used for other phenotypes as well?__  
             AutoCaSc has been developed to work for NDDs. We don't recommend using it for other phenotypes. We are 
             planning a generalized phenotype agnostic framework for future updates.
-            """)
+            
+            __What browsers can run webAutoCaSc?__
+            We tested webAutoCaSc on different operating systems and browsers. You can find a table below.
+            """),
+        dbc.Table(browser_compatibility_header + browser_compatibility_body, bordered=True)
+        ]
+)
 
 faq_page = dbc.Container([
     html.Br(),
     dbc.Row([
         dbc.Col(html.H2("FAQ"),
                 width="auto"),
-        dbc.Col(dbc.Button("DE", id="faq_language_button"),
+        dbc.Col(dbc.Button("DE",
+                           id="faq_language_button",
+                           color="secondary"),
                 width="auto")
     ]),
     html.Br(),
     html.Div(faq_eng,
              id="faq_text",
-             style={"text-align": "justify"})
+             style={"textAlign": "justify"})
 ])
 
 news_page = dbc.Container(
@@ -492,7 +560,7 @@ impressum_ger = dcc.Markdown("""
                             __Urheberschutz und Nutzung__:  
                             Der Urheber räumt Ihnen ganz konkret das Nutzungsrecht ein, sich eine private Kopie für 
                             persönliche Zwecke anzufertigen. Nicht berechtigt sind Sie dagegen, die Materialien zu 
-                            verändern und /oder weiter zu geben oder gar selbst zu veröffentlichen.
+                            verändern und/oder weiter zu geben oder gar selbst zu veröffentlichen.
                             Wenn nicht ausdrücklich anders vermerkt, liegen die Urheberrechte bei Johann Lieberwirth
                             Datenschutz Personenbezogene Daten werden nur mit Ihrem Wissen und Ihrer Einwilligung 
                             erhoben. Auf Antrag erhalten Sie unentgeltlich Auskunft zu den über Sie gespeicherten 
@@ -522,23 +590,21 @@ impressum_ger = dcc.Markdown("""
                 """)
 
 impressum_eng = [
-    html.P(
-        "The Institute for Human Genetics (University Medical Center Leipzig) makes no representation about the "
-        "suitability or accuracy of this software or data for any purpose, and makes no warranties, including fitness "
-        "for a particular purpose or that the use of this software will not infringe any third party patents, "
-        "copyrights, trademarks or other rights."),
-    html.Br(),
-    dcc.Markdown("""
-                __Responsible for this website__:  
-                Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
-                __Responsible for this project__:  
-                Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
-                __Address__:  
-                Sekretariat  
-                Philipp-Rosenthal-Str. 55  
-                04103 Leipzig  
-                GERMANY  
-                Telefon: 0341 - 97 23800""")
+        dcc.Markdown("""
+            The Institute for Human Genetics (University Medical Center Leipzig) makes no representation about the 
+            suitability or accuracy of this software or data for any purpose, and makes no warranties, including fitness 
+            for a particular purpose or that the use of this software will not infringe any third party patents, 
+            copyrights, trademarks or other rights.\n
+            __Responsible for this website__:  
+            Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
+            __Responsible for this project__:  
+            Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
+            __Address__:  
+            Sekretariat  
+            Philipp-Rosenthal-Str. 55  
+            04103 Leipzig  
+            GERMANY  
+            Telefon: 0341 - 97 23800""")
 ]
 
 impressum_page = dbc.Container(
@@ -547,15 +613,21 @@ impressum_page = dbc.Container(
         dbc.Row([
             dbc.Col(html.H2("Impressum"),
                     width="auto"),
-            dbc.Col(dbc.Button("EN", id="impressum_language_button"),
+            dbc.Col(dbc.Button("EN",
+                               id="impressum_language_button",
+                               color="secondary"),
                     width="auto")
         ]),
         html.Br(),
         html.Div(impressum_ger,
-                 id="impressum_text",
-                 style={"text-align": "justify"}
+                 id="impressum_text"
                  )
-    ]
+    ],
+    style={
+        "textAlign": "justify",
+        "verticalAlign": "top!",
+        "minHeight": "100%!"
+    },
 )
 
 # index layout
@@ -575,7 +647,6 @@ app.validation_layout = html.Div([
                 dbc.CardHeader(
                     dbc.Tabs(
                         id="card_tabs",
-                        card=True,
                     )
                 ),
                 dbc.CardBody(
@@ -594,7 +665,6 @@ app.validation_layout = html.Div([
     dbc.Collapse(id="collapse_transcripts"),
     dbc.Tabs(
         id="card_tabs",
-        card=True,
         active_tab=None
     )
 ])
@@ -639,29 +709,29 @@ def get_results_page(results_memory):
                                 dbc.Tabs(
                                     tab_list,
                                     id="card_tabs",
-                                    card=True,
                                     active_tab=initial_tab,
                                 ),
 
                             ],
                             className="align-items-baseline",
                             style={
-                                "padding-bottom": "0 !important",
-                                "margin-bottom": "0 !important",
-                                "padding-left": "10px",
-                                "padding-right": "10px",
+                                "paddingBottom": "0 !important",
+                                "marginBottom": "0 !important",
+                                "paddingLeft": "10px",
+                                "paddingRight": "10px",
                             },
                             justify="between",
                         ),
                     ),
                     dbc.CardBody(
                         html.P(id="card_content"),
-                        style={"padding-bottom": "0"}
+                        style={"paddingBottom": "0"}
                     )
                 ]
             ),
             style={"width": "100%",
-                   "min-height": "calc(100vh - 150px)"}
+                   # "minHeight": "calc(100vh - 150px)"
+                   }
         )
         return results_page
 
@@ -787,37 +857,52 @@ def load_all_hgvsc_notations(n, is_open, active_variant):
     return is_open, ""
 
 
+@app.callback(
+    Output("warning-toast", "is_open"),
+    Input("page-content", "children"),
+    State("results_memory", "data")
+)
+def check_x_linkedness(_, results_memory):
+    # ctx = dash.callback_context
+    if results_memory is not None:
+        for _variant, _instance_attributes in results_memory.get("instances").items():
+            if _instance_attributes.get("inheritance") == "x_linked":
+                if not _instance_attributes.get("vcf_string")[0] == "X":
+                    return True
+    return False
+
 @app.callback(Output('page-content', 'children'),
               Output("query_memory", "clear_data"),
               Output("variant_queue_input", "clear_data"),
               Output("variant_queue_url", "clear_data"),
               Output("results_memory", "clear_data"),
               Output("transcripts_to_use_memory", "clear_data"),
+              Output("page-content", "align"),
               [Input('url', 'pathname'),
                Input("results_memory", "data")])
 def display_page(pathname, results_memory):
     ctx = dash.callback_context
     if "results_memory" in ctx.triggered[0]['prop_id'] and results_memory is not None:
         print("results page")
-        return [get_results_page(results_memory)] + [False for _store in range(5)]
+        return [get_results_page(results_memory)] + [False for _store in range(5)] + ["center"]
     else:
         if pathname == "/about":
-            return [about_page] + [False for _store in range(5)]
+            return [about_page] + [False for _store in range(5)] + ["start"]
         if pathname == "/impressum":
-            return [impressum_page] + [False for _store in range(5)]
+            return [impressum_page] + [False for _store in range(5)] + ["start"]
         if pathname == "/faq":
-            return [faq_page] + [False for _store in range(5)]
+            return [faq_page] + [False for _store in range(5)] + ["start"]
         if pathname == "/news":
-            return [news_page] + [False for _store in range(5)]
+            return [news_page] + [False for _store in range(5)] + ["start"]
         if "/search" in pathname:
             if results_memory is None:
                 print("search page")
-                return [search_page] + [False for _store in range(5)]
+                return [search_page] + [False for _store in range(5)] + ["center"]
             else:
                 print("results page")
-                return [get_results_page(results_memory)] + [False for _store in range(5)]
+                return [get_results_page(results_memory)] + [False for _store in range(5)] + ["center"]
         else:
-            return [landing_page] + [True for _store in range(5)]
+            return [landing_page] + [True for _store in range(5)] + ["center"]
 
 
 @app.callback(
@@ -831,12 +916,12 @@ def display_page(pathname, results_memory):
 def check_user_input(_, inheritance, user_input):
     if user_input is not None:
         variants = parse_input(user_input)
-        if inheritance == "x_linked":
-            for _variant in variants:
-                revariant = re.compile(re.escape('chr'), re.IGNORECASE)
-                _variant = revariant.sub('', _variant)
-                if _variant[0] != "X":
-                    return False, True, None
+        # if inheritance == "x_linked":
+        #     for _variant in variants:
+        #         revariant = re.compile(re.escape('chr'), re.IGNORECASE)
+        #         _variant = revariant.sub('', _variant)
+        #         if _variant[0] != "X":
+        #             return False, True, None
         variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
         if input_ok(variant_instances):
             variant_queue = {"instances": {_instance.__dict__.get("variant"): _instance.__dict__ for _instance in
@@ -859,10 +944,6 @@ def search_button_click(n_clicks, variant_queue_input, variant_queue_url, inheri
     if n_clicks is not None and not variant_queue is None and not inheritance is None:
         variants = [variant_queue.get("instances").get(_key).get("variant") for _key in
                     variant_queue.get("instances").keys()]
-        if inheritance == "x_linked":
-            for _variant in variants:
-                if _variant[0] != "X":
-                    raise PreventUpdate
         url_suffix = quote(f"/search/inheritance={inheritance}/variants={'%'.join(variants)}")
         return url_suffix
     else:
@@ -933,6 +1014,19 @@ def update_transcripts_to_use(selected_transcript,
         _other_variant = results_memory.get("instances").get(_variant).get("other_variant")
         transcript_dict[_other_variant] = selected_transcript
     return transcript_dict
+
+
+def get_casc_color(casc, layer="border"):
+    border_colors = ['#213ECC', '#353ABE', '#4A36AF', '#5E32A1', '#732E92', '#872B84', '#9B2775', '#B02366', '#C41F58', '#D91B4A', '#ED173B']
+    background_colors = ['#B2BEF8', '#B9B9EF', '#C1B3E5', '#C8AEDC', '#D0A8D2', '#D7A3C9', '#DE9DC0', '#E698B6', '#ED92AD', '#F58DA3', '#FC879A']
+    if round(casc) <= 5:
+        i = 0
+    else:
+        i = round(casc) - 5
+    if layer == "border":
+        return border_colors[i]
+    if layer == "background":
+        return background_colors[i]
 
 
 @app.callback(
@@ -1014,7 +1108,7 @@ def get_tab_card(active_tab,
                                          dbc.Col(get_badge(_instance_attributes.get("status_code"), i),
                                                  width="auto")],
                                         justify="start",
-                                        no_gutters=True),
+                                        className="g-0"),
                                 style=cell_style),
                         html.Th(_instance_attributes.get("candidate_score"),
                                 style=cell_style),
@@ -1047,9 +1141,12 @@ def get_tab_card(active_tab,
                     dbc.Col(dbc.Button("Download",
                                        id="download_button",
                                        style={
-                                           "margin-bottom": "10px",
-                                           "margin-top": "0"
-                                       }),
+                                           # "margin-bottom": "10px",
+                                           "marginTop": "0",
+                                           "padding": "10px"
+                                       },
+                                       size="large",
+                                       color="secondary"),
                             width="auto"
                             )
                 ],
@@ -1080,29 +1177,78 @@ def get_tab_card(active_tab,
         if len(results_memory.get("instances")) == 1:
             card_header = dbc.Row(
                 [
-                    dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
-                            className="col-12 col-md-6"),
                     dbc.Col(
-                        dbc.Row(
-                            [
-                                dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score')}",
-                                                id="percentile_target")),
-                                dbc.Col(dbc.Button("Download",
-                                                   id="download_button",
-                                                   style={
-                                                       "margin-bottom": "10px",
-                                                       "margin-top": "0"
-                                                   }),
-                                        width="auto"),
-                            ],
-                            style={"margin-bottom": "0",
-                                   "padding-bottom": "0"}
-                        ),
-                        className="col-12 col-md-6"
-                    )
+                        html.H3(
+                            f"Variant: {get_display_variant(_variant)}"),
+                            md=6),
+                    dbc.Col(
+                        [
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+
+                                        [
+                                            dbc.Row(
+                                                [
+                                                    dbc.Col(
+                                                        html.H3(
+                                                            f"Candidate Score:",
+                                                            id="percentile_target"),
+                                                        width="auto"
+                                                    ),
+                                                    dbc.Col(
+                                                        html.H3(_instance_attributes.get('candidate_score'),
+                                                                id="hover-target",
+                                                                style={
+                                                                    "border": "3px",
+                                                                    "borderStyle": "solid",
+                                                                    "borderColor": get_casc_color(_instance_attributes.get('candidate_score'), 'border'),
+                                                                    "borderRadius": "5px",
+                                                                    "padding": "7px",
+                                                                    "backgroundColor": get_casc_color(_instance_attributes.get('candidate_score'), 'background')
+                                                                }
+                                                            ),
+                                                        width="auto"
+                                                    ),
+                                                    dbc.Popover(
+                                                        f"About {get_percentile(_instance_attributes.get('candidate_score'))} of the variants scored "
+                                                        f"at the Institute for Human Genetics Leipzig had a lower score than this.",
+                                                        target="hover-target",
+                                                        body=True,
+                                                        trigger="hover",
+                                                    )
+                                                ],
+                                                class_name="flex-nowrap",
+                                                align="center"
+                                            )
+
+
+
+                                        ],
+                                        md=8
+                                    ),
+                                    dbc.Col(dbc.Button("Download",
+                                                       id="download_button",
+                                                       color="secondary",
+                                                       style={
+                                                           "marginBottom": "10px",
+                                                           "padding": "10px",
+                                                           "marginTop": "0"
+                                                       }
+                                                       ),
+                                            width="auto")
+                                ],
+                                justify="between",
+                                align="center"
+                            ),
+
+                        ],
+                        md=6
+                    ),
                 ],
-                style={"margin-bottom": "0",
-                       "padding-bottom": "0"}
+                style={"marginBottom": "0",
+                       "paddingBottom": "0"},
+                align="center"
             )
         else:
             card_header = dbc.Row(
@@ -1222,10 +1368,6 @@ def get_tab_card(active_tab,
 
             tab_card_content = [
                 html.Div(description_tooltips + explanation_tooltips),
-                dbc.Tooltip(
-                    f"About {get_percentile(_instance_attributes.get('candidate_score'))} of the scored variants "
-                    f"@Institute for Human Genetics Leipzig had a lower score than this.",
-                    target="percentile_target"),
                 impact_splice_site_tooltip,
                 card_header,
                 html.Hr(),
@@ -1237,7 +1379,7 @@ def get_tab_card(active_tab,
                             [
                                 dbc.Col(dcc.Markdown("**Transcript:**"),
                                      width="auto",
-                                     style={"margin-top": "6px"}
+                                     style={"marginTop": "6px"}
                                      ),
                                 dbc.Col(dcc.Dropdown(
                                  options=[{"label": f"{_transcript}", "value": f"{_transcript}"} for _transcript in
@@ -1246,14 +1388,14 @@ def get_tab_card(active_tab,
                                  value=_transcript,
                                  clearable=False,
                                  style={
-                                     "padding-left": "5px",
-                                     "margin-top": "1px",
-                                     "padding-top": "0px"
+                                     "paddingLeft": "5px",
+                                     "marginTop": "1px",
+                                     "paddingTop": "0px"
                                  },
                                  id="transcript_dropdown"
                                  ))
                             ],
-                            no_gutters=True,
+                            className="g-0",
                             align="start"
                         ),
                             className="col-12 col-md-6")
@@ -1282,7 +1424,7 @@ def get_tab_card(active_tab,
                                 responsive=True,
                                 hover=True,
                                 striped=True,
-                                style={"margin-bottom": 0}
+                                style={"marginBottom": 0}
                             ),
                             className="col-12 col-md-6"
                         ),
@@ -1297,13 +1439,13 @@ def get_tab_card(active_tab,
                                 responsive=True,
                                 hover=True,
                                 striped=True,
-                                style={"margin-bottom": 0}
+                                style={"marginBottom": 0}
                             ),
                             className="col-12 col-md-6"
                         )
                     ]
                 ),
-                html.Hr(),
+                # html.Br(),
                 dbc.Row(
                     dbc.Col(
                         dbc.Button(
@@ -1312,7 +1454,8 @@ def get_tab_card(active_tab,
                             ],
                             id="collapse_button_transcripts",
                             className="mb-3",
-                            n_clicks=0
+                            n_clicks=0,
+                            color="secondary"
                         )
                     )
                 ),
@@ -1603,8 +1746,8 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False,
-                   dev_tools_hot_reload=False,
+    app.run_server(debug=True,
+                   dev_tools_hot_reload=True,
                    host='0.0.0.0',
                    port=5000
                    )
