@@ -18,6 +18,7 @@ import requests
 from numpy import isnan
 from gnomAD import GnomADQuery
 from tools import safe_get, get_seq_difference, write_new_api_request
+os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 import git
 
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
