@@ -104,7 +104,8 @@ class AutoCaSc:
         return self.__dict__.get(attribute)
 
     def get_git_hash(self):
-        self.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+        # self.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+        self.git_hash = "placeholder"
         # repo = git.Repo(search_parent_directories=True)
         # sha = repo.head.object.hexsha
         # self.git_hash = repo.git.rev_parse(sha, short=7)
