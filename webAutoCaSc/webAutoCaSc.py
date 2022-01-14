@@ -881,13 +881,13 @@ def check_x_linkedness(_, results_memory):
                     return True
     return False
 
-@app.callback(Output('page-content', 'children'),
+@app.callback([Output('page-content', 'children'),
               Output("query_memory", "clear_data"),
               Output("variant_queue_input", "clear_data"),
               Output("variant_queue_url", "clear_data"),
               Output("results_memory", "clear_data"),
               Output("transcripts_to_use_memory", "clear_data"),
-              Output("page-content", "align"),
+              Output("page-content", "align")],
               [Input('url', 'pathname'),
                Input("results_memory", "data")])
 def display_page(pathname, results_memory):
