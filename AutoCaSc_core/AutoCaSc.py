@@ -105,7 +105,8 @@ class AutoCaSc:
 
     def get_git_hash(self):
         repo = git.Repo(search_parent_directories=True)
-        self.git_hash =  repo.head.object.hexsha
+        sha = repo.head.object.hexsha
+        self.git_hash = repo.git.rev_parse(sha, short=7)
 
     def check_for_other_variant(self):
         """Check if a corresponding autocasc objet exists. If so set other_variant to its variant.
