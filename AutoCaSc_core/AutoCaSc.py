@@ -18,8 +18,7 @@ import requests
 from numpy import isnan
 from gnomAD import GnomADQuery
 from tools import safe_get, get_seq_difference, write_new_api_request
-os.environ["GIT_PYTHON_REFRESH"] = "quiet"
-import git
+import subprocess
 
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
@@ -105,7 +104,7 @@ class AutoCaSc:
         return self.__dict__.get(attribute)
 
     def get_git_hash(self):
-        self.git_hash = "placeholder"
+        self.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
         # repo = git.Repo(search_parent_directories=True)
         # sha = repo.head.object.hexsha
         # self.git_hash = repo.git.rev_parse(sha, short=7)
