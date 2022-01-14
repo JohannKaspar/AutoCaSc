@@ -5,7 +5,7 @@ import shlex
 import subprocess
 from io import StringIO
 import click
-from AutoCaSc import AutoCaSc, VERSION
+from AutoCaSc import AutoCaSc
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor
 import re
@@ -876,7 +876,11 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
                                               blacklist_path=blacklist_path,
                                               sysid_primary_path=sysid_primary_path,
                                               sysid_candidates_path=sysid_candidates_path)
-        autocasc_df["version"] = VERSION
+
+        dummy_instance = AutoCaSc()
+        autocasc_df["version"] = dummy_instance.get("git_hash")
+        # todo: check if this does cause any problems
+
         autocasc_df.to_csv(f"{output_path}",
                            index=False,
                            decimal=",",

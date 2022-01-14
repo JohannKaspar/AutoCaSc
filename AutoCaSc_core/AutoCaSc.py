@@ -18,8 +18,8 @@ import requests
 from numpy import isnan
 from gnomAD import GnomADQuery
 from tools import safe_get, get_seq_difference, write_new_api_request
+import git
 
-VERSION = 1.0
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
 gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
@@ -92,6 +92,7 @@ class AutoCaSc:
         self.gene_constraint_score = 0
         self.candidate_score = 0
 
+        self.get_git_hash()  # this method gets the current git hash to track versions
         self.check_variant_format()  # this function is called to check if the entered variant is valid
         self.check_for_other_variant()
         if self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
@@ -101,6 +102,10 @@ class AutoCaSc:
 
     def get(self, attribute):
         return self.__dict__.get(attribute)
+
+    def get_git_hash(self):
+        repo = git.Repo(search_parent_directories=True)
+        self.git_hash =  repo.head.object.hexsha
 
     def check_for_other_variant(self):
         """Check if a corresponding autocasc objet exists. If so set other_variant to its variant.
@@ -754,7 +759,7 @@ class AutoCaSc:
         """
         self.frequency_score, self.explanation_dict["frequency"] = 0, "other: 0"
 
-        if self.inheritance in ["de_novo", "ad_inherited"]:
+        if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:
             if self.maf < 0.000005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
                     f"{self.inheritance} & MAF < 0.000005: 1"
@@ -934,7 +939,7 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # some examples for testing
-    # single(["-v", "1:205030515:C:T", "-ih", "homo"])
+    # single(["-v", "11:57512508:T:TA", "-ih", "de_novo"])
     # single(["-v", "ENST00000159111:c.288C>T", "-ih", "de_novo"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
