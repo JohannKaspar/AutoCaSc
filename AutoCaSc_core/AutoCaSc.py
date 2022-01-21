@@ -18,8 +18,8 @@ import requests
 from numpy import isnan
 from gnomAD import GnomADQuery
 from tools import safe_get, get_seq_difference, write_new_api_request
-import git
 
+VERSION = 1.0
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
 gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
@@ -92,7 +92,6 @@ class AutoCaSc:
         self.gene_constraint_score = 0
         self.candidate_score = 0
 
-        self.get_git_hash()  # this method gets the current git hash to track versions
         self.check_variant_format()  # this function is called to check if the entered variant is valid
         self.check_for_other_variant()
         if self.variant_format == "incorrect":  # if variant format is valid (not 401) continue
@@ -102,13 +101,6 @@ class AutoCaSc:
 
     def get(self, attribute):
         return self.__dict__.get(attribute)
-
-    def get_git_hash(self):
-        # self.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
-        # self.git_hash = "placeholder"
-        repo = git.Repo(search_parent_directories=True)
-        sha = repo.head.object.hexsha
-        self.git_hash = repo.git.rev_parse(sha, short=7)
 
     def check_for_other_variant(self):
         """Check if a corresponding autocasc objet exists. If so set other_variant to its variant.

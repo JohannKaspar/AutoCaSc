@@ -28,7 +28,6 @@ uwsgi = "*"
 flask = "*"
 dash-bootstrap-components = "*"
 dash-extensions = "*"
-gitpython = "*"
 
 [requires]
 python_version = "3.8"
