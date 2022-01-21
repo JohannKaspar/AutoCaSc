@@ -914,6 +914,8 @@ def display_page(pathname, results_memory):
         else:
             print("landing page")
             return [landing_page] + [True for _store in range(5)] + ["center"]
+    else:
+        raise PreventUpdate
 
 
 @app.callback(
@@ -1735,7 +1737,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
         else:
             df.loc[i, "variant_attribute_score"] = _instance_attributes.get("variant_score")
         df.loc[i, "gene_constraint_score"] = _instance_attributes.get("gene_constraint_score")
-        df["version"] = VERSION
+        df["version"] = str(VERSION)
 
     data = io.StringIO()
     df.to_csv(data, sep="\t", decimal=",")

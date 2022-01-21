@@ -934,7 +934,7 @@ def single(variant, corresponding_variant, inheritance, family_history):
 
 if __name__ == "__main__":
     # some examples for testing
-    # single(["-v", "11:57512508:T:TA", "-ih", "de_novo"])
+    # single(["-v", "1:205030515:C:T", "-ih", "homo"])
     # single(["-v", "ENST00000159111:c.288C>T", "-ih", "de_novo"])
     # batch(["-i", "/Users/johannkaspar/Documents/Promotion/AutoCaSc_project_folder/webAutoCaSc/AutoCaSc_core/data/CLI_batch_test_variants.txt"])
     main(obj={})
