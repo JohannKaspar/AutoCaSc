@@ -19,7 +19,7 @@ from numpy import isnan
 from gnomAD import GnomADQuery
 from tools import safe_get, get_seq_difference, write_new_api_request
 
-VERSION = 1.0
+VERSION = 1.1  # unknown inheritance --> frequency score as if dominant
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
 gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")

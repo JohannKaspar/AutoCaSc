@@ -15,7 +15,7 @@ import re
 import os, sys
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(CURRENT_DIR))
-from AutoCaSc_core.AutoCaSc import AutoCaSc
+from AutoCaSc_core.AutoCaSc import AutoCaSc, VERSION
 from dash_extensions import Download
 from refseq_transcripts_converter import convert_variant
 
@@ -1735,7 +1735,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
         else:
             df.loc[i, "variant_attribute_score"] = _instance_attributes.get("variant_score")
         df.loc[i, "gene_constraint_score"] = _instance_attributes.get("gene_constraint_score")
-        df["version"] = _instance_attributes.get("git_hash")
+        df["version"] = VERSION
 
     data = io.StringIO()
     df.to_csv(data, sep="\t", decimal=",")
