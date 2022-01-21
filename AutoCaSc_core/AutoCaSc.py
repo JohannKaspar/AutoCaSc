@@ -18,7 +18,7 @@ import requests
 from numpy import isnan
 from gnomAD import GnomADQuery
 from tools import safe_get, get_seq_difference, write_new_api_request
-import subprocess
+import git
 
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
@@ -104,11 +104,11 @@ class AutoCaSc:
         return self.__dict__.get(attribute)
 
     def get_git_hash(self):
-        self.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+        # self.git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
         # self.git_hash = "placeholder"
-        # repo = git.Repo(search_parent_directories=True)
-        # sha = repo.head.object.hexsha
-        # self.git_hash = repo.git.rev_parse(sha, short=7)
+        repo = git.Repo(search_parent_directories=True)
+        sha = repo.head.object.hexsha
+        self.git_hash = repo.git.rev_parse(sha, short=7)
 
     def check_for_other_variant(self):
         """Check if a corresponding autocasc objet exists. If so set other_variant to its variant.
