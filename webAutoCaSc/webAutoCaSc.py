@@ -25,6 +25,8 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP],
                 suppress_callback_exceptions=True)
 app.title = "webAutoCaSc"
 
+
+
 navbar = dbc.Navbar(
             dbc.Container(
                 [
@@ -755,7 +757,7 @@ def get_error(error_code):
     return error_dict.get(error_code) or (f"Some error occurred. Code {error_code}", "warning")
 
 
-def get_badge(status_code, i=None):
+def get_status_badge(status_code, i=None):
     if status_code == 200:
         return None
     else:
@@ -768,6 +770,61 @@ def get_badge(status_code, i=None):
         )
     return return_badge
 
+def get_gene_badge(_instance_attributes):
+    sysid = _instance_attributes.get("sysid")
+    if sysid == "known NDD":
+        sysid_color = "success"
+    elif sysid == "candidate":
+        sysid_color = "warning"
+    else:
+        sysid_color = None
+        sysid_badge = None
+        omim_color = "danger"
+        omim_comment = "Gene has associated phenotypes in OMIM, but is not listed in SysID: "
+
+    if sysid_color:
+        sysid_badge = html.Div(
+                [
+                    dbc.Badge("SysID", color=sysid_color, className="mx-2", id="sysid_badge"),
+                    dbc.Tooltip(sysid, target="sysid_badge")
+                ]
+            )
+        omim_color = "warning"
+        omim_comment = ""
+
+    omim_ids = _instance_attributes.get("mim_number")
+    if omim_ids is not None:
+        omim_ids = omim_ids.split(",")
+        omim_badge = html.Div(
+                [
+                    dbc.Badge("OMIM", color=omim_color, className="mx-2", id="gene_badge"),
+                    dbc.Tooltip(omim_comment + str(omim_ids), target="gene_badge")
+                ]
+            )
+    else:
+        omim_badge = None
+
+    return dbc.Col(
+        dbc.Row(
+            [dbc.Col(omim_badge,
+                     width="auto"),
+             dbc.Col(sysid_badge,
+                     width="auto")],
+            justify="start",
+            className="g-0"
+        ),
+           width="auto")
+    # if status_code == 200:
+    #     return None
+    # else:
+    #     error_message, error_color = get_error(status_code)
+    #     return_badge = html.Div(
+    #         [
+    #             dbc.Badge(status_code, color=error_color, className="mx-2", id=f"return_badge_{i}"),
+    #             dbc.Tooltip(error_message, target=f"return_badge_{i}")
+    #         ]
+    #     )
+    # return return_badge
 
 def get_percentile(candidate_score):
     try:
@@ -1105,7 +1162,7 @@ def get_tab_card(active_tab,
                     [
                         html.Th(dbc.Row([dbc.Col(_variant,
                                                  width="auto"),
-                                         dbc.Col(get_badge(_instance_attributes.get("status_code"), i),
+                                         dbc.Col(get_status_badge(_instance_attributes.get("status_code"), i),
                                                  width="auto")],
                                         justify="start",
                                         className="g-0"),
@@ -1178,9 +1235,20 @@ def get_tab_card(active_tab,
             card_header = dbc.Row(
                 [
                     dbc.Col(
-                        html.H3(
-                            f"Variant: {get_display_variant(_variant)}"),
-                            md=6),
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    html.H3(
+                                        f"Variant: {get_display_variant(_variant)}"),
+                                    width="auto"
+                                ),
+                                get_gene_badge(_instance_attributes)
+                            ],
+                        justify="start",
+                        className="g-0"
+                        ),
+                        md=6
+                    ),
                     dbc.Col(
                         [
                             dbc.Row(

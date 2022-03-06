@@ -2,6 +2,7 @@ import copy
 import os
 import pickle
 import sys
+from io import StringIO
 from pathlib import Path
 import random
 import tenacity
@@ -22,8 +23,10 @@ from tools import safe_get, get_seq_difference, write_new_api_request
 VERSION = 1.1  # unknown inheritance --> frequency score as if dominant
 ROOT_DIR = str(Path(__file__).parent) + "/data/"
 
-gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
 # This loads the calculated gene scores and gnomad constraints.
+gene_scores = pd.read_csv(ROOT_DIR + "all_gene_data.csv")
+
+
 
 class AutoCaSc:
     """AutoCaSc is a tool for quantifying plausibility of gene variants as a cause for neurodevelopmental delay.
@@ -40,7 +43,7 @@ class AutoCaSc:
                  family_history=False,
                  mode="default",
                  path_to_request_cache_dir=None):
-        """This function assigns basic parameters and initializes the scoring process.
+        """This function assigns basic parameters.
 
         :param variant: the variant including position and alternative sequence
         :param inheritance: segregation/zygosity: de_novo, homo, comphet, other, ad_inherited, x_linked
@@ -341,7 +344,6 @@ class AutoCaSc:
             if self.status_code == 200:
                 self.assign_results()
 
-
     def clear_params(self):
         for _parameter in ["gene_symbol",
                             "amino_acids",
@@ -582,6 +584,8 @@ class AutoCaSc:
                           "mgi_score", "string_score"]:
                 self.__dict__[score] = round(gene_scores.loc[gene_scores.ensemble_id == self.gene_id, score].values[0],
                                              2)
+            self.mim_number = gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "mim_number"].values[0]
+            self.sysid = gene_scores.loc[gene_scores.ensemble_id == self.gene_id, "sys_category"].values[0]
         else:
             # If not, the values are set to 0.
             for score in ["gene_plausibility", "pubtator_score", "gtex_score", "denovo_rank_score", "disgenet_score",
@@ -635,9 +639,9 @@ class AutoCaSc:
         if self.inheritance == "x_linked":
             if self.family_history in [True, "yes"]:
                 self.inheritance_score, self.explanation_dict["inheritance"] = 2, \
-                    "X-linked and another maternal male relative: 2"
+                    "X-linked and male and another maternal male relative: 2"
             else:
-                self.inheritance_score, self.explanation_dict["inheritance"] = 1, "X-linked and a boy: 1"
+                self.inheritance_score, self.explanation_dict["inheritance"] = 1, "X-linked and male: 1"
 
     def rate_pli_z(self):
         """This function scores gnomAD constraints (pLI/Z).
@@ -757,20 +761,20 @@ class AutoCaSc:
         if self.inheritance in ["de_novo", "ad_inherited", "unknown"]:
             if self.maf < 0.000005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
-                    f"{self.inheritance} & MAF < 0.000005: 1"
+                    f"{self.inheritance} & MAF < 5e-6: 1"
             elif self.maf < 0.00002:
                 self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
-                    f"{self.inheritance} & MAF < 0.00002: 0.5"
+                    f"{self.inheritance} & MAF < 2e-5: 0.5"
             else:
                 self.frequency_score, self.explanation_dict["frequency"] = 0, "de novo & MAF > 0.00002: 0"
 
         if self.inheritance in ["homo", "comphet"]:
             if self.maf < 0.00005:
                 self.frequency_score, self.explanation_dict["frequency"] = 1,\
-                    "autosomal recessive & MAF < 0.00005: 1"
+                    "autosomal recessive & MAF < 5e-5: 1"
             elif self.maf < 0.0005:
                 self.frequency_score, self.explanation_dict["frequency"] = 0.5,\
-                    "autosomal recessive & MAF < 0.0005: 0.5"
+                    "autosomal recessive & MAF < 5e-4: 0.5"
 
         if self.inheritance == "x_linked":
             gnomad_variant_result, _ = GnomADQuery(self.vcf_string, "variant").get_gnomad_info()

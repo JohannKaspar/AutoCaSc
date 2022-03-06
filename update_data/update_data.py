@@ -1,5 +1,7 @@
 import pickle
 import math
+import re
+
 import pandas as pd
 from AutoCaSc_core.tools import add_categories, rank_genes, lin_rank, negative_product
 from scipy.stats import spearmanr, mannwhitneyu
@@ -41,6 +43,44 @@ def HGNC():
                       index=False)
     # else:
     #     print("Could not load HGNC data! Using old data instead.")
+
+
+def get_mim_number(gene, omim_morbid=None):
+    omim_gene = omim_morbid.loc[omim_morbid.gene_symbol == gene]
+    if omim_gene.empty:
+        return ""
+    else:
+        return ",".join(omim_gene.mim_number.to_list())
+
+
+def add_omim_annotation(df, omim_morbid_path="OMIM/OMIM_morbidmap.tsv", column="gene_symbol"):
+    # loading ensemble --> gene_symbol file (downloaded from OMIM website)
+    gene2ensemble = pd.read_csv(ROOT_DIR + "OMIM/mim2gene.txt", sep="\t", header=4)
+    gene2ensemble.columns = ["mim_number", "entry_type", "entrez_id", "gene_symbol", "ensemble_id"]
+    # loading OMIM morbid dump
+    with open(omim_morbid_path, "r") as raw_file:
+        line_list = [line for line in raw_file if not line[0] in ["#", "[", "{", "?"]]
+
+    omim_morbid = pd.read_csv(StringIO("\n".join(line_list)),
+                              sep="\t",
+                              header=None,
+                              usecols=range(3))
+    omim_morbid.columns = ["disease", "gene_symbol", "mim_gene_number"]
+    omim_morbid.gene_symbol = omim_morbid.gene_symbol.apply(lambda x: x.split(",")[0] if "," in x else x)
+    try:
+        omim_morbid["mim_number"] = omim_morbid.disease.apply(
+            lambda x: re.findall(", [0-9]{6}", x)[0].strip(", ") if re.findall(", [0-9]{6}", x) != [] else None)
+    except IndexError:
+        print("error indexing")
+    omim_morbid = omim_morbid.dropna()
+
+    df = df.merge(gene2ensemble[["ensemble_id", "gene_symbol"]], how="left", on="ensemble_id")
+
+    for i in range(len(df)):
+        _gene = df.loc[i, column]
+        mim_number = get_mim_number(_gene, omim_morbid)
+        df.loc[i, "mim_number"] = mim_number
+    return df
 
 
 def fuse_data(validation_run=False):
@@ -104,6 +144,7 @@ def fuse_data(validation_run=False):
 
 
     all_data = add_categories(all_data, "entrez_id", "entrez")
+    all_data = add_omim_annotation(all_data)
 
 
 

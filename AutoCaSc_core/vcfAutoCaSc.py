@@ -441,6 +441,8 @@ def make_spreadsheet(merged_instances):
             result_df.loc[i, "transcript"] = _instance.__dict__.get("transcript")
             result_df.loc[i, "gene_plausibility"] = _instance.__dict__.get("gene_plausibility")
             result_df.loc[i, "CADD_phred"] = _instance.__dict__.get("cadd_phred") or 0
+            result_df.loc[i, "mim_number"] = _instance.__dict__.get("mim_number")
+            result_df.loc[i, "sysid"] = _instance.__dict__.get("sysid")
             # result_df.loc[i, "status_code"] = _instance.__dict__.get("status_code")
             try:
                 quality_parameters = row["quality_parameters"].split(";")
@@ -529,14 +531,23 @@ def mim_map(df, omim_morbid_path, column="gene_symbol"):
     return df
 
 
-def in_sysid(df, sysid_primary_path, sysid_candidates_path):
-    sysid_primary = pd.read_csv(sysid_primary_path)["Gene symbol"].to_list()
-    sysid_candidates = pd.read_csv(sysid_candidates_path)["Gene symbol"].to_list()
+# def in_sysid(df, sysid_primary_path, sysid_candidates_path):
+#     sysid_primary = pd.read_csv(sysid_primary_path)["Gene symbol"].to_list()
+#     sysid_candidates = pd.read_csv(sysid_candidates_path)["Gene symbol"].to_list()
+#     for i, row in df.iterrows():
+#         gene_symbol = row["gene_symbol"]
+#         if gene_symbol in sysid_primary:
+#             df.loc[i, "sysid"] = "primary"
+#         elif gene_symbol in sysid_candidates:
+#             df.loc[i, "sysid"] = "candidates"
+#         else:
+#             df.loc[i, "sysid"] = ""
+#     return df
+def in_sysid(df):
     for i, row in df.iterrows():
-        gene_symbol = row["gene_symbol"]
-        if gene_symbol in sysid_primary:
+        if row["sysid"] == "known NDD":
             df.loc[i, "sysid"] = "primary"
-        elif gene_symbol in sysid_candidates:
+        elif row["sysid"] == "candidate":
             df.loc[i, "sysid"] = "candidates"
         else:
             df.loc[i, "sysid"] = ""
@@ -661,7 +672,7 @@ def post_scoring_polish(df,
                         sysid_candidates_path=None):
     if blacklist_path:
         df = filter_blacklist(df, blacklist_path)
-    df = mim_map(df, omim_morbid_path)
+    # df = mim_map(df, omim_morbid_path)
     if sysid_primary_path and sysid_candidates_path:
         df = in_sysid(df, sysid_primary_path, sysid_candidates_path)
 
