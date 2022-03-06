@@ -62,7 +62,7 @@ navbar = dbc.Navbar(
             ),
             color="dark",
             dark=True,
-            fixed="top",
+            fixed="top"
         )
 
 
@@ -1232,70 +1232,7 @@ def get_tab_card(active_tab,
         status_code = _instance_attributes.get("status_code")
 
         if len(results_memory.get("instances")) == 1:
-            card_header = dbc.Row(
-                [
-                    dbc.Col(
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    html.H3(
-                                        f"Variant: {get_display_variant(_variant)}"),
-                                    width="auto"
-                                ),
-                                get_gene_badge(_instance_attributes)
-                            ],
-                        justify="start",
-                        className="g-0"
-                        ),
-                        md=6
-                    ),
-                    dbc.Col(
-                        [
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-
-                                        [
-                                            dbc.Row(
-                                                [
-                                                    dbc.Col(
-                                                        html.H3(
-                                                            f"Candidate Score:",
-                                                            id="percentile_target"),
-                                                        width="auto"
-                                                    ),
-                                                    dbc.Col(
-                                                        html.H3(_instance_attributes.get('candidate_score'),
-                                                                id="hover-target",
-                                                                style={
-                                                                    "border": "3px",
-                                                                    "borderStyle": "solid",
-                                                                    "borderColor": get_casc_color(_instance_attributes.get('candidate_score'), 'border'),
-                                                                    "borderRadius": "5px",
-                                                                    "padding": "7px",
-                                                                    "backgroundColor": get_casc_color(_instance_attributes.get('candidate_score'), 'background')
-                                                                }
-                                                            ),
-                                                        width="auto"
-                                                    ),
-                                                    dbc.Popover(
-                                                        f"About {get_percentile(_instance_attributes.get('candidate_score'))} of the variants scored "
-                                                        f"at the Institute for Human Genetics Leipzig had a lower score than this.",
-                                                        target="hover-target",
-                                                        body=True,
-                                                        trigger="hover",
-                                                    )
-                                                ],
-                                                class_name="flex-nowrap",
-                                                align="center"
-                                            )
-
-
-
-                                        ],
-                                        md=8
-                                    ),
-                                    dbc.Col(dbc.Button("Download",
+            download_button = dbc.Col(dbc.Button("Download",
                                                        id="download_button",
                                                        color="secondary",
                                                        style={
@@ -1305,29 +1242,95 @@ def get_tab_card(active_tab,
                                                        }
                                                        ),
                                             width="auto")
-                                ],
-                                justify="between",
-                                align="center"
-                            ),
-
-                        ],
-                        md=6
-                    ),
-                ],
-                style={"marginBottom": "0",
-                       "paddingBottom": "0"},
-                align="center"
-            )
         else:
-            card_header = dbc.Row(
-                [
-                    dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
-                            className="col-12 col-md-6"),
-                    dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score')}",
-                                    id="percentile_target"),
-                            className="col-12 col-md-6")
-                ]
-            )
+            download_button = None
+        card_header = dbc.Row(
+            [
+                dbc.Col(
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                html.H3(
+                                    f"Variant: {get_display_variant(_variant)}"),
+                                width="auto"
+                            ),
+                            get_gene_badge(_instance_attributes)
+                        ],
+                    justify="start",
+                    className="g-0"
+                    ),
+                    md=6
+                ),
+                dbc.Col(
+                    [
+                        dbc.Row(
+                            [
+                                dbc.Col(
+
+                                    [
+                                        dbc.Row(
+                                            [
+                                                dbc.Col(
+                                                    html.H3(
+                                                        f"Candidate Score:",
+                                                        id="percentile_target"),
+                                                    width="auto"
+                                                ),
+                                                dbc.Col(
+                                                    html.H3(_instance_attributes.get('candidate_score'),
+                                                            id="hover-target",
+                                                            style={
+                                                                "border": "3px",
+                                                                "borderStyle": "solid",
+                                                                "borderColor": get_casc_color(_instance_attributes.get('candidate_score'), 'border'),
+                                                                "borderRadius": "5px",
+                                                                "padding": "7px",
+                                                                "backgroundColor": get_casc_color(_instance_attributes.get('candidate_score'), 'background')
+                                                            }
+                                                        ),
+                                                    width="auto"
+                                                ),
+                                                dbc.Popover(
+                                                    f"About {get_percentile(_instance_attributes.get('candidate_score'))} of the variants scored "
+                                                    f"at the Institute for Human Genetics Leipzig had a lower score than this.",
+                                                    target="hover-target",
+                                                    body=True,
+                                                    trigger="hover",
+                                                )
+                                            ],
+                                            class_name="flex-nowrap",
+                                            align="center"
+                                        )
+
+
+
+                                    ],
+                                    md=8
+                                ),
+                                download_button
+                            ],
+                            justify="between",
+                            align="center"
+                        ),
+
+                    ],
+                    md=6
+                ),
+            ],
+            style={"marginBottom": "0",
+                   "paddingBottom": "0"},
+            align="center"
+        )
+        # else:
+        #     card_header = dbc.Row(
+        #         [
+        #             dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
+        #                     className="col-12 col-md-6"),
+        #             dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score')}",
+        #                             id="percentile_target"),
+        #                     className="col-12 col-md-6")
+        #         ]
+        #     )
         if status_code == 200:
             scoring_results = {
                 "inheritance_score": "Inheritance",
