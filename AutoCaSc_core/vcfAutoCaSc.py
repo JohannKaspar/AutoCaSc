@@ -531,18 +531,6 @@ def mim_map(df, omim_morbid_path, column="gene_symbol"):
     return df
 
 
-# def in_sysid(df, sysid_primary_path, sysid_candidates_path):
-#     sysid_primary = pd.read_csv(sysid_primary_path)["Gene symbol"].to_list()
-#     sysid_candidates = pd.read_csv(sysid_candidates_path)["Gene symbol"].to_list()
-#     for i, row in df.iterrows():
-#         gene_symbol = row["gene_symbol"]
-#         if gene_symbol in sysid_primary:
-#             df.loc[i, "sysid"] = "primary"
-#         elif gene_symbol in sysid_candidates:
-#             df.loc[i, "sysid"] = "candidates"
-#         else:
-#             df.loc[i, "sysid"] = ""
-#     return df
 def in_sysid(df):
     for i, row in df.iterrows():
         if row["sysid"] == "known NDD":
@@ -593,14 +581,14 @@ def filter_ac_mim(df, dp):
 
 
 def add_ranks(df, dp):
-    df[f"candidate_score"] = pd.to_numeric(df[f"candidate_score"],
+    df["candidate_score"] = pd.to_numeric(df["candidate_score"],
                                            errors="coerce")
-    df.sort_values(f"candidate_score",
+    df.sort_values("candidate_score",
                    ascending=False,
                    inplace=True,
                    ignore_index=True)
-    df.loc[:, f"rank"] = df.index
-    df.loc[:, f"rank"] = df.loc[:, f"rank"].apply(lambda x: int(x + 1))
+    df.loc[:, "rank"] = df.index
+    df.loc[:, "rank"] = df.loc[:, "rank"].apply(lambda x: int(x + 1))
 
     temp = filter_ac_mim(df, dp)
 
@@ -665,16 +653,11 @@ def filter_multi_transcripts(df):
 
 
 def post_scoring_polish(df,
-                        omim_morbid_path,
                         dp=20,
-                        blacklist_path=None,
-                        sysid_primary_path=None,
-                        sysid_candidates_path=None):
+                        blacklist_path=None):
     if blacklist_path:
         df = filter_blacklist(df, blacklist_path)
-    # df = mim_map(df, omim_morbid_path)
-    if sysid_primary_path and sysid_candidates_path:
-        df = in_sysid(df, sysid_primary_path, sysid_candidates_path)
+    df = in_sysid(df)
 
     df = filter_multi_transcripts(df)
 
@@ -743,9 +726,6 @@ def main(ctx, verbose):
 @click.option("--n_hemialt", "-nhemi",
               default=0,
               help="Max number of alternative sequence hemizygotes in gnomad.")
-@click.option("--quality", "-q",
-              default="400",
-              help="Minimum quality of variants.")
 @click.option("--gq_filter", "-gq",
               default="10",
               help="Minimum GQ (quality) for variants.")
@@ -788,22 +768,13 @@ def main(ctx, verbose):
 @click.option("--blacklist_path", "-blp",
               type=click.Path(exists=True),
               help="Path to list of Regex patterns. Genes matching the patterns will not be processed. (e.g. for excluding local artefacts)")
-@click.option("--omim_morbid_path", "-omim",
-              type=click.Path(exists=True),
-              help="Path to OMIM morbid genes file downloaded from OMIM.")
-@click.option("--sysid_primary_path", "-sys_prim",
-              type=click.Path(exists=True),
-              help="Path to .csv file from SysID containing list of NDD genes.")
-@click.option("--sysid_candidates_path", "-sys_cand",
-              type=click.Path(exists=True),
-              help="Path to .csv file from SysID containing list of NDD candidates.")
 @click.option("--trio_name", "-trio",
               help="Name of trio to use")
 def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, output_path,
               dominant_af_max, x_recessive_af_max, ar_af_max, comp_af_max, nhomalt, n_hemialt,
-              quality, gq_filter, ab_filter, dp_filter, pass_only, cache, slivar_dir, assembly, deactivate_bed_filter,
+              gq_filter, ab_filter, dp_filter, pass_only, cache, slivar_dir, assembly, deactivate_bed_filter,
               skip_slivar, vcf_comphet_path, vcf_non_comphet_path, path_to_request_cache_dir,
-              blacklist_path, omim_morbid_path, sysid_primary_path, sysid_candidates_path, trio_name):
+              blacklist_path, trio_name):
     if not trio_name:
         trio_name = ped_file.split("/")[-1].split(".")[0]
     if skip_slivar:
@@ -880,13 +851,9 @@ def score_vcf(vcf_file, ped_file, bed_file, gnotate_file, javascript_file, outpu
         autocasc_df.fillna("-", inplace=True)
         autocasc_df = clean_up_duplicates(autocasc_df)
 
-        if omim_morbid_path and sysid_primary_path and sysid_candidates_path:
-            autocasc_df = post_scoring_polish(autocasc_df,
-                                              omim_morbid_path,
-                                              dp=dp_filter,
-                                              blacklist_path=blacklist_path,
-                                              sysid_primary_path=sysid_primary_path,
-                                              sysid_candidates_path=sysid_candidates_path)
+        autocasc_df = post_scoring_polish(autocasc_df,
+                                          dp=dp_filter,
+                                          blacklist_path=blacklist_path)
         autocasc_df["version"] = VERSION
         autocasc_df.to_csv(f"{output_path}",
                            index=False,
