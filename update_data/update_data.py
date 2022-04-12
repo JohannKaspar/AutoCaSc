@@ -1181,7 +1181,6 @@ if __name__ == "__main__":
     sysid_candidates = pd.read_csv(ROOT_DIR + "sysid/sysid_candidates.csv",
                                    usecols=["Entrez id", "Ensembl id"])
     sysid_candidates.columns = ["entrez_id", "ensemble_id"]
-    princeton_negative = pd.read_csv(ROOT_DIR + "ASD_translated_to_ensembl.csv")["entrez_id"].to_list()
 
     morbid_gene_symbols_list = pd.read_csv(ROOT_DIR + "MorbidGenes-Panel-v5_2020-08-26_for_varvis.csv",
                                            header=None).iloc[:, 0].to_list()
@@ -1208,8 +1207,7 @@ if __name__ == "__main__":
         rows_id = random.sample(range(len(sysid_candidates)), round(0.8 * len(sysid_candidates)))
         sysid_candidates = sysid_candidates.loc[rows_id, :].reset_index(drop=True)
         del rows_id
-    del morbid_gene_symbols_list, validation_run, morbid_genes, panel_app_genes, g2p_dd_list, \
-        princeton_negative
+    del morbid_gene_symbols_list, validation_run, morbid_genes, panel_app_genes, g2p_dd_list
 
     n_cores = psutil.cpu_count()
     # MGI(n_cores, download=False).update()

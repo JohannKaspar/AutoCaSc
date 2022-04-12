@@ -49,6 +49,8 @@ navbar = dbc.Navbar(
                                         width="auto"),
                                 dbc.Col(dbc.NavLink("News", href='/news', style={"color": "#ffffff"}),
                                         width="auto"),
+                                dbc.Col(dbc.NavLink("Instruction", href='/tutorial', style={"color": "#ffffff"}),
+                                        width="auto"),
                                 dbc.Col(dbc.NavLink("Impressum", href='/impressum', style={"color": "#ffffff"}),
                                         width="auto"),
                             ],
@@ -507,59 +509,203 @@ faq_eng = html.Div(
         ]
 )
 
-tutorial_page = dcc.Markdown("""
-                            Gemäß § 28 BDSG widersprechen wir jeder kommerziellen Verwendung und Weitergabe der Daten.\n
-                            __Verantwortunsbereich__:  
-                            Das Impressum gilt nur für die Internetpräsenz unter der Adresse: 
-                            https://autocasc.uni-leipzig.de\n
-                            __Abgrenzung__:  
-                            Die Web-Präsenz ist Teil des WWW und dementsprechend mit fremden, sich jederzeit wandeln 
-                            könnenden Web-Sites verknüpft, die folglich auch nicht diesem Verantwortungsbereich 
-                            unterliegen und für die nachfolgende Informationen nicht gelten. Dass die Links weder gegen 
-                            Sitten noch Gesetze verstoßen, wurde genau ein Mal geprüft (bevor sie hier aufgenommen 
-                            wurden).\n
-                            __Diensteanbieter__:  
-                            Johann Lieberwirth und Rami Abou Jamra\n
-                            __Ansprechpartner für die Webseite__:\n
-                            Johann Lieberwirth (johann.lieberwirth@medizin.uni-leipzig.de)\n
-                            __Verantwortlicher__:  
-                            Rami Abou Jamra (rami.aboujamra@medizin.uni-leipzig.de)\n
-                            __Anschrift__:  
-                            Sekretariat  
-                            Philipp-Rosenthal-Str. 55  
-                            04103 Leipzig  
-                            Telefon: 0341 - 97 23800\n
-                            __Urheberschutz und Nutzung__:  
-                            Der Urheber räumt Ihnen ganz konkret das Nutzungsrecht ein, sich eine private Kopie für 
-                            persönliche Zwecke anzufertigen. Nicht berechtigt sind Sie dagegen, die Materialien zu 
-                            verändern und/oder weiter zu geben oder gar selbst zu veröffentlichen.
-                            Wenn nicht ausdrücklich anders vermerkt, liegen die Urheberrechte bei Johann Lieberwirth
-                            Datenschutz Personenbezogene Daten werden nur mit Ihrem Wissen und Ihrer Einwilligung 
-                            erhoben. Auf Antrag erhalten Sie unentgeltlich Auskunft zu den über Sie gespeicherten 
-                            personenbezogenen Daten. Wenden Sie sich dazu bitte an den Administrator.\n
-                            __Keine Haftung__:  
-                            Die Inhalte dieses Webprojektes wurden sorgfältig geprüft und nach bestem Wissen erstellt. 
-                            Aber für die hier dargebotenen Informationen wird kein Anspruch auf Vollständigkeit, 
-                            Aktualität, Qualität und Richtigkeit erhoben. Es kann keine Verantwortung für Schäden 
-                            übernommen werden, die durch das Vertrauen auf die Inhalte dieser Website oder deren 
-                            Gebrauch entstehen.\n
-                            __Schutzrechtsverletzung__:  
-                            Falls Sie vermuten, dass von dieser Website aus eines Ihrer Schutzrechte verletzt wird, 
-                            teilen Sie das bitte umgehend per elektronischer Post mit, damit zügig Abhilfe geschafft 
-                            werden kann. Bitte nehmen Sie zur Kenntnis: Die zeitaufwändigere Einschaltung eines 
-                            Anwaltes zur für den Diensteanbieter kostenpflichtigen Abmahnung entspricht nicht dessen 
-                            wirklichen oder mutmaßlichen Willen.\n
-                            \n
-                            lt. Urteil vom 12. Mai 1998 - 312 O 85/98 - "Haftung für Links" hat das Landgericht Hamburg 
-                            entschieden, dass man durch die Anbringung eines Links, die Inhalte der gelinkten Seite ggf.
-                             mit zu verantworten hat. Dies kann nur dadurch verhindert werden, dass man sich 
-                             ausdrücklich von diesen Inhalten distanziert.
-                            'Hiermit distanzieren wir uns ausdrücklich von allen Inhalten aller gelinkten Seiten auf 
-                            unserer Website und machen uns diese Inhalte nicht zu eigen. Diese Erklärung gilt für alle 
-                            auf unsere Website angebrachten Links.'
-                            \n
-                            © Copyright 2021
-                """)
+image_column_width = 8
+text_column_width = 12 - image_column_width
+
+tutorial_page = html.Div(
+    [
+        html.Br(),
+        html.H2("Instructions"),
+        html.Br(),
+        dbc.Container(
+            [
+                dbc.Row(
+                    [
+                        dbc.Col(html.Img(src=app.get_asset_url('faq_images/input.png'),
+                                         style={"maxWidth": "100%"}),
+                                width=image_column_width),
+                        dbc.Col(html.P("""Enter the variant to be analyzed in the input field. The formatting of the variant is checked and if it is ok a green frame appears. In case there is a problem, the frame is red and scoring cannot be started. Then select one of the available heritages for the entered variants and click on "Start search". For a more detailed explanation of the choices, please see above ("What do the inheritance options stand for?")."""),
+                                width=text_column_width)
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/results.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """Scoring may take a moment, then the results overview will open. At the top left you will see the variant you entered. Two flags may appear here: if the gene is associated with a phenotype in OMIM and if the gene is listed as a candidate gene or known NDD gene in SysID. On the upper right side you will find the result highlighted in color. The bluer, the lower, the redder, the higher the result.
+                                   Below this you will find general information: which gene is affected, what are the HGVS and VCF notations and which transcript was used for the evaluation. In the lower part there are two tables. The left table contains the scores achieved by the candidate variant in the four categories. For more detailed scoring information, please see "What do the 4 subscores stand for?" above. The right table contains detailed information about the corresponding variant: the VEP-predicted impact on protein function, the phred-scaled CADD score, gnomAD gene constraint metrics o/e LoF and o/e missense, GERP++ rank score and allele count in gnomAD."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/percentile.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """Hovering over the result will display what percentage of candidates evaluated at the Institute of Human Genetics in Leipzig achieved a lower score."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/subscores.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """If you hover over the result of a subscore, a short explanation of how the score is composed is displayed."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/transcripts.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """For many variants there are several transcripts for which the variant achieves an equally high CaSc. You can select all ENSEMBL transcripts with an equally high CaSc from the drop down menu to the right of "Transcript:"."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/all_notations.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """For an overview of even more (including RefSeq) transcripts, click on "Load all HGVSC notations (coding only)". After a short moment a list of all possible affected transcripts will be displayed."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/hgvsc_input.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """It is also possible to enter variants in HGVSC notation, but we strongly recommend to use VCF notation. Problems can occur especially when RefSeq transcripts are used. Since the annotation is done with VEP (Ensembl), it may not be possible to identify a corresponding Ensembl transcript."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/multiple_variants_input.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """It is also possible to enter multiple variants, these should be separated with a comma."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/multiple_variants_overview.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """The results are then presented in a tabular overview."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/multiple_variants_detailed.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """A click on one of the tabs labeled with the variants will lead you to the corresponding results of a variant."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(
+                                src=app.get_asset_url('faq_images/downloaded.png'),
+                                style={"maxWidth":"100%"}
+                            ),
+                            width=image_column_width),
+                        dbc.Col(
+                            html.P(
+                                """Clicking on "Download" will download the results in tab-separated form."""
+                            ),
+                            width=text_column_width
+                        )
+                    ],
+                    align="center"
+                )
+            ]
+        )
+    ]
+)
+
+
 
 faq_page = dbc.Container([
     html.Br(),
@@ -716,6 +862,7 @@ app.validation_layout = html.Div([
     impressum_page,
     faq_page,
     news_page,
+    tutorial_page,
     footer,
     dbc.Button(id="collapse_button_transcripts"),
     dbc.Collapse(id="collapse_transcripts"),
