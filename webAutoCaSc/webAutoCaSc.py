@@ -1189,12 +1189,6 @@ def display_page(pathname, results_memory):
 def check_user_input(_, inheritance, user_input):
     if user_input is not None:
         variants = parse_input(user_input)
-        # if inheritance == "x_linked":
-        #     for _variant in variants:
-        #         revariant = re.compile(re.escape('chr'), re.IGNORECASE)
-        #         _variant = revariant.sub('', _variant)
-        #         if _variant[0] != "X":
-        #             return False, True, None
         variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
         if input_ok(variant_instances):
             variant_queue = {"instances": {_instance.__dict__.get("variant"): _instance.__dict__ for _instance in

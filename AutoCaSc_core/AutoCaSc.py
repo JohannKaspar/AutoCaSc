@@ -262,7 +262,7 @@ class AutoCaSc:
             self.variant_format = "vcf"
             self.variant = input_vcf
         elif re.fullmatch(
-                r"^.+:[cgp]\.\d+([_+-]\d+)?(_\d+)?([+-]\d+)?([CTGA]+>[CTGA]+|del[CTGA]*|dup[CTGA]*)?(ins[CTGA]+)?",
+                r"^.+:[cgp]\.\d+([_+-]\d+)?(_\d+)?([+-]\d+)?([CTGA]+>[CTGA]+|del[CTGA]*|dup[CTGA]*)?(ins[CTGA]+)?(inv)?",
                 input_hgvs) is not None:
             self.variant_format = "hgvs"
             self.variant = input_hgvs
