@@ -49,7 +49,7 @@ navbar = dbc.Navbar(
                                         width="auto"),
                                 dbc.Col(dbc.NavLink("News", href='/news', style={"color": "#ffffff"}),
                                         width="auto"),
-                                dbc.Col(dbc.NavLink("Instruction", href='/tutorial', style={"color": "#ffffff"}),
+                                dbc.Col(dbc.NavLink("Instructions", href='/tutorial', style={"color": "#ffffff"}),
                                         width="auto"),
                                 dbc.Col(dbc.NavLink("Impressum", href='/impressum', style={"color": "#ffffff"}),
                                         width="auto"),
