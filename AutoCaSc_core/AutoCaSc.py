@@ -68,17 +68,18 @@ class AutoCaSc:
 
         self.variant = variant
         self.inheritance = inheritance
-        self.other_autocasc_obj = other_autocasc_obj
-        self.other_impact = other_impact
-        self.other_variant = other_variant
-        self.assembly = assembly
+        self.other_autocasc_obj = other_autocasc_obj  # corresponding AutoCaSc instance for comphet variants
+        self.other_impact = other_impact  # impact of corresponding comphet variant
+        self.other_variant = other_variant  # corresponding comphet variant
+        self.assembly = assembly  # either GRCh37 or GRCh38
         self.status_code = 200  # initial value is set to 200 = all good
-        self.family_history = family_history
-        self.num_transcripts = False
-        self.transcript = transcript
-        self.mode = mode
+        self.family_history = family_history  # variant cosegregates (bool)
+        self.num_transcripts = False  # number of affected transcripts
+        self.transcript = transcript  # instance transcript id
+        self.mode = mode  # whether AutoCaSc is running in web app or stand alone
         self.data_retrieved = False
-        self.path_to_request_cache_dir = path_to_request_cache_dir
+        self.path_to_request_cache_dir = path_to_request_cache_dir  # some API were stored for faster reanalysis
+        # TODO storage of former API requests can be removed from script for cleaner code
         self.filter_pass = True
         self.transcript_instances = {}
 
@@ -87,7 +88,7 @@ class AutoCaSc:
         else:
             self.server = "http://rest.ensembl.org"  # API endpoint for GRCh38
 
-        self.explanation_dict = {}
+        self.explanation_dict = {}  # dict for explanations why a subscore was given
         self.inheritance_score = 0
         self.frequency_score = 0
         self.variant_score = 0
@@ -128,10 +129,7 @@ class AutoCaSc:
         if self.status_code == 200 and gnomad is True:
             # 498 = no matching transcript index has been found (e.g. variant is intergenic)
             self.get_gnomad_constraint()
-            start = time.time()
-            self.get_gnomad_counts()  # gets allele counts in gnomad
-            end = time.time()
-            #print(f"gnomad execution time {round(end - start, 2)}")
+            self.get_gnomad_counts()  # gets allele counts in gnomad (API)
             if self.other_variant is not None and self.other_autocasc_obj is None:
                 other_instance = AutoCaSc(variant=self.other_variant,
                                           inheritance=self.inheritance,
@@ -144,21 +142,6 @@ class AutoCaSc:
         if self.status_code == 201 and self.variant_format == "hgvs":
             self.hgvs_strand_shift(gnomad=gnomad)
 
-    # def swap_aminoacids(self, variant):
-    #     amino_acid_swap_dict = {"C": "G",
-    #                             "G": "C",
-    #                             "A": "T",
-    #                             "T": "A"}
-    #     part_0, part_1 = variant.rsplit(".", 1)
-    #     new_1 = ""
-    #     for _char in part_1:
-    #         if _char not in amino_acid_swap_dict.keys():
-    #             new_1 += _char
-    #         else:
-    #             new_1 += amino_acid_swap_dict.get(_char)
-    #     return part_0 + "." + new_1
-
-
     def hgvs_strand_shift(self, gnomad=True):
         """It sometimes occurs, that VEP returns error codes if a variant is entered in HGVS format. Nevertheless, it
         returns the variant in the correct VCF format. This can then be used to resend the request, this time resulting
@@ -170,7 +153,6 @@ class AutoCaSc:
                                  mode=self.mode,
                                  other_variant=self.other_variant,
                                  other_autocasc_obj=self.other_autocasc_obj,
-                                 #transcript=self.transcript,  # this line caused a bug
                                  family_history=self.family_history,
                                  path_to_request_cache_dir=self.path_to_request_cache_dir
                                  )
@@ -184,7 +166,7 @@ class AutoCaSc:
 
 
     def create_url(self):
-        """This method concatenates all paprts for the request URL to VEP.
+        """This method concatenates all parts for the request URL to VEP.
         """
         if self.variant_format == "vcf":
             # definition of instance variables

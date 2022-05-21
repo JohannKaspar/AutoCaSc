@@ -874,8 +874,8 @@ app.validation_layout = html.Div([
 
 
 ########## FRONTEND ##########
-# basic string_formatting and initiating AutoCaSc intsances in order to check if input is ok
 def parse_input(input):
+    # basic string_formatting and initiating AutoCaSc intsances in order to check if input is ok
     return [input.split(",")[i].strip() for i in range(len(input.split(",")))]
 
 
@@ -1109,6 +1109,7 @@ for _item in ["navbar", "footer"]:
     State("active_variant_tab", "data")
 )
 def load_all_hgvsc_notations(n, is_open, active_variant):
+    # this calls convert_variant() from "refseq_transcripts_converter.py" to get RefSeq transcripts via VEP REST API
     if n:
         if not is_open:
             notations = convert_variant(active_variant.get("active_variant"))
@@ -1186,7 +1187,9 @@ def display_page(pathname, results_memory):
      Input("inheritance_input", "value")],
     [State("variant_input", "value")]
 )
-def check_user_input(_, inheritance, user_input):
+def check_user_input(_, user_input):
+    # checks if variants entered fit either HGVS or VCF notation,
+    # if so: stores them in dcc.Store "variant_queue_input", initiating VEP API requests
     if user_input is not None:
         variants = parse_input(user_input)
         variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
@@ -1207,6 +1210,8 @@ def check_user_input(_, inheritance, user_input):
     State("inheritance_input", "value")
 )
 def search_button_click(n_clicks, variant_queue_input, variant_queue_url, inheritance):
+    # by clicking the "Search" button on the landing page, the URL is updated, triggering the calculation and display
+    # of the results page
     variant_queue = variant_queue_input or variant_queue_url
     if n_clicks is not None and not variant_queue is None and not inheritance is None:
         variants = [variant_queue.get("instances").get(_key).get("variant") for _key in
@@ -1223,6 +1228,7 @@ def search_button_click(n_clicks, variant_queue_input, variant_queue_url, inheri
     State("query_memory", "data")
 )
 def interpret_url_inheritance(pathname, query_memory):
+    # this extracts inheritance from URL in case the site is not accessed via landing page e.g. if results are refreshed
     if "search" in pathname and query_memory is None:
         inheritance = unquote(pathname).split("inheritance=")[-1].split("/")[0]
         query_data = {"inheritance": inheritance}
@@ -1236,6 +1242,7 @@ def interpret_url_inheritance(pathname, query_memory):
     State("variant_memory", "data")
 )
 def interpret_url_variants(pathname, variant_memory):
+    # this extracts variants from URL in case the site is not accessed via landing page e.g. if results are refreshed
     if "search" in pathname and variant_memory is None:
         variants = unquote(pathname).split("variants=")[-1].split("%")
         variant_instances = [AutoCaSc(_variant, mode="web") for _variant in variants]
@@ -1271,6 +1278,8 @@ def update_transcripts_to_use(selected_transcript,
                               transcript_dict,
                               active_tab,
                               results_memory):
+    # manually selecting a transcript of the dropdown menu, this choice is stored in dcc.Store
+    # "transcripts_to_use_memory", so that for corresponding comphet variants the same transcript is used
     if not transcript_dict:
         transcript_dict = {}
     tab_num = int(active_tab.split("_")[-1])
@@ -1293,6 +1302,7 @@ def update_transcripts_to_use(selected_transcript,
 def get_tab_card(active_tab,
                  transcripts_to_use,
                  results_memory):
+    # this updates the content of the currently displayed results card
     cell_style = {
         "padding": "5px",
         "padding-left": "12px"
@@ -1518,16 +1528,6 @@ def get_tab_card(active_tab,
                    "paddingBottom": "0"},
             align="center"
         )
-        # else:
-        #     card_header = dbc.Row(
-        #         [
-        #             dbc.Col(html.H3(f"Variant: {get_display_variant(_variant)}"),
-        #                     className="col-12 col-md-6"),
-        #             dbc.Col(html.H3(f"Candidate Score: {_instance_attributes.get('candidate_score')}",
-        #                             id="percentile_target"),
-        #                     className="col-12 col-md-6")
-        #         ]
-        #     )
         if status_code == 200:
             scoring_results = {
                 "inheritance_score": "Inheritance",
@@ -1750,6 +1750,7 @@ def get_tab_card(active_tab,
     State("about_language_button", "children")
 )
 def get_about_text(n_clicks, language):
+    # changes about page text between English and German
     if not n_clicks:
         raise PreventUpdate
     if language == "DE":
@@ -1765,6 +1766,7 @@ def get_about_text(n_clicks, language):
     State("impressum_language_button", "children")
 )
 def get_impressum_text(n_clicks, language):
+    # changes impressum content between English and German
     if not n_clicks:
         raise PreventUpdate
     if language == "DE":
@@ -1780,6 +1782,7 @@ def get_impressum_text(n_clicks, language):
     State("faq_language_button", "children")
 )
 def get_faq_text(n_clicks, language):
+    # changes FAQ text between English and German
     if not n_clicks:
         raise PreventUpdate
     if language == "DE":
@@ -1863,7 +1866,6 @@ def score_variants(instances, inheritance):
             instances_processed.append(_instance)
     return instances_processed
 
-
 def dict_to_instances(dict):
     instances = []
     try:
@@ -1877,7 +1879,6 @@ def dict_to_instances(dict):
         return instances
     except AttributeError:
         return None
-
 
 def instances_to_dict(instance, recursion_level=0):
     instance_dict = {}
@@ -1896,8 +1897,8 @@ def instances_to_dict(instance, recursion_level=0):
                 instance_dict[key] = instances_to_dict(value, recursion_level)
     return instance_dict
 
-
 def store_instances(instance_list, code_key="variant"):
+    # this is needed to turn AutoCaSc instances to dicts in order to store them in a dcc.Store.
     instance_dicts = [instances_to_dict(_instance) for _instance in instance_list]
     return {"instances": {_instance_dict.get(code_key): _instance_dict for _instance_dict in instance_dicts}}
 
@@ -1909,6 +1910,7 @@ def store_instances(instance_list, code_key="variant"):
     [State("variant_memory", "data")]
 )
 def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory):
+    # triggered by adding variants to dcc.Store "variant_queue_input" (input form) or "variant_queue_url" (url access)
     variant_queue = variant_queue_input or variant_queue_url
     if variant_queue:
         if variant_memory is not None:
@@ -1917,7 +1919,7 @@ def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory
         instances = dict_to_instances(variant_queue)
         for _instance in instances:
             if not _instance.data_retrieved:
-                _instance.retrieve_data()
+                _instance.retrieve_data()  # this initiates API calls
         return store_instances(instances)
     else:
         raise PreventUpdate
@@ -1929,6 +1931,7 @@ def retrieve_variant_data(variant_queue_input, variant_queue_url, variant_memory
     Input("query_memory", "data")
 )
 def calculate_results(variant_memory, query_memory):
+    # triggered by storing new variant instances or change of query parameters like inheritance
     inheritance = None
     if query_memory:
         inheritance = query_memory.get("inheritance")
@@ -1946,6 +1949,7 @@ def calculate_results(variant_memory, query_memory):
     State("transcripts_to_use_memory", "data")
 )
 def download_button_click(n_cklicks, results_memory, transcripts_to_use):
+    # this compiles and provides the summary table
     # todo check comphet behavior
     if not n_cklicks:
         raise PreventUpdate
