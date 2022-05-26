@@ -94,8 +94,8 @@ footer = dbc.Navbar(
                                             style={"color": "#ffffff"}),
                                 align="center",
                                 width="auto"),
-                        dbc.Col(dbc.NavLink("Our Manuscript",
-                                            href="https://www.biorxiv.org",
+                        dbc.Col(dbc.NavLink("Manuscript preprint",
+                                            href="https://www.authorea.com/users/479253/articles/567112-autocasc-prioritizing-candidate-genes-for-neurodevelopmental-disorders",
                                             target="_blank",
                                             style={"color": "#ffffff"}),
                                 align="center",
@@ -1187,7 +1187,7 @@ def display_page(pathname, results_memory):
      Input("inheritance_input", "value")],
     [State("variant_input", "value")]
 )
-def check_user_input(_, user_input):
+def check_user_input(trigger_1, trigger_2, user_input):
     # checks if variants entered fit either HGVS or VCF notation,
     # if so: stores them in dcc.Store "variant_queue_input", initiating VEP API requests
     if user_input is not None:
