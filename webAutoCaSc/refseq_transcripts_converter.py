@@ -37,10 +37,6 @@ def convert_variant(variant):
             for i, _item in enumerate(hgvsc):
                 if ("ENST" not in _item) and ("NM" not in _item) or (":c." not in _item):
                     hgvsc.pop(i)
-            print("stop")
             return hgvsc
         except (IndexError, AttributeError):
             return []
-
-
-#convert_variant("NM_004006:c.183_186+48del")

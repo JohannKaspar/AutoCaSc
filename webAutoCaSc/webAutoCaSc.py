@@ -5,7 +5,7 @@ from flask import Flask
 import dash
 from dash import dcc
 from dash import html
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output, State, ALL
 import dash_bootstrap_components as dbc
 from dash.exceptions import PreventUpdate
 from urllib.parse import unquote, quote
@@ -171,7 +171,7 @@ variant_input_card = html.Div(
         dbc.Input(
             type="text",
             id="variant_input",
-            placeholder="e.g. X:12345:T:C",
+            placeholder="e.g. chrX-12345-T-C",
             autoFocus=True
         ),
         dcc.Markdown('''Although HGVS might work in some cases, we recommend using VCF format.\t
@@ -208,7 +208,7 @@ landing_page = dbc.Container(
                 [
                     dcc.Markdown("""# Welcome to **webAutoCaSc**,\n #### a webinterface for the automatic CaSc \
                     classification of research candidate variants in neurodevelopmental disorders."""),
-                    dcc.Markdown("Enter your variant of interest and presumed inheritance mode here:"),
+                    dcc.Markdown("Enter your variant (hg19) of interest and presumed inheritance mode here:"),
                     variant_input_card,
                     misc_input_card
                 ]
@@ -400,6 +400,11 @@ faq_ger = html.Div(
             Gens, der Protein-Protein-Interaktionen, der Phänotypen in Tiermodellen, der in PubMed veröffentlichten 
             Artikel zum Gen, de novo-Varianten im Gen die mit NDD in Verbindung gebacht wurden, und anderer Quellen 
             berechnet.
+            
+            __Wie annotiert AutoCaSc?__  
+            AutoCaSc verwendet VEP hg19 Endpunkte. Zurzeit ist hg38 nicht unterstützt. Verschiedene Tools wie 
+            VariantValidator (https://variantvalidator.org/) stehen zur Verfügung, um hg38 Variant zu hg19 zu übersetzen
+            .
 
             __Wie kann man mehrere (compound heterozygote) Variaten eingeben?__  
             Mehrere Varianten können eingegeben werden, indem sie durch ein Komma getrennt werden. Wenn "compound 
@@ -467,6 +472,11 @@ faq_eng = html.Div(
             protein-protein interactions, animal model phenotypes, published articles on PubMed, de novo variants in the
              gene linked to NDD and other sources.
             
+            __How does AutoCaSc annotate?__  
+            AutoCaSc uses the VEP API for hg19, as currently this seems to be the most commonly used reference genome. 
+            By now, hg38 is not supported. You can use tools like VariantValidator (https://variantvalidator.org/) to 
+            translate your hg38 variants to hg19.
+            
             __How can I enter multiple (compound heterogyous) variants?__  
             Just enter all your variants of interest by separating them by a comma. If "compound heterozygous" is 
             selected, webAutoCaSc will automatically match variants in the same gene and process them as corresponding 
@@ -524,7 +534,7 @@ tutorial_page = html.Div(
                         dbc.Col(html.Img(src=app.get_asset_url('faq_images/input.png'),
                                          style={"maxWidth": "100%"}),
                                 width=image_column_width),
-                        dbc.Col(html.P("""Enter the variant to be analyzed in the input field. The formatting of the variant is checked and if it is ok a green frame appears. In case there is a problem, the frame is red and scoring cannot be started. Then select one of the available heritages for the entered variants and click on "Start search". For a more detailed explanation of the choices, please see above ("What do the inheritance options stand for?")."""),
+                        dbc.Col(html.P("""Enter the variant (hg19!) to be analyzed in the input field. The formatting of the variant is checked and if it is ok a green frame appears. In case there is a problem, the frame is red and scoring cannot be started. Then select one of the available heritages for the entered variants and click on "Start search". For a more detailed explanation of the choices, please see above ("What do the inheritance options stand for?")."""),
                                 width=text_column_width)
                     ],
                     align="center"
@@ -731,8 +741,17 @@ news_page = dbc.Container(
                     width="auto")
         ]),
         html.Br(),
-        html.Div("There are no news yet...",
-                 id="faq_text")
+        html.Div(
+            [
+                html.P(
+                    [
+                        "Our manuscript is available as a preprint at ",
+                        html.A(html.B("Authorea"), href="https://www.authorea.com/users/479253/articles/567112-autocasc-prioritizing-candidate-genes-for-neurodevelopmental-disorders"),
+                        "."
+                    ]
+                )
+            ],
+            id="faq_text")
     ],
     style={"height": "calc(100vh - 150px)"}
 )
@@ -1295,7 +1314,7 @@ def update_transcripts_to_use(selected_transcript,
 @app.callback(
     Output("card_content", "children"),
     Output("active_variant_tab", "data"),
-    Input("card_tabs", "active_tab"),
+    Input("card_tabs", "active_tab"),  # todo: check out pattern-matching callbacks to avoid callback error
     Input("transcripts_to_use_memory", "data"),
     State("results_memory", "data"),
 )
