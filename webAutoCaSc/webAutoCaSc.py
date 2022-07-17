@@ -1603,12 +1603,12 @@ def get_tab_card(active_tab,
                             target="variant_score_explanation"),
                 dbc.Tooltip(f"{_instance_attributes.get('explanation_dict').get('inheritance')}",
                             target="inheritance_score_explanation"),
-                dbc.Tooltip(f"weighted sum from PubTator: {round(float(_instance_attributes.get('pubtator_score')) * 1.19, 2)}, "
-                            f"GTEx: {round(float(_instance_attributes.get('gtex_score')) * 0.6, 2)}, "
-                            f"PsyMuKB: {round(float(_instance_attributes.get('denovo_rank_score')) * 0.65, 2)}, "
-                            f"DisGeNET: {round(float(_instance_attributes.get('disgenet_score')) * 1.66, 2)}, "
-                            f"MGI: {round(float(_instance_attributes.get('mgi_score')) * 0.97, 2)}, "
-                            f"STRING: {round(float(_instance_attributes.get('string_score')) * 0.98, 2)}",
+                dbc.Tooltip(f"weighted sum from PubTator: {round(float(_instance_attributes.get('pubtator_score')) * 1.19, 2)} [max 1.19], "
+                            f"GTEx: {round(float(_instance_attributes.get('gtex_score')) * 0.6, 2)} [max 0.6], "
+                            f"PsyMuKB: {round(float(_instance_attributes.get('denovo_rank_score')) * 0.65, 2)} [max 0.65], "
+                            f"DisGeNET: {round(float(_instance_attributes.get('disgenet_score')) * 1.66, 2)} [max 1.66], "
+                            f"MGI: {round(float(_instance_attributes.get('mgi_score')) * 0.97, 2)} [max 0.97], "
+                            f"STRING: {round(float(_instance_attributes.get('string_score')) * 0.98, 2)} [max 0.98]",
                             target="gene_plausibility_explanation")
             ]
             description_tooltips = [
