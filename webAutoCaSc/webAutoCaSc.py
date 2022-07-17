@@ -175,8 +175,9 @@ variant_input_card = html.Div(
             autoFocus=True
         ),
         dcc.Markdown('''Although HGVS might work in some cases, we recommend using VCF format.\t
-                     Examples: [11:94730916:A:C](/search/inheritance%3Dde_novo/variants%3D11%3A94730916%3AA%3AC), 
-                     [X:101409056:A:C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC), 
+                     Examples: [chr12-121987483-AT-A](/search/inheritance%3Dad_inherited/variants%3D12%3A121987483%3AAT%3AA), 
+                     [11:94730916:A:C](/search/inheritance%3Dde_novo/variants%3D11%3A94730916%3AA%3AC), 
+                     [X-101409056-A-C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC), 
                      [ENST00000378402.5:c.4966G>A](/search/inheritance%3Dhomo/variants%3DENST00000378402.5%3Ac.4966G%3EA)
                      ''',
                      style={"fontSize": "12px",
