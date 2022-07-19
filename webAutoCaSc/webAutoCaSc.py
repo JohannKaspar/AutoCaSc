@@ -174,11 +174,13 @@ variant_input_card = html.Div(
             placeholder="e.g. chrX-12345-T-C",
             autoFocus=True
         ),
-        dcc.Markdown('''Although HGVS might work in some cases, we recommend using VCF format.\t
+        dcc.Markdown('''Although HGVS might work in some cases, we recommend using VCF format. 
                      Examples: [chr12-121987483-AT-A](/search/inheritance%3Dad_inherited/variants%3D12%3A121987483%3AAT%3AA), 
                      [11:94730916:A:C](/search/inheritance%3Dde_novo/variants%3D11%3A94730916%3AA%3AC), 
-                     [X-101409056-A-C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC), 
-                     [ENST00000378402.5:c.4966G>A](/search/inheritance%3Dhomo/variants%3DENST00000378402.5%3Ac.4966G%3EA)
+                     [X-101409056-A-C](/search/inheritance%3Dx_linked/variants%3DX%3A101409056%3AA%3AC),
+                     [NC_000005.9:g.65466513_65466516del](/search/inheritance%3Dde_novo/variants%3DNC_000005.9%3Ag.65466513_65466516del), 
+                     [ENST00000378402.5:c.4966G>A](/search/inheritance%3Dhomo/variants%3DENST00000378402.5%3Ac.4966G%3EA),
+                     [NM_012285.3:c.2946C>A](/search/inheritance%3Dunknown/variants%3DNM_012285.3%3Ac.2946C>A)
                      ''',
                      style={"fontSize": "12px",
                             "marginTop": "10px"})
@@ -404,8 +406,10 @@ faq_ger = html.Div(
             
             __Wie annotiert AutoCaSc?__  
             AutoCaSc verwendet VEP hg19 Endpunkte. Zurzeit ist hg38 nicht unterstützt. Verschiedene Tools wie 
-            VariantValidator (https://variantvalidator.org/) stehen zur Verfügung, um hg38 Variant zu hg19 zu übersetzen
-            .
+            VariantValidator (https://variantvalidator.org/) stehen zur Verfügung, um hg38 Variant zu hg19 zu 
+            übersetzen. Alle wichtigen genomischen Eingabeformate wie die Notation im VCF-Format und die HGVS 
+            g.-Notation werden unterstützt. Bei Verwendung anderer Transkript-Systemen (außer ensembl), wie z.B. 
+            RefSeq kann es zu vereinzelten Inkompatibilitäten mit entsprechender Fehlermedlung kommen.
 
             __Wie kann man mehrere (compound heterozygote) Variaten eingeben?__  
             Mehrere Varianten können eingegeben werden, indem sie durch ein Komma getrennt werden. Wenn "compound 
@@ -476,7 +480,9 @@ faq_eng = html.Div(
             __How does AutoCaSc annotate?__  
             AutoCaSc uses the VEP API for hg19, as currently this seems to be the most commonly used reference genome. 
             By now, hg38 is not supported. You can use tools like VariantValidator (https://variantvalidator.org/) to 
-            translate your hg38 variants to hg19.
+            translate your hg38 variants to hg19. All major genomic input formats like VCF format style notation and 
+            HGVS g.-style notation are supported for hg19. In some cases incompatibility can occur when using 
+            RefSeq transcripts, which is then displayed as an error. We recommend using the VCF format.
             
             __How can I enter multiple (compound heterogyous) variants?__  
             Just enter all your variants of interest by separating them by a comma. If "compound heterozygous" is 
