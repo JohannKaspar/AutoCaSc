@@ -508,7 +508,8 @@ faq_eng = html.Div(
             __When is a score high?__  
             The maximum score is 15. To give a better feeling if a candidate score is high, a tooltip has been 
             implemented, which is displayed when the mouse pointer hovers over the result. The tooltip shows what 
-            percentage of candidates evaluated at the Institute of Human Genetics in Leipzig achieved an equal or lower score.
+            percentage of candidates evaluated at the Institute of Human Genetics in Leipzig achieved an equal or lower 
+            score.
             
             __What does _webAutoCaSc_ stand for?__  
             _AutoCaSc_ stands for __Auto__mated __Ca__ndidate __Sc__ore. We use the __web__ prefix to distinguish the 
@@ -891,11 +892,7 @@ app.validation_layout = html.Div([
     tutorial_page,
     footer,
     dbc.Button(id="collapse_button_transcripts"),
-    dbc.Collapse(id="collapse_transcripts"),
-    dbc.Tabs(
-        id="card_tabs",
-        active_tab=None
-    )
+    dbc.Collapse(id="collapse_transcripts")
 ])
 
 
@@ -2044,7 +2041,7 @@ def download_button_click(n_cklicks, results_memory, transcripts_to_use):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True,
+    app.run_server(debug=False,
                    dev_tools_hot_reload=True,
                    host='0.0.0.0',
                    port=5000
