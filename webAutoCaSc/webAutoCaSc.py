@@ -94,8 +94,8 @@ footer = dbc.Navbar(
                                             style={"color": "#ffffff"}),
                                 align="center",
                                 width="auto"),
-                        dbc.Col(dbc.NavLink("Manuscript preprint",
-                                            href="https://www.authorea.com/users/479253/articles/567112-autocasc-prioritizing-candidate-genes-for-neurodevelopmental-disorders",
+                        dbc.Col(dbc.NavLink("Our Paper",
+                                            href="https://onlinelibrary.wiley.com/doi/10.1002/humu.24451",
                                             target="_blank",
                                             style={"color": "#ffffff"}),
                                 align="center",
@@ -229,6 +229,14 @@ landing_page = dbc.Container(
                     style={"paddingBottom": "10px"}
                 )
             ]
+        ),
+
+        html.Br(),
+        dbc.Row(
+            dcc.Markdown(
+                """**Reference**:  
+                J. Lieberwirth, B. Büttner, C. Klöckner, K. Platzer, B. Popp, R. Abou Jamra. (2022). [AutoCaSc: Prioritizing candidate genes for neurodevelopmental disorders](https://onlinelibrary.wiley.com/doi/10.1002/humu.24451)"""
+            )
         )
     ]
 )
@@ -411,6 +419,9 @@ faq_ger = html.Div(
             g.-Notation werden unterstützt. Bei Verwendung anderer Transkript-Systemen (außer ensembl), wie z.B. 
             RefSeq kann es zu vereinzelten Inkompatibilitäten mit entsprechender Fehlermedlung kommen.
 
+            __Wie kann AutoCaSc zitiert werden?__  
+            J. Lieberwirth, B. Büttner, C. Klöckner, K. Platzer, B. Popp, R. Abou Jamra. (2022). [AutoCaSc: Prioritizing candidate genes for neurodevelopmental disorders](https://onlinelibrary.wiley.com/doi/10.1002/humu.24451)  
+            
             __Wie kann man mehrere (compound heterozygote) Variaten eingeben?__  
             Mehrere Varianten können eingegeben werden, indem sie durch ein Komma getrennt werden. Wenn "compound 
             heterozygous" ausgewählt ist, findet webAutoCaSc automatisch Varianten im gleichen Gen und verarbeitet diese
@@ -483,6 +494,10 @@ faq_eng = html.Div(
             translate your hg38 variants to hg19. All major genomic input formats like VCF format style notation and 
             HGVS g.-style notation are supported for hg19. In some cases incompatibility can occur when using 
             RefSeq transcripts, which is then displayed as an error. We recommend using the VCF format.
+            
+            __How can AutoCaSc be cited?__  
+            If you like to cite AutoCaSc, please refer to our paper:  
+            J. Lieberwirth, B. Büttner, C. Klöckner, K. Platzer, B. Popp, R. Abou Jamra. (2022). [AutoCaSc: Prioritizing candidate genes for neurodevelopmental disorders](https://onlinelibrary.wiley.com/doi/10.1002/humu.24451)  
             
             __How can I enter multiple (compound heterogyous) variants?__  
             Just enter all your variants of interest by separating them by a comma. If "compound heterozygous" is 
@@ -751,12 +766,16 @@ news_page = dbc.Container(
         html.Br(),
         html.Div(
             [
-                html.P(
-                    [
-                        "Our manuscript is available as a preprint at ",
-                        html.A(html.B("Authorea"), href="https://www.authorea.com/users/479253/articles/567112-autocasc-prioritizing-candidate-genes-for-neurodevelopmental-disorders"),
-                        "."
-                    ]
+                dcc.Markdown(
+                    """**29.08.2022**  
+                    Our paper has been published and can be found here: [AutoCaSc: Prioritizing candidate genes for neurodevelopmental disorders](https://onlinelibrary.wiley.com/doi/10.1002/humu.24451).
+                    """
+                ),
+                html.Hr(),
+                dcc.Markdown(
+                    """**20.06.2022**  
+                    Our manuscript is available as a preprint at [Authorea](https://www.authorea.com/users/479253/articles/567112-autocasc-prioritizing-candidate-genes-for-neurodevelopmental-disorders).
+                    """
                 )
             ],
             id="faq_text")
